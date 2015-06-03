@@ -106,49 +106,49 @@ static void encodeType1Message(const char* maidenhead4, uint8_t power) {
 static const int8_t powerSomething[] = { 0, -1, 1, 0, -1, 2, 1, 0, -1, 1 };
 static void encodeType3Message(const char* maidenhead6, int8_t power) {
 
-	char rotatedMaidenhead[7];
+  	char rotatedMaidenhead[7];
 	for (uint8_t i = 1; i < 6; i++)
 		rotatedMaidenhead[i - 1] = maidenhead6[i];
 	rotatedMaidenhead[5] = maidenhead6[0];
 	rotatedMaidenhead[6] = 0;
 
-	uint64_t N = hash(MY_CALLSIGN, strlen(MY_CALLSIGN));
-	trace_printf("Rotated MH %s, hashed call %u\n", rotatedMaidenhead, N);
+	uint32_t n1 = encodeCallsign(rotatedMaidenhead);
+	// trace_printf("n1 aka the num value of extended locator is %u\n", n1);
+	n1 = n1<<4;
 
-	N = N << 7; // Was in 15..0 and now in 49..35
-	// data is in bits 27..0. We would like it to be in bits 32..5 so we can easily merge that with the hash.
-	// Or, since we are into int64's already, might as well use bits 40..13 and then put power in 6..12
-	// total : hash in 49..
-	uint64_t M = encodeCallsign(rotatedMaidenhead);
-	M = M << (15 + 7);
+	uint32_t n2 = hash(MY_CALLSIGN, strlen(MY_CALLSIGN));
 
+	//trace_printf("Power initially %d\n",power);
 	if (power > 60)
 		power = 60;
+
 	power += powerSomething[power % 10];
 	power = -(power + 1);
-	uint64_t P = 0x40 | (power & 0x3f);
+	// trace_printf("Power ultimately %d\n", power);
 
-	for (uint8_t i = 0; i < 7; i++) {
-		losslessCompressedBuf[i] = ((uint8_t*) &N)[6 - i]
-				| ((uint8_t*) &M)[6 - i] | ((uint8_t*) &P)[6 - i];
-	}
+	// This is in arithmetic operations, not bitwise!
+	n2 = n2 * 128 + power + 64;
+	// trace_printf("n2 aka shifted callsign plus power is %u\n", n2);
 
-	for (uint8_t i = 0; i < 7; i++) {
-		for (int8_t j = 7; j >= 0; j--) {
-			uint8_t mask = 1 << j;
-			trace_printf("Bit %d, N:%d, M:%d, P:%d, sum:%d\n",
-					i*8 + (7-j),
-					(((uint8_t*) &N)[6 - i] & mask) != 0,
-					(((uint8_t*) &M)[6 - i] & mask) != 0,
-					(((uint8_t*) &P)[6 - i] & mask) != 0,
-					(losslessCompressedBuf[i] & mask) != 0);
-		}
-	}
+	// n2 is in bits 0..21. We move that to 6..27
+	n2 = n2 << (32 - 22 - 4);
 
-	losslessCompressedBuf[7] = 0;   // 14 free in buffer
-	losslessCompressedBuf[8] = 0;   // 22 free in buffer
-	losslessCompressedBuf[9] = 0;   // 30 free in buffer
-	losslessCompressedBuf[10] = 0;  // 31 free in buffer
+	uint8_t* n1split = (uint8_t*) &n1;
+        uint8_t* n2split = (uint8_t*) &n2;
+
+	losslessCompressedBuf[0] = (n1split[3]);
+        losslessCompressedBuf[1] = (n1split[2]);
+        losslessCompressedBuf[2] = (n1split[1]);
+        losslessCompressedBuf[3] = (n1split[0]);
+
+        losslessCompressedBuf[3] |= n2split[3];  // 4 used  and 0 free in buffer
+        losslessCompressedBuf[4] = n2split[2];   // 12 used and 0 free in buffer
+        losslessCompressedBuf[5] = n2split[1];   // 20 used and 0 free in buffer
+        losslessCompressedBuf[6] = n2split[0];   // 22 used and 6 free in buffer
+        losslessCompressedBuf[7] = 0;   // 14 free in buffer
+        losslessCompressedBuf[8] = 0;   // 22 free in buffer                                                        
+        losslessCompressedBuf[9] = 0;   // 30 free in buffer                                                         
+        losslessCompressedBuf[10] = 0;  // 31 free in buffer                  	
 }
 
 static inline uint8_t getBit(uint8_t* buf, uint8_t index);
@@ -241,16 +241,29 @@ static uint8_t bitReverse(uint8_t v) {
 	return result;
 }
 
+static uint8_t fasterBitReverse(uint8_t v) {
+  uint8_t r = v; // r will be reversed bits of v; first get LSB of v
+  int s = 7; // extra shift needed at end
+  
+  for (v >>= 1; v; v >>= 1)
+    {   
+      r <<= 1;
+      r |= v & 1;
+      s--;
+    }
+  return r << s; // shift when v's highest bits are zero
+}
+
 static void interleave() {
-	uint8_t p = 0;
-	for (uint16_t i = 0; i < 256; i++) {
-		uint8_t j = bitReverse(i);
-		if (j < 162) {
-			uint8_t value = getBit(convolutionalBuf, p);
-			setBit(interleavedbuf, j, value);
-			p++;
-		}
-	}
+  uint8_t p = 0;
+  for (uint16_t i = 0; i < 256; i++) {
+    uint8_t j = fasterBitReverse(i);
+    if (j < 162) {
+      uint8_t value = getBit(convolutionalBuf, p);
+      setBit(interleavedbuf, j, value);
+      p++;
+    }
+  }
 }
 
 static const uint8_t SYNC_VECTOR[162] = { 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1,
@@ -315,6 +328,5 @@ void prepareWSPRMessage(uint8_t type) {
 		prepareType3Transmission(maidenhead, WSPR_POWER_LEVEL);
 		break;
 	}
-
-	trace_printf("WSPR prepared. maidenhead: %s\n", maidenhead);
+	trace_printf("Maidenhead: %s\n", maidenhead);
 }

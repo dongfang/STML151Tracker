@@ -132,11 +132,11 @@ int main() {
 	}
 
 	trace_printf("Waiting for position\n");
-	GPS_waitForPosition(10000);
+	GPS_waitForPosition(180000);
 
 	// A very good position is a luxury that we don't care too much about.
 	trace_printf("Waiting for HP position\n");
-	GPS_waitForPrecisionPosition(10000);
+	GPS_waitForPrecisionPosition(180000);
 
 	// Finito with GPS. Well we might want to have a position too.
 	GPS_shutdown();
@@ -198,6 +198,8 @@ int main() {
 		if (lastCorrection > 1500) lastCorrection = 1500;
 		else if (lastCorrection < -1500) lastCorrection = -1500;
 
+		prepareWSPRMessage(wsprMessageType);
+
 		do {
 			RTC_GetTime(RTC_HourFormat_24, &rtcTime);
 		}
@@ -207,7 +209,6 @@ int main() {
 		trace_printf("WSPR at %02u:%02u:%02u\n",
 				rtcTime.RTC_Hours, rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
 
-		prepareWSPRMessage(wsprMessageType);
 		WSPR_TransmitCycle( band, bestSetting, lastCorrection, stepModulation);
 
 		trace_printf("End WSPR!\n");

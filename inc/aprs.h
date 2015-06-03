@@ -18,8 +18,6 @@
 #ifndef __APRS_H__
 #define __APRS_H__
 
-#include <avr/pgmspace.h>
-
 struct APRS_PARAM {
 	char name[8];
 	char unit[8];

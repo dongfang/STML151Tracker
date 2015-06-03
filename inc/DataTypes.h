@@ -30,6 +30,12 @@ extern const uint8_t MY_SSID;
 extern const char* AX25_DEST_CALLSIGN;
 extern const uint8_t AX25_DEST_SSID;
 
+extern const char* DIGI_PATH1;
+extern const uint8_t DIGI_PATH1_TTL;
+
+extern const char* DIGI_PATH2;
+extern const uint8_t DIGI_PATH2_TTL;
+
 extern const uint8_t WSPR_POWER_LEVEL;
 
 extern const CDCEL913_PLL_Setting_t *PLL_SETTINGS[];

@@ -12,8 +12,15 @@ const int32_t WSPRFrequencies[] = {10140200, 28126100};
 
 const char* MY_CALLSIGN = "HB9FDK";
 const uint8_t MY_SSID = 11;
+
 const char* AX25_DEST_CALLSIGN = "";
 const uint8_t AX25_DEST_SSID = 0;
+
+const char* DIGI_PATH1;
+const uint8_t DIGI_PATH1_TTL;
+
+const char* DIGI_PATH2;
+const uint8_t DIGI_PATH2_TTL;
 
 const uint8_t WSPR_POWER_LEVEL = 10;
 

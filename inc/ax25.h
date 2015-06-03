@@ -19,8 +19,8 @@
 #define __AX25_H__
 
 #include <stdint.h>
+#include "DataTypes.h"
 #define TX_DELAY 75
-
 
 void ax25_send_header(const AX25_Address_t *addresses, int num_addresses);
 void ax25_send_byte(uint8_t byte);
@@ -28,8 +28,7 @@ void ax25_send_string(const char *string);
 void ax25_send_footer();
 void ax25_flush_frame();
 
-const unsigned int MAX_PACKET = 512;  // bytes
-
+#define MAX_PACKET 512
 extern volatile uint8_t packet[MAX_PACKET];
 extern volatile uint16_t packet_size;
 extern volatile uint16_t packet_cnt;

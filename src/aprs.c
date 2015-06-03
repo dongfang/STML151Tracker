@@ -176,7 +176,6 @@ uint8_t compressPosition(float lat, float lon, float alt, char* out) {
 
 void sendCompressedMessage(float alt, float climb, float temperature, uint16_t turbulence) {
 	static int seq;
-	static float angle;
 	uint16_t vals[] = {
 			1,//(uint16_t)climb,
 			2,//(uint16_t)(temperature*10),
@@ -203,15 +202,7 @@ void sendCompressedMessage(float alt, float climb, float temperature, uint16_t t
 	if (seq > 8280) {
 		seq = 0;
 	}
-	angle += 0.01745329251994;
-	if (angle > M_2_PI) angle = 0;
 	temp[end] = 0;
-
-#ifdef DEBUG
-	printf(temp);
-	printf_P(PSTR("\r\n"));
-	printf_P(PSTR("seq: %d\r\n"), seq);
-#endif
 
 	ax25_send_string(temp);
 	ax25_send_footer();
@@ -262,7 +253,7 @@ void aprs_coefficientsMessage(char* out) {
 			else
 				needsComma = 1;
 			float p = APRS_PARAMS[i].coeff[j];
-			i += sprintf(out + i, "f", p);
+			i += sprintf(out + i, "%f", p);
 		}
 	}
 }
@@ -329,8 +320,7 @@ void aprs_uncompressedPositionMessage(long pressure, float altitude,
 */
 
 // Exported functions
-void aprs_statusMessage(uint16_t sequence, float altitude, float climb,
-		float temperature, uint16_t turbulence) {
+void aprs_statusMessage(uint16_t sequence, float altitude, float climb, float temperature, uint16_t turbulence) {
 	char temp[12];                   // Temperature (int/ext)
 	const AX25_Address_t addresses[] = { { AX25_DEST_CALLSIGN, AX25_DEST_SSID }, // Destination callsign
 			{ MY_CALLSIGN, MY_SSID }, // Source callsign (-11 = balloon, -9 = car)
