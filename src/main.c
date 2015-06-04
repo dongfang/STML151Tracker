@@ -76,137 +76,137 @@ void diagsWhyReset() {
 }
 
 int main() {
-	/*!< At this stage the microcontroller clock setting is already configured,
-	 this is done through SystemInit() function which is called from startup
-	 file (startup_stm32l1xx_xx.s) before to branch to application main.
-	 To reconfigure the default setting of SystemInit() function, refer to
-	 system_stm32l1xx.c file
-	 */
+  /*!< At this stage the microcontroller clock setting is already configured,
+    this is done through SystemInit() function which is called from startup
+    file (startup_stm32l1xx_xx.s) before to branch to application main.
+    To reconfigure the default setting of SystemInit() function, refer to
+    system_stm32l1xx.c file
+  */
+  
+  uint32_t bkup = RTC_ReadBackupRegister(RTC_BKP_DR0);
+  trace_printf("BKUP was %u\n", bkup);
+  RTC_WriteBackupRegister(RTC_BKP_DR0, bkup + 1);
+  
+  GPIO_InitTypeDef GPIO_InitStructure;
+  
+  /* GPIOA and B Periph clock enable */
+  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+  
+  /* Configure PD0 and PD1 or PD3 and PD7 in output pushpull mode */
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_0;
+  
+  // The 1 LED port
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+  GPIO_Init(GPIOB, &GPIO_InitStructure);
 
-	uint32_t bkup = RTC_ReadBackupRegister(RTC_BKP_DR0);
-	trace_printf("BKUP was %u\n", bkup);
-	RTC_WriteBackupRegister(RTC_BKP_DR0, bkup + 1);
+  // LED on (portB.6) .. the library way to do IO (As opposed to above direct way)
+  GPIO_WriteBit(GPIOB, GPIO_Pin_6, Bit_SET);
+  
+  // Fire up systick
+  timer_start();
+  
+  timer_sleep(2000);
+  trace_printf("Start\r\n");
+  
+  GPS_init();
+  RTC_init();
+  
+  if (GPS_waitForTimelock(300000)) {
+    trace_printf("GPS timelock okay\n");
+    setRTC(&nmeaTimeInfo.date, &nmeaTimeInfo.time);
+  }
+  
+  uint32_t fsys = 0;
+  uint8_t success = getOscillatorCalibration(300000, &fsys);
+  if (!success || fsys < 16E6 - 1600 || fsys > 16E6 + 1600) {
+    // Disregard, it's too absurd a claim of imprecision
+    trace_printf("Unrealistic fsys: status %u, ignore (%u, %u, %u, %u).\n",
+		 (int) fsys, success, 16E6 - 1600, 16E6 + 1600, SystemCoreClock);
+    fsys = 16E6;
+  } else {
+    trace_printf("fsys %u\n", fsys);
+  }
+  
+  trace_printf("Waiting for position\n");
+  GPS_waitForPosition(300000);
+  
+  // A very good position is a luxury that we don't care too much about.
+  trace_printf("Waiting for HP position\n");
+  GPS_waitForPrecisionPosition(300000);
+  
+  // Finito with GPS. Well we might want to have a position too.
+  GPS_shutdown();
 
-	GPIO_InitTypeDef GPIO_InitStructure;
-
-	/* GPIOA and B Periph clock enable */
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
-
-	/* Configure PD0 and PD1 or PD3 and PD7 in output pushpull mode */
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_0;
-
-	// The 1 LED port
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-	GPIO_Init(GPIOB, &GPIO_InitStructure);
-
-	// LED on (portB.6) .. the library way to do IO (As opposed to above direct way)
-	GPIO_WriteBit(GPIOB, GPIO_Pin_6, Bit_SET);
-
-	// Fire up systick
-	timer_start();
-
-	timer_sleep(2000);
-	trace_printf("Start\r\n");
-
-	GPS_init();
-	RTC_init();
-
-	if (GPS_waitForTimelock(300000)) {
-		trace_printf("GPS timelock okay\n");
-		setRTC(&nmeaTimeInfo.date, &nmeaTimeInfo.time);
-	}
-
-	uint32_t fsys = 0;
-	uint8_t success = getOscillatorCalibration(300000, &fsys);
-	if (!success || fsys < 16E6 - 1600 || fsys > 16E6 + 1600) {
-		// Disregard, it's too absurd a claim of imprecision
-		trace_printf("Unrealistic fsys: status %u, ignore (%u, %u, %u, %u).\n",
-				(int) fsys, success, 16E6 - 1600, 16E6 + 1600, SystemCoreClock);
-		fsys = 16E6;
-	} else {
-		trace_printf("fsys %u\n", fsys);
-	}
-
-	trace_printf("Waiting for position\n");
-	GPS_waitForPosition(180000);
-
-	// A very good position is a luxury that we don't care too much about.
-	trace_printf("Waiting for HP position\n");
-	GPS_waitForPrecisionPosition(180000);
-
-	// Finito with GPS. Well we might want to have a position too.
-	GPS_shutdown();
-
-	/*
-	 * 	double modulation[2] = { 0, 0 };
-	 uint16_t count = 0;
-	 *
-	 */
-	RTC_TimeTypeDef rtcTime;
-	double deviationMeasured;
-	double oscillatorFrequencyMeasured;
-
-//	scheduleASAPAlarmInSlot(2);
-
-		CDCEL913_init();
-		CDCEL913_setDirectModeWithDivision(CDCEL_TRIM_PF);
-
-		timer_sleep(100);
-
-		RTC_GetTime(RTC_Format_BIN, &rtcTime);
-
-		trace_printf("Self-cal at %02u:%02u:%02u\n",
-				rtcTime.RTC_Hours, rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
-
-		uint8_t selfCalSuccess = selfCalibrateModulation(
-				20000,
-				fsys,
-				&deviationMeasured,
-				&oscillatorFrequencyMeasured);
-
-		trace_printf("Self-cal success : %u\n", selfCalSuccess);
-		trace_printf("Self-cal deviation PPB : %d\n",
-				(int) (deviationMeasured * 1.0E9));
-		trace_printf("Self-cal osc freq: %d\n",
-				(int) oscillatorFrequencyMeasured);
-
-		double targetFrequency = WSPRFrequencies[band];
-
-		double DACStepsPerHz = SELF_CALIBRATION_MODULATION_AMPL_PP
-				/ (deviationMeasured * targetFrequency);
-
-		double stepModulation = 12000.0 * DACStepsPerHz / 8192.0;
-		trace_printf("%d DAC steps per Hz and %d per WSPR step\n", (int)DACStepsPerHz, (int)stepModulation);
-
-		double desiredMultiplication = targetFrequency / oscillatorFrequencyMeasured;
-		uint8_t bestSettingIndex = CDCEL913_BestSettingIndex(band, desiredMultiplication);
-		const CDCEL913_PLL_Setting_t* bestSetting = &PLL_SETTINGS[band][bestSettingIndex];
-
-		double bestFrequency = bestSetting->mul*oscillatorFrequencyMeasured;
-
-		trace_printf("Best setting found: n=%u N=%u, f=%u\n", bestSettingIndex, bestSetting->N,
-				(uint32_t)bestFrequency);
-
-		int32_t lastCorrection = (targetFrequency - bestFrequency) * DACStepsPerHz;
-
-		trace_printf("Final correction on modulation: %d\n", lastCorrection);
-
-		if (lastCorrection > 1500) lastCorrection = 1500;
-		else if (lastCorrection < -1500) lastCorrection = -1500;
-
-		while(1) {
-		prepareWSPRMessage(wsprMessageType);
-
-		do {
-			RTC_GetTime(RTC_HourFormat_24, &rtcTime);
-		}
-		while((rtcTime.RTC_Minutes %2 != 0) ||
-				rtcTime.RTC_Seconds != 1);
-
+  /*
+   * 	double modulation[2] = { 0, 0 };
+   uint16_t count = 0;
+   *
+   */
+  RTC_TimeTypeDef rtcTime;
+  double deviationMeasured;
+  double oscillatorFrequencyMeasured;
+  
+  //	scheduleASAPAlarmInSlot(2);
+  
+  CDCEL913_init();
+  CDCEL913_setDirectModeWithDivision(CDCEL_TRIM_PF);
+  
+  timer_sleep(100);
+  
+  RTC_GetTime(RTC_Format_BIN, &rtcTime);
+  
+  trace_printf("Self-cal at %02u:%02u:%02u\n",
+	       rtcTime.RTC_Hours, rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
+  
+  uint8_t selfCalSuccess = selfCalibrateModulation(
+						   20000,
+						   fsys,
+						   &deviationMeasured,
+						   &oscillatorFrequencyMeasured);
+  
+  trace_printf("Self-cal success : %u\n", selfCalSuccess);
+  trace_printf("Self-cal deviation PPB : %d\n",
+	       (int) (deviationMeasured * 1.0E9));
+  trace_printf("Self-cal osc freq: %d\n",
+	       (int) oscillatorFrequencyMeasured);
+  
+  double targetFrequency = WSPRFrequencies[band];
+  
+  double DACStepsPerHz = SELF_CALIBRATION_MODULATION_AMPL_PP
+    / (deviationMeasured * targetFrequency);
+  
+  double stepModulation = 12000.0 * DACStepsPerHz / 8192.0;
+  trace_printf("%d DAC steps per Hz and %d per WSPR step\n", (int)DACStepsPerHz, (int)stepModulation);
+  
+  double desiredMultiplication = targetFrequency / oscillatorFrequencyMeasured;
+  uint8_t bestSettingIndex = CDCEL913_BestSettingIndex(band, desiredMultiplication);
+  const CDCEL913_PLL_Setting_t* bestSetting = &PLL_SETTINGS[band][bestSettingIndex];
+  
+  double bestFrequency = bestSetting->mul*oscillatorFrequencyMeasured;
+  
+  trace_printf("Best setting found: n=%u N=%u, f=%u\n", bestSettingIndex, bestSetting->N,
+	       (uint32_t)bestFrequency);
+  
+  int32_t lastCorrection = (targetFrequency - bestFrequency) * DACStepsPerHz;
+  
+  trace_printf("Final correction on modulation: %d\n", lastCorrection);
+  
+  if (lastCorrection > 1500) lastCorrection = 1500;
+  else if (lastCorrection < -1500) lastCorrection = -1500;
+  
+  while(1) {
+    prepareWSPRMessage(wsprMessageType);
+    
+    do {
+      RTC_GetTime(RTC_HourFormat_24, &rtcTime);
+    }
+    while((rtcTime.RTC_Minutes %2 != 0) ||
+	  rtcTime.RTC_Seconds != 1);
+    
 		trace_printf("WSPR at %02u:%02u:%02u\n",
 				rtcTime.RTC_Hours, rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
 

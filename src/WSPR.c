@@ -317,16 +317,16 @@ uint8_t getWSPRSymbol(uint8_t i) {
 }
 
 void prepareWSPRMessage(uint8_t type) {
-	char maidenhead[7];
-	switch (type) {
-	case 1:
-		currentPositionAs4DigitMaidenhead(maidenhead);
-		prepareType1Transmission(maidenhead, WSPR_POWER_LEVEL);
-		break;
-	case 3:
-		currentPositionAs6DigitMaidenhead(maidenhead);
-		prepareType3Transmission(maidenhead, WSPR_POWER_LEVEL);
-		break;
-	}
-	trace_printf("Maidenhead: %s\n", maidenhead);
+  char maidenhead[7];
+  switch (type) {
+  case 1:
+    currentPositionAs4DigitMaidenhead(maidenhead);
+    prepareType1Transmission(maidenhead, WSPR_POWER_LEVEL);
+    break;
+  case 3:
+    currentPositionAs6DigitMaidenhead(maidenhead);
+    prepareType3Transmission(maidenhead, WSPR_POWER_LEVEL);
+    break;
+  }
+  trace_printf("Maidenhead: %s\n", maidenhead);
 }
