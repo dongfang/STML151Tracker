@@ -130,9 +130,9 @@ void ax25_send_footer() {
 	ax25_send_flag();
 }
 
+// No need of this.
 void ax25_flush_frame() {
 	// Key the transmitter and send the frame
-	afsk_send(packet, packet_size);
-	afsk_start();
+  //	afsk_send(packet, packet_size);
+	AFSK_startTransmission();
 }
-

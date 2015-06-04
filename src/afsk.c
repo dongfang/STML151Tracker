@@ -71,7 +71,7 @@ volatile static uint32_t sample_overruns = 0;
 // The radio (class defined in config.h)
 static RadioRF24 radio;
 
-volatile static unsigned int afsk_packet_size = 0;
+volatile static uint16_t afsk_packet_size = 0;
 volatile static const uint8_t *afsk_packet;
 
 extern void measureLoadedVoltage();

@@ -166,15 +166,12 @@ uint8_t compressPosition(float lat, float lon, float alt, char* out) {
 #endif
 
 	alt = log(alt) / log(1.002);
-
 	base91encode2char(alt, out + 10);
-
 	out[12] = 0b110101 + 33;
-
 	return 13;
 }
 
-void sendCompressedMessage(float alt, float climb, float temperature, uint16_t turbulence) {
+void sendCompressedMessage(float alt, float climb, float temperature) {
 	static int seq;
 	uint16_t vals[] = {
 			1,//(uint16_t)climb,
@@ -320,7 +317,7 @@ void aprs_uncompressedPositionMessage(long pressure, float altitude,
 */
 
 // Exported functions
-void aprs_statusMessage(uint16_t sequence, float altitude, float climb, float temperature, uint16_t turbulence) {
+void aprs_statusMessage(uint16_t sequence, float altitude, float climb, float temperature) {
 	char temp[12];                   // Temperature (int/ext)
 	const AX25_Address_t addresses[] = { { AX25_DEST_CALLSIGN, AX25_DEST_SSID }, // Destination callsign
 			{ MY_CALLSIGN, MY_SSID }, // Source callsign (-11 = balloon, -9 = car)
@@ -353,11 +350,6 @@ void aprs_statusMessage(uint16_t sequence, float altitude, float climb, float te
 		i_temperature_decimal = -i_temperature_decimal;
 	sprintf(temp, ",%d.%d", i_temperarure, i_temperature_decimal);
 	ax25_send_string(temp);
-#ifdef USE_MOTION_SENSOR
-	sprintf_P(temp, PSTR(",%u"), turbulence);
-	ax25_send_string(temp);
-#endif
-
 	ax25_send_footer();
 	ax25_flush_frame();                 // Tell the modem to go
 
@@ -365,17 +357,9 @@ void aprs_statusMessage(uint16_t sequence, float altitude, float climb, float te
 printf_P(PSTR("marshalled.\r\n"));
 serial0.flush();
 #endif
-
 }
 
 // Exported functions
-#ifdef USE_MOTION_SENSOR
-void aprs_send(uint16_t sequence, float altitude, float climb, float temperature, uint16_t turbulence) {
-	aprs_statusMessage(sequence, altitude, climb, temperature, turbulence);
-	//sendCompressedMessage(altitude, climb, temperature);
-}
-#else
 void aprs_send(uint16_t sequence, float altitude, float climb, float temperature) {
-	aprs_statusMessage(sequence, altitude, climb, temperature, -1);
+	aprs_statusMessage(sequence, altitude, climb, temperature);
 }
-#endif

@@ -151,7 +151,7 @@ int main() {
 	double oscillatorFrequencyMeasured;
 
 //	scheduleASAPAlarmInSlot(2);
-	while (1) {
+
 		CDCEL913_init();
 		CDCEL913_setDirectModeWithDivision(CDCEL_TRIM_PF);
 
@@ -198,6 +198,7 @@ int main() {
 		if (lastCorrection > 1500) lastCorrection = 1500;
 		else if (lastCorrection < -1500) lastCorrection = -1500;
 
+		while(1) {
 		prepareWSPRMessage(wsprMessageType);
 
 		do {
@@ -218,6 +219,9 @@ int main() {
 
 		// band = 1-band;
 		wsprMessageType = 4 - wsprMessageType; // Toggle between 1 and 3
+
+		if (wsprMessageType == 3)
+		  WSPR_POWER_LEVEL++;// possible to send them all even in Type3?
 	}
 }
 

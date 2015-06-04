@@ -24,6 +24,13 @@ typedef struct {
 	uint8_t ssid;
 } AX25_Address_t;
 
+enum FAKE_EXTENDED_LOCATION {
+  REAL_EXTENDED_LOCATION = 0,
+  SUPERFINE_EXTENDED_LOCATION = 1,
+  TELEMETRY1 = 2,
+  TELEMETRY2 = 3
+};
+
 extern const char* MY_CALLSIGN;
 extern const uint8_t MY_SSID;
 
@@ -36,11 +43,14 @@ extern const uint8_t DIGI_PATH1_TTL;
 extern const char* DIGI_PATH2;
 extern const uint8_t DIGI_PATH2_TTL;
 
-extern const uint8_t WSPR_POWER_LEVEL;
+extern uint8_t WSPR_POWER_LEVEL;
 
 extern const CDCEL913_PLL_Setting_t *PLL_SETTINGS[];
 extern const int32_t WSPRFrequencies[] ;
 
 uint8_t CDCEL913_BestSettingIndex(uint8_t band, double desiredMultiplication);
+
+#define true 1
+#define false 0
 
 #endif /* DATATYPES_H_ */

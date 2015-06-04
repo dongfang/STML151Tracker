@@ -9,6 +9,7 @@
 #include <diag/Trace.h>
 #include "systick.h"
 
+	// PA1, PA2 and PB15 are analog inputs
 /*
 void initADC() {
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
@@ -45,6 +46,8 @@ void initADC() {
 }
 */
 
+/*
+Seems unused.
 void initDAC() {
 	// Init the DAC-OUT pin
 	GPIO_InitTypeDef GPIO_InitStructureIn;
@@ -59,9 +62,7 @@ void initDAC() {
 	DAC_init.DAC_OutputBuffer = DAC_OutputBuffer_Enable;
 
 	DAC_DHR12R1_DACC1DHR;
-
 	DAC_Init(0, &GPIO_InitStructureIn);
-
-	// PA1, PA2 and PB15 are analog inputs
 }
+*/
 

@@ -255,7 +255,7 @@ uint8_t selfCalibrateModulation(
 		double* deviationMeasured,
 		double* oscillatorFrequencyMeasured) {
 
-	setupChannel2DAC();
+	setupChannel2DACForWSPR();
 	modulationCalibration_Config();
 
 	uint8_t offset = 0;

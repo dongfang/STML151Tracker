@@ -8,8 +8,14 @@
 #ifndef DAC_H_
 #define DAC_H_
 
+// WSPR stuff - no DMA.
 // Setup DAC ch 2 but leave Ch1 floating
-void setupChannel2DAC();
+void setupChannel2DACForWSPR();
 void setDAC2(uint16_t value);
+
+// AFSK stuff - uses DMA
+void AFSK_init();
+void AFSK_shutdown();
+void AFSK_startTransmission();
 
 #endif /* DAC_H_ */

@@ -11,7 +11,7 @@
 #include <diag/Trace.h>
 
 static volatile int16_t staticCorrection;
-static volatile int16_t symbolModulation;
+static volatile float symbolModulation;
 static volatile uint8_t symbolNumber;
 static uint8_t symbolNumberChangeDetect;
 
@@ -23,12 +23,11 @@ extern void WSPR_PLLinit(uint8_t output, const CDCEL913_PLL_Setting_t* setting);
 void TIM2_IRQHandler(void) {
 	if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET) {
 		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
-		uint16_t dacData = getWSPRSymbol(symbolNumber) * symbolModulation + 2048 + staticCorrection - 1.5*symbolModulation;
+		uint16_t dacData = (uint16_t)(getWSPRSymbol(symbolNumber) * symbolModulation + 2048 + staticCorrection - 1.5*symbolModulation + 0.5);
 
-		DAC_SetChannel2Data(DAC_Align_12b_R, dacData);
-		DAC_SoftwareTriggerCmd(DAC_Channel_2, ENABLE);
+		setDAC2(dacData);
+
 		if (symbolNumber < 162) {
-			//trace_printf("Symbol %d:%d\n", symbolNumber, getWSPRSymbol(symbolNumber));
 			symbolNumber++;
 		} else {
 			trace_printf("WSPR end\n");
@@ -86,7 +85,7 @@ void setupInterruptDrivenWSPROut(uint8_t band, const CDCEL913_PLL_Setting_t* set
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVIC_InitStructure);
 
-	setupChannel2DAC();
+	setupChannel2DACForWSPR();
 
 	TIM_Cmd(TIM2, ENABLE);
 }

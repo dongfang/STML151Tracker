@@ -22,7 +22,7 @@ const uint8_t DIGI_PATH1_TTL;
 const char* DIGI_PATH2;
 const uint8_t DIGI_PATH2_TTL;
 
-const uint8_t WSPR_POWER_LEVEL = 10;
+uint8_t WSPR_POWER_LEVEL = 0;
 
 const CDCEL913_PLL_Setting_t settingsFor30m[] = {
 		{0.3899159663865546,232,2,17,26,18},

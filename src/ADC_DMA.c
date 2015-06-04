@@ -4,72 +4,17 @@
  *  Created on: May 14, 2015
  *      Author: dongfang
  */
-/**
- ******************************************************************************
- * @file    ADC/ADC1_DMA/main.c
- * @author  MCD Application Team
- * @version V1.1.1
- * @date    13-April-2012
- * @brief   Main program body
- ******************************************************************************
- * @attention
- *
- * <h2><center>&copy; COPYRIGHT 2012 STMicroelectronics</center></h2>
- *
- * Licensed under MCD-ST Liberty SW License Agreement V2, (the "License");
- * You may not use this file except in compliance with the License.
- * You may obtain a copy of the License at:
- *
- *        http://www.st.com/software_license_agreement_liberty_v2
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- ******************************************************************************
- */
+
 /* Includes ------------------------------------------------------------------*/
 #include "ADC_DMA.h"
 
-/** @addtogroup STM32L1xx_StdPeriph_Examples
- * @{
- */
-
-/** @addtogroup ADC1_DMA
- * @{
- */
-
-/* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define ADC1_DR_ADDRESS    ((uint32_t)0x40012458)
 
-/* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 __IO uint16_t ADC_ConvertedValue;
 
-/**
- * @brief  Main program
- * @param  None
- * @retval None
-int main(void) {
-	/ *!< At this stage the microcontroller clock setting is already configured,
-	 this is done through SystemInit() function which is called from startup
-	 file (startup_stm32l1xx_xx.s) before to branch to application main.
-	 To reconfigure the default setting of SystemInit() function, refer to
-	 system_stm32l1xx.c file
-	 * /
-	/ * ADC1 channel18 configuration using DMA1 channel1 * /
-	ADC_DMA_Config();
-
-	while (1) {
-	}
-}
-*/
-
-/**
- * @brief  Configure the ADC1 channel18 using DMA channel1.
+/* @brief  Configure the ADC1 channel18 using DMA channel1.
  * @param  None
  * @retval None
  */
@@ -146,5 +91,3 @@ void ADC_DMA_Config(void) {
 	/* Start ADC1 Software Conversion */
 	ADC_SoftwareStartConv(ADC1);
 }
-
-
