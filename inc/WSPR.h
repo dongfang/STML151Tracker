@@ -9,8 +9,9 @@
 #define WSPR_H_
 
 #include <stdint.h>
+#include "DataTypes.h"
 
-void prepareWSPRMessage(uint8_t type);
+void prepareWSPRMessage(uint8_t type, FAKE_EXTENDED_LOCATION_t extendedFake, uint8_t powerLevel);
 uint8_t WSPRDidUpdate();
 uint8_t WSPREnded();
 void WSPR_stop();

@@ -199,7 +199,7 @@ int main() {
 		else if (lastCorrection < -1500) lastCorrection = -1500;
 
 		while(1) {
-		prepareWSPRMessage(wsprMessageType);
+		  prepareWSPRMessage(wsprMessageType, REAL_EXTENDED_LOCATION, 10);
 
 		do {
 			RTC_GetTime(RTC_HourFormat_24, &rtcTime);

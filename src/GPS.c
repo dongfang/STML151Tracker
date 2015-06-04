@@ -191,37 +191,6 @@ uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) {
 	}
 }
 
-void positionAs4DigitMaidenhead(double lat, double lon, char* target) {
-	lon = lon + 180;
-	lat = lat + 90;
-	target[0] = 'A' + (int) lon / 20;
-	target[1] = 'A' + (int) lat / 10;
-	target[2] = '0' + (int) (fmod(lon, 20) / 2);
-	target[3] = '0' + (int) (fmod(lat, 10));
-}
-
-void currentPositionAs4DigitMaidenhead(char* target) {
-	positionAs4DigitMaidenhead(nmeaPositionInfo.lat, nmeaPositionInfo.lon, target);
-	target[4] = 0;
-}
-
-void positionAs6DigitMaidenhead(double lat, double lon, char* target) {
-	lon = lon + 180;
-	lat = lat + 90;
-	target[0] = 'A' + (int) lon / 20;
-	target[1] = 'A' + (int) lat / 10;
-	target[2] = '0' + (int) (fmod(lon, 20) / 2);
-	target[3] = '0' + (int) (fmod(lat, 10));
-	target[4] = 'a' + (int) ((lon - (int) (lon / 2) * 2) * 12);
-	target[5] = 'a' + (int) ((lat - (int) (lat)) * 24);
-}
-
-void currentPositionAs6DigitMaidenhead(char* target) {
-	positionAs6DigitMaidenhead(nmeaPositionInfo.lat, nmeaPositionInfo.lon, target);
-	target[6] = 0;
-}
-
-
 MessageState latestGPSState = CONSUMED;
 
 /*

@@ -1,6 +1,7 @@
 #include <diag/Trace.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 #include "stm32l1xx_conf.h"
 #include "DataTypes.h"
 #include "GPS.h"
@@ -298,14 +299,100 @@ void completeMessage() {
 	makeSymbolList();
 }
 
-void prepareType1Transmission(const char* maidenhead4, uint8_t power) {
-	encodeType1Message(maidenhead4, power);
-	completeMessage();
+void positionAs4DigitMaidenhead(double lat, double lon, char* target) {
+	lon = lon + 180;
+	lat = lat + 90;
+	target[0] = 'A' + (int) lon / 20;
+	target[1] = 'A' + (int) lat / 10;
+	target[2] = '0' + (int) (fmod(lon, 20) / 2);
+	target[3] = '0' + (int) (fmod(lat, 10));
 }
 
-void prepareType3Transmission(const char* maidenhead6, uint8_t power) {
-	encodeType3Message(maidenhead6, power);
-	completeMessage();
+void currentPositionAs4DigitMaidenhead(char* target) {
+	positionAs4DigitMaidenhead(nmeaPositionInfo.lat, nmeaPositionInfo.lon, target);
+	target[4] = 0;
+}
+
+void positionAs6DigitMaidenhead(double lat, double lon, char* target) {
+	lon = lon + 180;
+	lat = lat + 90;
+	target[0] = 'A' + (int) lon / 20;
+	target[1] = 'A' + (int) lat / 10;
+	target[2] = '0' + (int) (fmod(lon, 20) / 2);
+	target[3] = '0' + (int) (fmod(lat, 10));
+	target[4] = 'a' + (int) ((lon - (int) (lon / 2) * 2) * 12);
+	target[5] = 'a' + (int) ((lat - (int) (lat)) * 24);
+}
+
+void currentPositionAs6DigitMaidenhead(char* target) {
+  positionAs6DigitMaidenhead(nmeaPositionInfo.lat, nmeaPositionInfo.lon, target);
+  target[6] = 0;
+}
+
+void positionAsMaidenheadSuperfine(double lat, double lon, char* target) {
+  lon = lon + 180;
+  lat = lat + 90;
+  target[0] = 'A' + (int) lon / 20;
+  target[1] = 'A' + (int) lat / 10;
+  target[2] = '0' + (int) (fmod(lon, 20) / 2);
+  target[3] = '0' + (int) (fmod(lat, 10));
+  
+  // = (lon - (lon fmod 2)) * 12, resolution is 1/12 degree (of which we lose half because faking)
+  // target[4] = 'a' + (int) ((lon - (int) (lon / 2) * 2) * 12);
+  // = (lon - (lon fmod 1)) * 24, resolution is 1/24 degree (of which we lose half because faking)
+  // target[5] = 'a' + (int) ((lat - (int) (lat)) * 24);
+  
+  // now we must get lon in 1/(6*24) degrees, that is 50 seconds or 0.5 nm at 47N
+  target[4] = 'a' + (int) (fmod(lon, 1.0/6) * 24*6);
+  // and lat in 1/(12*24) degrees with resolution, that is 25 seconds or 0.42 nm
+  target[5] = 'a' + (int) (fmod(lat, 1.0/12) * 24*12);
+}
+
+void currentPositionAsMaidenheadSuperfine(char* target) {
+  positionAsMaidenheadSuperfine(nmeaPositionInfo.lat, nmeaPositionInfo.lon, target);
+}
+
+
+void prepareType1Transmission(uint8_t power) {
+  char maidenhead4[5];
+  currentPositionAs4DigitMaidenhead(maidenhead4);
+  encodeType1Message(maidenhead4, power);
+  completeMessage();
+}
+
+void prepareType3Transmission(uint8_t power, FAKE_EXTENDED_LOCATION_t fake) {
+  char maidenhead6_fake[7];
+  maidenhead6_fake[6] = 0;
+  switch(fake) {
+  case  REAL_EXTENDED_LOCATION:
+    currentPositionAs6DigitMaidenhead(maidenhead6_fake);
+    maidenhead6_fake[4] &= ~1;
+    maidenhead6_fake[5] &= ~1;
+    break;
+
+  case SUPERFINE_EXTENDED_LOCATION:
+    currentPositionAsMaidenheadSuperfine(maidenhead6_fake);
+    maidenhead6_fake[4] |= 1;
+    maidenhead6_fake[5] &= ~1;
+    break;
+    
+  case TELEMETRY1:
+    currentPositionAs4DigitMaidenhead(maidenhead6_fake);
+    // add data here
+    maidenhead6_fake[4] &= ~1;
+    maidenhead6_fake[5] |= 1;
+    break;
+
+  case TELEMETRY2:
+    currentPositionAs4DigitMaidenhead(maidenhead6_fake);
+    // add data here
+    maidenhead6_fake[4] |= 1;
+    maidenhead6_fake[5] |= 1;
+    break;
+  }
+  
+  encodeType3Message(maidenhead6_fake, power);
+  completeMessage();
 }
 
 uint8_t getWSPRSymbol(uint8_t i) {
@@ -316,17 +403,13 @@ uint8_t getWSPRSymbol(uint8_t i) {
 	return sym;
 }
 
-void prepareWSPRMessage(uint8_t type) {
-	char maidenhead[7];
+void prepareWSPRMessage(uint8_t type, FAKE_EXTENDED_LOCATION_t fake, uint8_t powerLevel) {
 	switch (type) {
 	case 1:
-		currentPositionAs4DigitMaidenhead(maidenhead);
-		prepareType1Transmission(maidenhead, WSPR_POWER_LEVEL);
+		prepareType1Transmission(powerLevel);
 		break;
 	case 3:
-		currentPositionAs6DigitMaidenhead(maidenhead);
-		prepareType3Transmission(maidenhead, WSPR_POWER_LEVEL);
+		prepareType3Transmission(powerLevel, fake);
 		break;
 	}
-	trace_printf("Maidenhead: %s\n", maidenhead);
 }
