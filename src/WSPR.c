@@ -3,7 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include "stm32l1xx_conf.h"
-#include "DataTypes.h"
+#include "WSPR.h"
 #include "GPS.h"
 
 static uint8_t losslessCompressedBuf[11];
