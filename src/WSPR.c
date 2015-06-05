@@ -258,7 +258,7 @@ static uint8_t fasterBitReverse(uint8_t v) {
 static void interleave() {
   uint8_t p = 0;
   for (uint16_t i = 0; i < 256; i++) {
-    uint8_t j = fasterBitReverse(i);
+    uint8_t j = bitReverse(i);
     if (j < 162) {
       uint8_t value = getBit(convolutionalBuf, p);
       setBit(interleavedbuf, j, value);
@@ -360,56 +360,77 @@ void prepareType1Transmission(uint8_t power) {
   completeMessage();
 }
 
-void prepareType3Transmission(uint8_t power, FAKE_EXTENDED_LOCATION_t fake) {
+void prepareType3Transmission(uint8_t power, enum FAKE_EXTENDED_LOCATION_t fake) {
   char maidenhead6_fake[7];
   maidenhead6_fake[6] = 0;
+  
+  // dummy tm
+  float batt_volt = 3.7;
+  uint8_t gpsFixTime = 2; // say between 0 and 3
+  uint8_t gpsFixMode = 1; // say between 0 and 2
+
   switch(fake) {
   case  REAL_EXTENDED_LOCATION:
     currentPositionAs6DigitMaidenhead(maidenhead6_fake);
-    maidenhead6_fake[4] &= ~1;
-    maidenhead6_fake[5] &= ~1;
+    if (maidenhead6_fake[4] & 1) maidenhead6_fake[4]++; // make even
+    if (maidenhead6_fake[5] & 1) maidenhead6_fake[5]++; // make even
     break;
 
   case SUPERFINE_EXTENDED_LOCATION:
     currentPositionAsMaidenheadSuperfine(maidenhead6_fake);
-    maidenhead6_fake[4] |= 1;
-    maidenhead6_fake[5] &= ~1;
+    if (!(maidenhead6_fake[4] & 1)) maidenhead6_fake[4]--; // make odd
+    if (maidenhead6_fake[5] & 1) maidenhead6_fake[5]++;  // make even
     break;
     
-  case TELEMETRY1:
+  case ALTITUDE:
     currentPositionAs4DigitMaidenhead(maidenhead6_fake);
     // add data here
-    maidenhead6_fake[4] &= ~1;
-    maidenhead6_fake[5] |= 1;
+    int16_t ialt = (int16_t)(nmeaPositionInfo.alt / 100);
+    if (ialt < 0) ialt = 0;
+    // 144 units of 100m each
+    maidenhead6_fake[4] = 'a' + (ialt / 12)*2;
+    maidenhead6_fake[5] = 'a' + (ialt % 12)*2;
+    if (maidenhead6_fake[4] & 1) maidenhead6_fake[4]++;    // make even
+    if (!(maidenhead6_fake[5] & 1)) maidenhead6_fake[5]--; // make odd
     break;
 
-  case TELEMETRY2:
+  case TELEMETRY: 
     currentPositionAs4DigitMaidenhead(maidenhead6_fake);
     // add data here
-    maidenhead6_fake[4] |= 1;
-    maidenhead6_fake[5] |= 1;
+    if (batt_volt < 3) batt_volt = 3; else if (batt_volt > 3+11.0/6) batt_volt = 3+11.0/6;
+    uint8_t ibatt_volt = (uint8_t)((batt_volt-3) * 6 + 0.499);
+    uint8_t iGPSFix = gpsFixTime + (gpsFixMode * 4); // 0 to 11
+    maidenhead6_fake[4] = 'a' + ibatt_volt*2;
+    maidenhead6_fake[5] = 'a' + iGPSFix*2;
+    if (!(maidenhead6_fake[4] & 1)) maidenhead6_fake[4]--;
+    if (!(maidenhead6_fake[5] & 1)) maidenhead6_fake[5]--;
     break;
+    
+  default:
+    trace_printf("Unknown fake-type: %u\n", fake);
   }
-  
+
   encodeType3Message(maidenhead6_fake, power);
   completeMessage();
 }
 
 uint8_t getWSPRSymbol(uint8_t i) {
-	uint8_t idx = i / 4;
-	uint8_t shift = i & 3;
-	uint8_t sym = symbolList[idx] >> (6 - shift * 2);
-	sym &= 3;
-	return sym;
+  uint8_t idx = i / 4;
+  uint8_t shift = i & 3;
+  uint8_t sym = symbolList[idx] >> (6 - shift * 2);
+  sym &= 3;
+  return sym;
 }
 
-void prepareWSPRMessage(uint8_t type, FAKE_EXTENDED_LOCATION_t fake, uint8_t powerLevel) {
-	switch (type) {
-	case 1:
-		prepareType1Transmission(powerLevel);
-		break;
-	case 3:
-		prepareType3Transmission(powerLevel, fake);
-		break;
-	}
+void prepareWSPRMessage(uint8_t type, enum FAKE_EXTENDED_LOCATION_t fake, uint8_t powerLevel) {
+  switch (type) {
+  case 1:
+    prepareType1Transmission(powerLevel);
+    break;
+  case 3:
+    prepareType3Transmission(powerLevel, fake);
+    break;
+  default:
+    trace_printf("Rrrrright. WSPR Type %u. WTF!?\n", type);
+  }
 }

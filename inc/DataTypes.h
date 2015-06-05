@@ -24,12 +24,12 @@ typedef struct {
   uint8_t ssid;
 } AX25_Address_t;
 
-typedef enum  FAKE_EXTENDED_LOCATION {
+enum FAKE_EXTENDED_LOCATION_t {
   REAL_EXTENDED_LOCATION,
   SUPERFINE_EXTENDED_LOCATION,
   TELEMETRY1,
   TELEMETRY2
-} FAKE_EXTENDED_LOCATION_t;
+};
 
 extern const char* MY_CALLSIGN;
 extern const uint8_t MY_SSID;

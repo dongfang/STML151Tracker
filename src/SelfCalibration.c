@@ -273,21 +273,21 @@ uint8_t selfCalibrateModulation(
 	modulationCalibration_Reset();
 
 	for (i = 0;
-			(i < SELF_CALIBRATION_NUMCYCLES * 2) && (!timer_elapsed(maxTime));
-			) {
-		// True if count is complete
-		if (TIM4CaptureCount > SELF_CALIBRATION_NUM_CAPTURE_CYCLES) {
-			// trace_printf("DAC: %u, count: %u\n", DAC_Out, TIM4CaptureValue32);
-			counts[offset] += TIM4CaptureValue32;
-			totalCount += TIM4CaptureValue32;
-			offset = !offset;
-			DAC_Out = 2048 - SELF_CALIBRATION_MODULATION_AMPL_PP
-					/ 2 + offset * SELF_CALIBRATION_MODULATION_AMPL_PP;
-			setDAC2(DAC_Out);
-			timer_sleep(1);
-			modulationCalibration_Reset();
-			i++;
-		}
+	     (i < SELF_CALIBRATION_NUMCYCLES * 2) && (!timer_elapsed(maxTime));
+	     ) {
+	  // True if count is complete
+	  if (TIM4CaptureCount > SELF_CALIBRATION_NUM_CAPTURE_CYCLES) {
+	    trace_printf("DAC: %u, count: %u\n", DAC_Out, TIM4CaptureValue32);
+	    counts[offset] += TIM4CaptureValue32;
+	    totalCount += TIM4CaptureValue32;
+	    offset = !offset;
+	    DAC_Out = 2048 - SELF_CALIBRATION_MODULATION_AMPL_PP
+	      / 2 + offset * SELF_CALIBRATION_MODULATION_AMPL_PP;
+	    setDAC2(DAC_Out);
+	    timer_sleep(1);
+	    modulationCalibration_Reset();
+	    i++;
+	  }
 	}
 
 	// Stop using hardware.
