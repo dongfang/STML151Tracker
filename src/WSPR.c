@@ -259,6 +259,8 @@ static void interleave() {
   uint8_t p = 0;
   for (uint16_t i = 0; i < 256; i++) {
     uint8_t j = bitReverse(i);
+      uint8_t k = fasterBitReverse(i);
+      if (j != k) trace_printf("Bitreverse lort! %d %d\n", j, k);
     if (j < 162) {
       uint8_t value = getBit(convolutionalBuf, p);
       setBit(interleavedbuf, j, value);
@@ -276,9 +278,22 @@ static const uint8_t SYNC_VECTOR[162] = { 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1,
 		1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 0,
 		1, 1, 0, 0, 0 };
 
+static const uint32_t SYNC_VECTOR_COMPACT[162/8+1] = {
+0b11000000100011100010010111100000,
+0b00100101000000101100110100011010,
+0b00011010101010010010110001101010,
+0b00100000100100111011001101000111,
+0b00000101001100000001101011000110,
+0b00 };
+
 static inline uint8_t readSyncVectorSym(uint8_t idx);
 static uint8_t readSyncVectorSym(uint8_t idx) {
-	return SYNC_VECTOR[idx];
+	uint8_t oldvalue =  SYNC_VECTOR[idx];
+    uint8_t index = idx/32;
+    uint32_t mask = 1<<(31-(idx%32));
+    uint8_t newvalue = (SYNC_VECTOR_COMPACT[index] & mask) != 0 ? 1 : 0;
+    if (newvalue != oldvalue) trace_printf("Lort %u!!\n", idx);
+    return newvalue;
 }
 
 static void makeSymbolList() {
@@ -297,6 +312,14 @@ void completeMessage() {
 	convolutionalEncoding();
 	interleave();
 	makeSymbolList();
+}
+
+uint8_t voltageToDbm(float voltage) {
+  float power = voltage*voltage / (72 * 8); // the 8 are (2 sqrt 2)^2, the conversion from p-p to RMS squared.
+  power = power*1000; // to milliwatts.
+  power = 10 * log10(power);
+  if (power < 0) power = 0; else if (power > 37) power = 37;
+  return (uint8_t) power;
 }
 
 void positionAs4DigitMaidenhead(double lat, double lon, char* target) {
@@ -399,7 +422,7 @@ void prepareType3Transmission(uint8_t power, enum FAKE_EXTENDED_LOCATION_t fake)
     // add data here
     if (batt_volt < 3) batt_volt = 3; else if (batt_volt > 3+11.0/6) batt_volt = 3+11.0/6;
     uint8_t ibatt_volt = (uint8_t)((batt_volt-3) * 6 + 0.499);
-    uint8_t iGPSFix = gpsFixTime + (gpsFixMode * 4); // 0 to 11
+    uint8_t iGPSFix = gpsFixTime + gpsFixMode*4; // 0 to 11
     maidenhead6_fake[4] = 'a' + ibatt_volt*2;
     maidenhead6_fake[5] = 'a' + iGPSFix*2;
     if (!(maidenhead6_fake[4] & 1)) maidenhead6_fake[4]--;
@@ -422,13 +445,14 @@ uint8_t getWSPRSymbol(uint8_t i) {
   return sym;
 }
 
-void prepareWSPRMessage(uint8_t type, enum FAKE_EXTENDED_LOCATION_t fake, uint8_t powerLevel) {
+void prepareWSPRMessage(uint8_t type, enum FAKE_EXTENDED_LOCATION_t fake, float txVoltageLevel) {
+    uint8_t power = voltageToDbm(txVoltageLevel);
   switch (type) {
   case 1:
-    prepareType1Transmission(powerLevel);
+    prepareType1Transmission(power);
     break;
   case 3:
-    prepareType3Transmission(powerLevel, fake);
+    prepareType3Transmission(power, fake);
     break;
   default:
     trace_printf("Rrrrright. WSPR Type %u. WTF!?\n", type);
