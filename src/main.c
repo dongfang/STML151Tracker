@@ -42,7 +42,7 @@
 #include "DataTypes.h"
 
 uint8_t band = 0;
-uint8_t wsprMessageType = 3;
+uint8_t wsprMessageSeq;
 
 extern void WSPR_TransmitCycle(
 		uint8_t band,
@@ -82,7 +82,7 @@ int main() {
     To reconfigure the default setting of SystemInit() function, refer to
     system_stm32l1xx.c file
   */
-  
+    
   uint32_t bkup = RTC_ReadBackupRegister(RTC_BKP_DR0);
   trace_printf("BKUP was %u\n", bkup);
   RTC_WriteBackupRegister(RTC_BKP_DR0, bkup + 1);
@@ -102,7 +102,7 @@ int main() {
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
   GPIO_Init(GPIOB, &GPIO_InitStructure);
-
+  
   // LED on (portB.6) .. the library way to do IO (As opposed to above direct way)
   GPIO_WriteBit(GPIOB, GPIO_Pin_6, Bit_SET);
   
@@ -140,7 +140,7 @@ int main() {
   
   // Finito with GPS. Well we might want to have a position too.
   GPS_shutdown();
-
+  
   /*
    * 	double modulation[2] = { 0, 0 };
    uint16_t count = 0;
@@ -151,79 +151,73 @@ int main() {
   double oscillatorFrequencyMeasured;
   
   //	scheduleASAPAlarmInSlot(2);
-  
-  CDCEL913_init();
-  CDCEL913_setDirectModeWithDivision(CDCEL_TRIM_PF);
-  
-  timer_sleep(100);
-  
-  RTC_GetTime(RTC_Format_BIN, &rtcTime);
-  
-  trace_printf("Self-cal at %02u:%02u:%02u\n",
-	       rtcTime.RTC_Hours, rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
-  
-  uint8_t selfCalSuccess = selfCalibrateModulation(
-						   20000,
-						   fsys,
-						   &deviationMeasured,
-						   &oscillatorFrequencyMeasured);
-  
-  trace_printf("Self-cal success : %u\n", selfCalSuccess);
-  trace_printf("Self-cal deviation PPB : %d\n",
-	       (int) (deviationMeasured * 1.0E9));
-  trace_printf("Self-cal osc freq: %d\n",
-	       (int) oscillatorFrequencyMeasured);
-  
-  double targetFrequency = WSPRFrequencies[band];
-  
-  double DACStepsPerHz = SELF_CALIBRATION_MODULATION_AMPL_PP
-    / (deviationMeasured * targetFrequency);
-  
-  double stepModulation = 12000.0 * DACStepsPerHz / 8192.0;
-  trace_printf("%d DAC steps per Hz and %d per WSPR step\n", (int)DACStepsPerHz, (int)stepModulation);
-  
-  double desiredMultiplication = targetFrequency / oscillatorFrequencyMeasured;
-  uint8_t bestSettingIndex = CDCEL913_BestSettingIndex(band, desiredMultiplication);
-  const CDCEL913_PLL_Setting_t* bestSetting = &PLL_SETTINGS[band][bestSettingIndex];
-  
-  double bestFrequency = bestSetting->mul*oscillatorFrequencyMeasured;
-  
-  trace_printf("Best setting found: n=%u N=%u, f=%u\n", bestSettingIndex, bestSetting->N,
-	       (uint32_t)bestFrequency);
-  
-  int32_t lastCorrection = (targetFrequency - bestFrequency) * DACStepsPerHz;
-  
-  trace_printf("Final correction on modulation: %d\n", lastCorrection);
-  
-  if (lastCorrection > 1500) lastCorrection = 1500;
-  else if (lastCorrection < -1500) lastCorrection = -1500;
-  
-  while(1) {
-    prepareWSPRMessage(wsprMessageType);
+
+    CDCEL913_init();
+    CDCEL913_setDirectModeWithDivision(CDCEL_TRIM_PF);
     
-    do {
-      RTC_GetTime(RTC_HourFormat_24, &rtcTime);
+    timer_sleep(10);
+    
+    RTC_GetTime(RTC_Format_BIN, &rtcTime);
+    
+    trace_printf("Self-cal at %02u:%02u:%02u\n",
+		 rtcTime.RTC_Hours, rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
+    
+    uint8_t selfCalSuccess = selfCalibrateModulation(
+						     20000,
+						     fsys,
+						     &deviationMeasured,
+						     &oscillatorFrequencyMeasured);
+    
+    trace_printf("Self-cal success : %u\n", selfCalSuccess);
+    trace_printf("Self-cal deviation PPB : %d\n",
+		 (int) (deviationMeasured * 1.0E9));
+    trace_printf("Self-cal osc freq: %d\n",
+		 (int) oscillatorFrequencyMeasured);
+    
+    double targetFrequency = WSPRFrequencies[band];
+    
+    double DACStepsPerHz = SELF_CALIBRATION_MODULATION_AMPL_PP
+      / (deviationMeasured * targetFrequency);
+    
+    double stepModulation = 12000.0 * DACStepsPerHz / 8192.0;
+    trace_printf("%d DAC steps per Hz and %d per WSPR step\n", (int)DACStepsPerHz, (int)stepModulation);
+    
+    double desiredMultiplication = targetFrequency / oscillatorFrequencyMeasured;
+    uint8_t bestSettingIndex = CDCEL913_BestSettingIndex(band, desiredMultiplication);
+    const CDCEL913_PLL_Setting_t* bestSetting = &PLL_SETTINGS[band][bestSettingIndex];
+    
+    double bestFrequency = bestSetting->mul*oscillatorFrequencyMeasured;
+    
+    trace_printf("Best setting found: n=%u N=%u, f=%u\n", bestSettingIndex, bestSetting->N,
+		 (uint32_t)bestFrequency);
+    
+    int32_t lastCorrection = (targetFrequency - bestFrequency) * DACStepsPerHz;
+    
+    trace_printf("Final correction on modulation: %d\n", lastCorrection);
+
+    if (lastCorrection > 1500) lastCorrection = 1500;
+    else if (lastCorrection < -1500) lastCorrection = -1500;
+    while(1){
+      prepareWSPRMessage(wsprMessageSeq==4 ? 1 : 3, wsprMessageSeq, 10);
+      do {
+	RTC_GetTime(RTC_HourFormat_24, &rtcTime);
+      }
+      while((rtcTime.RTC_Minutes %2 != 0) ||
+	    rtcTime.RTC_Seconds != 1);
+      
+      trace_printf("WSPR at %02u:%02u:%02u\n",
+		   rtcTime.RTC_Hours, rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
+      
+      WSPR_TransmitCycle( band, bestSetting, lastCorrection, stepModulation);
+      
+      trace_printf("End WSPR!\n");
+      
+      // Now we can turn on that stupid thing again.
+      // GPS_init();
+      
+      wsprMessageSeq = (wsprMessageSeq + 1) % 5;
     }
-    while((rtcTime.RTC_Minutes %2 != 0) ||
-	  rtcTime.RTC_Seconds != 1);
-    
-		trace_printf("WSPR at %02u:%02u:%02u\n",
-				rtcTime.RTC_Hours, rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
-
-		WSPR_TransmitCycle( band, bestSetting, lastCorrection, stepModulation);
-
-		trace_printf("End WSPR!\n");
-
-		// Now we can turn on that stupid thing again.
-		// GPS_init();
-
-		// band = 1-band;
-		wsprMessageType = 4 - wsprMessageType; // Toggle between 1 and 3
-
-		if (wsprMessageType == 3)
-		  WSPR_POWER_LEVEL++;// possible to send them all even in Type3?
-	}
-}
+  }
 
 /**
  * @brief  Delay Function.

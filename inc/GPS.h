@@ -57,9 +57,6 @@ uint8_t GPS_waitForTimelock(uint32_t maxTime);
 uint8_t GPS_waitForPosition(uint32_t maxTime);
 uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) ;
 
-void currentPositionAs4DigitMaidenhead(char* target);
-void currentPositionAs6DigitMaidenhead(char* target);
-
 extern NMEA_TimeInfo_t nmeaTimeInfo;
 extern NMEA_CRS_SPD_Info_t nmeaCRSSPDInfo;
 extern NMEA_PositionInfo_t nmeaPositionInfo;

@@ -11,7 +11,7 @@
 #include <diag/Trace.h>
 
 static volatile int16_t staticCorrection;
-static volatile float symbolModulation;
+static volatile int16_t symbolModulation;
 static volatile uint8_t symbolNumber;
 static uint8_t symbolNumberChangeDetect;
 
@@ -23,7 +23,8 @@ extern void WSPR_PLLinit(uint8_t output, const CDCEL913_PLL_Setting_t* setting);
 void TIM2_IRQHandler(void) {
 	if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET) {
 		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
-		uint16_t dacData = (uint16_t)(getWSPRSymbol(symbolNumber) * symbolModulation + 2048 + staticCorrection - 1.5*symbolModulation + 0.5);
+		uint8_t symbol = getWSPRSymbol(symbolNumber);
+		uint16_t dacData = (uint16_t)(symbol * symbolModulation + 2048 + staticCorrection - 1.5*symbolModulation + 0.5);
 
 		setDAC2(dacData);
 
@@ -32,7 +33,7 @@ void TIM2_IRQHandler(void) {
 		} else {
 			trace_printf("WSPR end\n");
 		}
-		trace_putchar('.');
+		trace_putchar('0'+symbol);
 	}
 }
 
@@ -96,10 +97,11 @@ void WSPR_TransmitCycle(uint8_t band, const CDCEL913_PLL_Setting_t* setting, int
 	trace_printf("Timer and IRQ running\n");
 
 	while (!WSPREnded()) {
-		if (WSPRDidUpdate()) {
-			GPIO_ToggleBits(GPIOB, GPIO_Pin_6);
-		}
+	  if (WSPRDidUpdate()) {
+	    //GPIO_ToggleBits(GPIOB, GPIO_Pin_6);
+	    GPIOB->ODR ^= (1<<6);
+	  }
 	}
-
+	
 	WSPR_stop();
 }

@@ -1,0 +1,109 @@
+<html>
+<head>
+<title>OZ1ZOR Balloon Fake-O-WSPR Decoder</title>
+<script type="text/javascript">
+
+function decodeMaidenhead4(locator) {
+
+var lon = (locator.charCodeAt(0) - "A".charCodeAt()) * 20- 180;
+var lat = (locator.charCodeAt(1) - "A".charCodeAt()) * 10 - 90;
+
+lon += (locator.charCodeAt(2) - "0".charCodeAt()) * 2;
+lat += (locator.charCodeAt(3) - "0".charCodeAt());
+
+var result = [lat, lon];
+return result;
+}
+
+function decodeRealSubgrid(locator) {
+var result = decodeMaidenhead4(locator);
+
+// lon was incremented maybe but never decremented.
+var lon = locator.charCodeAt(4) - "B".charCodeAt();
+// same.
+var lat = locator.charCodeAt(5) - "B".charCodeAt();
+result[0] += lat/24;
+result[1] += lon/12;
+return result;
+}
+
+function decodeSubSubgrid(contextLocator, locator) {
+var result = decodeRealSubgrid(contextLocator);
+var lon = locator.charCodeAt(4) - "A".charCodeAt();
+var lat = locator.charCodeAt(5) - "B".charCodeAt();
+result[1] += lon/12/24;
+result[0] += lat/24/24;
+return result;
+}
+
+function decodeAltitude(locator) {
+var result = decodeMaidenhead4(locator);
+var alt0 = locator.charCodeAt(4) - "B".charCodeAt();
+var alt1 = locator.charCodeAt(5) - "A".charCodeAt();
+var alt = (alt0*12+alt1)*50;
+result.push(alt);
+return result;
+}
+
+function decodeTelemetry(locator) {
+var result = decodeMaidenhead4(locator);
+var batt = locator.charCodeAt(4) - "A".charCodeAt();
+batt = 3 + batt/12 + 1/12;
+result.push(batt);
+var gpsFix = locator.charCodeAt(5) - "A".charCodeAt();
+gpsFix = gpsFix/2;
+var gpsFixMode = Math.floor(gpsFix / 4);
+var gpsFixTime = gpsFix % 4;
+result.push(gpsFixMode);
+result.push(gpsFixTime);
+return result;
+}
+
+function decode() {
+var subgrid = document.getElementById("locator").value;
+subgrid = subgrid.toUpperCase();
+var c5Even = subgrid.charCodeAt(4) % 2 == 0;
+var c6Even = subgrid.charCodeAt(5) % 2 == 0;
+var result;
+var type;
+if (c5Even && c6Even) {
+result = decodeRealSubgrid(subgrid);
+type = 0;
+}
+else if (!c5Even && c6Even) {
+result = decodeSubSubgrid(subgrid, subgrid);
+alert("SubSub not implented");
+type = 1;
+}
+else if (c5Even && !c6Even) {
+result = decodeAltitude(subgrid);
+type = 2;
+}
+else {
+result = decodeTelemetry(subgrid);
+type = 3;
+}
+
+var formatted;
+
+if (type == 1) {
+formatted = "lat:" + result[0].toFixed(4) + ", lon:" + result[1].toFixed(4);
+} else {
+formatted = "lat:" + result[0].toFixed(2) + ", lon:" + result[1].toFixed(2);
+}
+
+if (type == 2) {
+formatted += ", alt:" + result[2];
+} else if (type == 3) {
+formatted += ", volt:" + result[2].toFixed(1) + ", fixMode:" + result[3] + ", fixTime:" + result[4];
+}
+
+alert(formatted);
+}
+</script>
+</head>
+<body>
+<input type="text" id="locator" name="locator" length="6" />
+<input type="button" value="Tell me!" onClick="decode();" />
+</body>
+</html>

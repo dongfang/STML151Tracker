@@ -1,6 +1,7 @@
 #include <diag/Trace.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 #include "stm32l1xx_conf.h"
 #include "DataTypes.h"
 #include "GPS.h"
@@ -257,7 +258,7 @@ static uint8_t fasterBitReverse(uint8_t v) {
 static void interleave() {
   uint8_t p = 0;
   for (uint16_t i = 0; i < 256; i++) {
-    uint8_t j = fasterBitReverse(i);
+    uint8_t j = bitReverse(i);
     if (j < 162) {
       uint8_t value = getBit(convolutionalBuf, p);
       setBit(interleavedbuf, j, value);
@@ -298,35 +299,138 @@ void completeMessage() {
 	makeSymbolList();
 }
 
-void prepareType1Transmission(const char* maidenhead4, uint8_t power) {
-	encodeType1Message(maidenhead4, power);
-	completeMessage();
+void positionAs4DigitMaidenhead(double lat, double lon, char* target) {
+	lon = lon + 180;
+	lat = lat + 90;
+	target[0] = 'A' + (int) lon / 20;
+	target[1] = 'A' + (int) lat / 10;
+	target[2] = '0' + (int) (fmod(lon, 20) / 2);
+	target[3] = '0' + (int) (fmod(lat, 10));
 }
 
-void prepareType3Transmission(const char* maidenhead6, uint8_t power) {
-	encodeType3Message(maidenhead6, power);
-	completeMessage();
+void currentPositionAs4DigitMaidenhead(char* target) {
+	positionAs4DigitMaidenhead(nmeaPositionInfo.lat, nmeaPositionInfo.lon, target);
+	target[4] = 0;
+}
+
+void positionAs6DigitMaidenhead(double lat, double lon, char* target) {
+	lon = lon + 180;
+	lat = lat + 90;
+	target[0] = 'A' + (int) lon / 20;
+	target[1] = 'A' + (int) lat / 10;
+	target[2] = '0' + (int) (fmod(lon, 20) / 2);
+	target[3] = '0' + (int) (fmod(lat, 10));
+	target[4] = 'a' + (int) ((lon - (int) (lon / 2) * 2) * 12);
+	target[5] = 'a' + (int) ((lat - (int) (lat)) * 24);
+}
+
+void currentPositionAs6DigitMaidenhead(char* target) {
+  positionAs6DigitMaidenhead(nmeaPositionInfo.lat, nmeaPositionInfo.lon, target);
+  target[6] = 0;
+}
+
+void positionAsMaidenheadSuperfine(double lat, double lon, char* target) {
+  lon = lon + 180;
+  lat = lat + 90;
+  target[0] = 'A' + (int) lon / 20;
+  target[1] = 'A' + (int) lat / 10;
+  target[2] = '0' + (int) (fmod(lon, 20) / 2);
+  target[3] = '0' + (int) (fmod(lat, 10));
+  
+  // = (lon - (lon fmod 2)) * 12, resolution is 1/12 degree (of which we lose half because faking)
+  // target[4] = 'a' + (int) ((lon - (int) (lon / 2) * 2) * 12);
+  // = (lon - (lon fmod 1)) * 24, resolution is 1/24 degree (of which we lose half because faking)
+  // target[5] = 'a' + (int) ((lat - (int) (lat)) * 24);
+  
+  // now we must get lon in 1/(6*24) degrees, that is 50 seconds or 0.5 nm at 47N
+  target[4] = 'a' + (int) (fmod(lon, 1.0/6) * 24*6);
+  // and lat in 1/(12*24) degrees with resolution, that is 25 seconds or 0.42 nm
+  target[5] = 'a' + (int) (fmod(lat, 1.0/12) * 24*12);
+}
+
+void currentPositionAsMaidenheadSuperfine(char* target) {
+  positionAsMaidenheadSuperfine(nmeaPositionInfo.lat, nmeaPositionInfo.lon, target);
+}
+
+
+void prepareType1Transmission(uint8_t power) {
+  char maidenhead4[5];
+  currentPositionAs4DigitMaidenhead(maidenhead4);
+  encodeType1Message(maidenhead4, power);
+  completeMessage();
+}
+
+void prepareType3Transmission(uint8_t power, enum FAKE_EXTENDED_LOCATION_t fake) {
+  char maidenhead6_fake[7];
+  maidenhead6_fake[6] = 0;
+  
+  // dummy tm
+  float batt_volt = 3.7;
+  uint8_t gpsFixTime = 2; // say between 0 and 3
+  uint8_t gpsFixMode = 1; // say between 0 and 2
+
+  switch(fake) {
+  case  REAL_EXTENDED_LOCATION:
+    currentPositionAs6DigitMaidenhead(maidenhead6_fake);
+    if (maidenhead6_fake[4] & 1) maidenhead6_fake[4]++; // make even
+    if (maidenhead6_fake[5] & 1) maidenhead6_fake[5]++; // make even
+    break;
+
+  case SUPERFINE_EXTENDED_LOCATION:
+    currentPositionAsMaidenheadSuperfine(maidenhead6_fake);
+    if (!(maidenhead6_fake[4] & 1)) maidenhead6_fake[4]--; // make odd
+    if (maidenhead6_fake[5] & 1) maidenhead6_fake[5]++;  // make even
+    break;
+    
+  case ALTITUDE:
+    currentPositionAs4DigitMaidenhead(maidenhead6_fake);
+    // add data here
+    int16_t ialt = (int16_t)(nmeaPositionInfo.alt / 100);
+    if (ialt < 0) ialt = 0;
+    // 144 units of 100m each
+    maidenhead6_fake[4] = 'a' + (ialt / 12)*2;
+    maidenhead6_fake[5] = 'a' + (ialt % 12)*2;
+    if (maidenhead6_fake[4] & 1) maidenhead6_fake[4]++;    // make even
+    if (!(maidenhead6_fake[5] & 1)) maidenhead6_fake[5]--; // make odd
+    break;
+
+  case TELEMETRY: 
+    currentPositionAs4DigitMaidenhead(maidenhead6_fake);
+    // add data here
+    if (batt_volt < 3) batt_volt = 3; else if (batt_volt > 3+11.0/6) batt_volt = 3+11.0/6;
+    uint8_t ibatt_volt = (uint8_t)((batt_volt-3) * 6 + 0.499);
+    uint8_t iGPSFix = gpsFixTime + (gpsFixMode * 4); // 0 to 11
+    maidenhead6_fake[4] = 'a' + ibatt_volt*2;
+    maidenhead6_fake[5] = 'a' + iGPSFix*2;
+    if (!(maidenhead6_fake[4] & 1)) maidenhead6_fake[4]--;
+    if (!(maidenhead6_fake[5] & 1)) maidenhead6_fake[5]--;
+    break;
+    
+  default:
+    trace_printf("Unknown fake-type: %u\n", fake);
+  }
+
+  encodeType3Message(maidenhead6_fake, power);
+  completeMessage();
 }
 
 uint8_t getWSPRSymbol(uint8_t i) {
-	uint8_t idx = i / 4;
-	uint8_t shift = i & 3;
-	uint8_t sym = symbolList[idx] >> (6 - shift * 2);
-	sym &= 3;
-	return sym;
+  uint8_t idx = i / 4;
+  uint8_t shift = i & 3;
+  uint8_t sym = symbolList[idx] >> (6 - shift * 2);
+  sym &= 3;
+  return sym;
 }
 
-void prepareWSPRMessage(uint8_t type) {
-  char maidenhead[7];
+void prepareWSPRMessage(uint8_t type, enum FAKE_EXTENDED_LOCATION_t fake, uint8_t powerLevel) {
   switch (type) {
   case 1:
-    currentPositionAs4DigitMaidenhead(maidenhead);
-    prepareType1Transmission(maidenhead, WSPR_POWER_LEVEL);
+    prepareType1Transmission(powerLevel);
     break;
   case 3:
-    currentPositionAs6DigitMaidenhead(maidenhead);
-    prepareType3Transmission(maidenhead, WSPR_POWER_LEVEL);
+    prepareType3Transmission(powerLevel, fake);
     break;
+  default:
+    trace_printf("Rrrrright. WSPR Type %u. WTF!?\n", type);
   }
-  trace_printf("Maidenhead: %s\n", maidenhead);
 }
