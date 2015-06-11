@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdint.h>
 
 #ifdef DEBUG
 #include "SerialStream.h"
@@ -180,13 +181,14 @@ void sendCompressedMessage(float alt, float climb, float temperature) {
 			4//vbatt_loaded.getValue()
 	};
 	char temp[30];                   // Temperature (int/ext)
-	const AX25_Address_t addresses[] = { { AX25_DEST_CALLSIGN, AX25_DEST_SSID }, // Destination callsign
-			{ MY_CALLSIGN, MY_SSID }, // Source callsign (-11 = balloon, -9 = car)
+	const AX25_Address_t addresses[] = {
+			{{ AX25_DEST_CALLSIGN, AX25_DEST_SSID }}, // Destination callsign
+			{{ MY_CALLSIGN, MY_SSID }}, // Source callsign (-11 = balloon, -9 = car)
 #ifdef DIGI_PATH1
-			{ DIGI_PATH1, DIGI_PATH1_TTL }, // Digi1 (first digi in the chain)
+			{{ DIGI_PATH1, DIGI_PATH1_TTL }}, // Digi1 (first digi in the chain)
 #endif
 #ifdef DIGI_PATH2
-			{	DIGI_PATH2, DIGI_PATH2_TTL}, // Digi2 (second digi in the chain)
+			{{	DIGI_PATH2, DIGI_PATH2_TTL}}, // Digi2 (second digi in the chain)
 #endif
 		};
 
@@ -318,14 +320,15 @@ void aprs_uncompressedPositionMessage(long pressure, float altitude,
 
 // Exported functions
 void aprs_statusMessage(uint16_t sequence, float altitude, float climb, float temperature) {
-	char temp[12];                   // Temperature (int/ext)
-	const AX25_Address_t addresses[] = { { AX25_DEST_CALLSIGN, AX25_DEST_SSID }, // Destination callsign
-			{ MY_CALLSIGN, MY_SSID }, // Source callsign (-11 = balloon, -9 = car)
+	char temp[12];                   // T{emperature (int/ext)
+    const AX25_Address_t addresses[] =
+    {{{ AX25_DEST_CALLSIGN, AX25_DEST_SSID }}, // Destination callsign
+        {{ MY_CALLSIGN, MY_SSID }}, // Source callsign (-11 = balloon, -9 = car)
 #ifdef DIGI_PATH1
-			{ DIGI_PATH1, DIGI_PATH1_TTL }, // Digi1 (first digi in the chain)
+        {{ DIGI_PATH1, DIGI_PATH1_TTL }}, // Digi1 (first digi in the chain)
 #endif
 #ifdef DIGI_PATH2
-			{	DIGI_PATH2, DIGI_PATH2_TTL}, // Digi2 (second digi in the chain)
+            {{	DIGI_PATH2, DIGI_PATH2_TTL}}, // Digi2 (second digi in the chain)
 #endif
 		};
 
@@ -333,9 +336,9 @@ void aprs_statusMessage(uint16_t sequence, float altitude, float climb, float te
 	ax25_send_byte('>');
 	ax25_send_byte('?');
 
-	sprintf(temp, ",%u", sequence++);
+	sprintf(temp, "%u", sequence);
 	ax25_send_string(temp);             // speed (knots)
-	sprintf(temp, ",%ld", (long) altitude);
+	sprintf(temp, ",%d", (int) altitude);
 	ax25_send_string(temp);             // speed (knots)
 	sprintf(temp, ",%d", (int) climb);
 	ax25_send_string(temp);
@@ -343,12 +346,14 @@ void aprs_statusMessage(uint16_t sequence, float altitude, float climb, float te
 	ax25_send_string(temp);
 	sprintf(temp, ",%u", 80);// vbatt_loaded.getValue());
 	ax25_send_string(temp);
-	int i_temperarure10 = (int) (temperature * 10);
-	int i_temperarure = i_temperarure10 / 10;
-	int i_temperature_decimal = i_temperarure10 % 10;
+	int i_temperarureTenths = (int) (temperature * 10);
+	int i_temperatureWhole = (int) (temperature);
+	int i_temperature_decimal = i_temperarureTenths % 10;
+	trace_printf("Temp tenths %d whole %d decimals %d\n",
+			i_temperarureTenths, i_temperatureWhole, i_temperature_decimal);
 	if (i_temperature_decimal < 0)
 		i_temperature_decimal = -i_temperature_decimal;
-	sprintf(temp, ",%d.%d", i_temperarure, i_temperature_decimal);
+	sprintf(temp, ",%d.%d", i_temperatureWhole, i_temperature_decimal);
 	ax25_send_string(temp);
 	ax25_send_footer();
 	ax25_flush_frame();                 // Tell the modem to go

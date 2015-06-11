@@ -14,12 +14,6 @@ volatile uint8_t packetTransmissionComplete;
 #define NUM_SAMPLES 202
 uint32_t DualSine12bit[NUM_SAMPLES];
 
-
-/* Private function prototypes -----------------------------------------------*/
-void AFSK_TIM_Config(void);
-void AFSK_DAC_Config(void);
-void AFSK_DMA_Config(void);
-
 /* Private functions ---------------------------------------------------------*/
 
 static uint8_t tone;
@@ -35,15 +29,16 @@ void AFSK_TIM_Config(void) {
   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
   
   TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
-  /* Time base configuration, 1200 /s for timer2 */
+  /* Time base configuration, 1200 /s for timer2 the sample-out timer */
   TIM_TimeBaseStructInit(&TIM_TimeBaseStructure);
   TIM_TimeBaseStructure.TIM_Period = 11 - 1;
-  tone = 0;
+  tone = 2;
   TIM_TimeBaseStructure.TIM_Prescaler = 6 - 1;
   TIM_TimeBaseStructure.TIM_ClockDivision = 0x0;
   TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Down;
   TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
   
+  /* Timer3 is the baud rate generator and runs at 1200Hz */
   TIM_TimeBaseStructure.TIM_Period = 11 * NUM_SAMPLES - 1;
   TIM_TimeBaseInit(TIM3, &TIM_TimeBaseStructure);
   
@@ -67,6 +62,18 @@ void AFSK_TIM_Config(void) {
   
   /* TIM3 enable counter */
   TIM_Cmd(TIM3, ENABLE);
+}
+
+void AFSK_TIM_deinit(void) {
+  TIM_ITConfig(TIM3, TIM_IT_Update, DISABLE);
+  TIM_Cmd(TIM2, DISABLE);
+
+  /* TIM3 enable counter */
+  TIM_Cmd(TIM3, DISABLE);
+
+  /* TIM2 Periph clock disable */
+  RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, DISABLE);
+  RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, DISABLE);
 }
 
 /**
@@ -110,6 +117,21 @@ void AFSK_DAC_Config(void) {
 	DAC_DMACmd(DAC_Channel_2, ENABLE);
 }
 
+void AFSK_DAC_deinit(void) {
+	/* Disable DMA for DAC Channel2 */
+	DAC_DMACmd(DAC_Channel_2, DISABLE);
+	/* Disable DAC Channel2 */
+	DAC_Cmd(DAC_Channel_2, DISABLE);
+	/* Disable DAC Channel1 */
+	DAC_Cmd(DAC_Channel_1, DISABLE);
+
+	/* DAC Periph clock enable */
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC, DISABLE);
+
+	/* Dubious - disable GPIOA Periph clock --------------------------------------*/
+	//RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+}
+
 /**
  * @brief  Configures DMA1 channel3
  * @param  None
@@ -136,6 +158,14 @@ void AFSK_DMA_Config(void) {
 
 	/* Enable DMA1 Channel3 */
 	DMA_Cmd(DMA1_Channel3, ENABLE);
+}
+
+void AFSK_DMA_deinit(void) {
+	/* Enable DMA1 Channel3 */
+	DMA_Cmd(DMA1_Channel3, DISABLE);
+
+	/* Enable DMA1 clock -------------------------------------------------------*/
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, DISABLE);
 }
 
 static const uint8_t DIVIDERS[] = { 6, 11 };
@@ -195,7 +225,7 @@ void AFSK_init() {
 
 	/* Avoid firing a transmission prematurely */
 	packetTransmissionComplete = true;
-	setTone(0);
+	setTone(1);
 
 	/* DMA1 channel3 configuration: DualSine12bit is used as memory base address */
 	AFSK_DMA_Config();
@@ -207,10 +237,17 @@ void AFSK_init() {
 	AFSK_TIM_Config();
 }
 
-void AFSK_startTransmission() {
-  packet_cnt = 0;
-  packetTransmissionComplete = 0;
+void AFSK_shutdown() {
+	/* TIM2 configuration ------------------------------------------------------*/
+	AFSK_TIM_deinit();
+
+	/* DMA1 channel3 configuration: DualSine12bit is used as memory base address */
+	AFSK_DMA_deinit();
+
+	/* DAC configuration ------------------------------------------------------*/
+	AFSK_DAC_deinit();
 }
+
 
 // For WSPR (no DMA)
 void setupChannel2DACForWSPR() {

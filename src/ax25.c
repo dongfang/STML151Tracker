@@ -16,6 +16,8 @@
  */
 
 #include "ax25.h"
+#include "FMTransmitter.h"
+#include "DAC.h"
 #include <stdint.h>
 
 // Module globals
@@ -130,9 +132,14 @@ void ax25_send_footer() {
 	ax25_send_flag();
 }
 
-// No need of this.
 void ax25_flush_frame() {
-	// Key the transmitter and send the frame
-  //	afsk_send(packet, packet_size);
+	trace_printf("AX.25 init\n");
+	AFSK_init();
+	trace_printf("AX.25 start\n");
 	AFSK_startTransmission();
+	while(!AFSK_ended())
+		;
+	trace_printf("AX.25 ending\n");
+	AFSK_endTransmission();
+	trace_printf("AX.25 ended\n");
 }

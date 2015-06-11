@@ -20,15 +20,22 @@ typedef struct {
 } CDCEL913_PLL_Setting_t;
 
 typedef struct {
-  char callsign[7];
-  uint8_t ssid;
+  //char callsign[7];
+	const char* callsign;
+	uint8_t ssid;
 } AX25_Address_t;
 
 enum FAKE_EXTENDED_LOCATION_t {
   REAL_EXTENDED_LOCATION,
   SUPERFINE_EXTENDED_LOCATION,
-  TELEMETRY1,
-  TELEMETRY2
+  ALTITUDE,
+  TELEMETRY
+};
+
+enum BAND {
+	THIRTY_M,
+	TEN_M,
+	TWO_M
 };
 
 extern const char* MY_CALLSIGN;

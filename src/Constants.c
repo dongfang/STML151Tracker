@@ -13,7 +13,7 @@ const int32_t WSPRFrequencies[] = {10140200, 28126100};
 const char* MY_CALLSIGN = "HB9FDK";
 const uint8_t MY_SSID = 11;
 
-const char* AX25_DEST_CALLSIGN = "";
+const char* AX25_DEST_CALLSIGN = "APRS";
 const uint8_t AX25_DEST_SSID = 0;
 
 const char* DIGI_PATH1;
@@ -111,8 +111,17 @@ const CDCEL913_PLL_Setting_t settingsFor10m[] = {
 		{1.0820367751060822,765,2,7,30,30}
 };
 
-const CDCEL913_PLL_Setting_t *PLL_SETTINGS[] = {settingsFor30m, settingsFor10m};
-const uint8_t PLL_SETTING_LENGTHS[] = {sizeof(settingsFor30m)/sizeof(CDCEL913_PLL_Setting_t), sizeof(settingsFor10m)/sizeof(CDCEL913_PLL_Setting_t)};
+const CDCEL913_PLL_Setting_t settingsFor2m[] =  {
+		{5.573033707865169,496,2,1,22,26},
+		{5.573099415204679,953,2,1,22,50}
+};
+
+const CDCEL913_PLL_Setting_t *PLL_SETTINGS[] = {settingsFor30m, settingsFor10m, settingsFor2m};
+const uint8_t PLL_SETTING_LENGTHS[] = {
+		sizeof(settingsFor30m)/sizeof(CDCEL913_PLL_Setting_t),
+		sizeof(settingsFor10m)/sizeof(CDCEL913_PLL_Setting_t),
+		sizeof(settingsFor2m)/sizeof(CDCEL913_PLL_Setting_t),
+};
 
  uint8_t CDCEL913_BestSettingIndex(uint8_t band, double desiredMultiplication) {
 	double minError = 1000;

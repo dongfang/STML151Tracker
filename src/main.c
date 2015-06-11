@@ -27,6 +27,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include <diag/Trace.h>
+#include <stdint.h>
 #include <math.h>
 #include "stm32l1xx_conf.h"
 #include "CDCEL913.h"
@@ -40,6 +41,7 @@
 #include "RTC.h"
 #include "SelfCalibration.h"
 #include "DataTypes.h"
+#include "aprs.h"
 
 uint8_t band = 0;
 uint8_t wsprMessageSeq;
@@ -115,6 +117,11 @@ int main() {
   GPS_init();
   RTC_init();
   
+  while(1) {
+	  aprs_send(1, 400.0, 35.0, 25.5);
+	  timer_sleep(5000);
+  }
+
   if (GPS_waitForTimelock(300000)) {
     trace_printf("GPS timelock okay\n");
     setRTC(&nmeaTimeInfo.date, &nmeaTimeInfo.time);
@@ -198,7 +205,7 @@ int main() {
     if (lastCorrection > 1500) lastCorrection = 1500;
     else if (lastCorrection < -1500) lastCorrection = -1500;
     while(1){
-      prepareWSPRMessage(wsprMessageSeq==4 ? 1 : 3, wsprMessageSeq, 10);
+      prepareWSPRMessage(wsprMessageSeq==4 ? 1 : 3, wsprMessageSeq, 8);
       do {
 	RTC_GetTime(RTC_HourFormat_24, &rtcTime);
       }

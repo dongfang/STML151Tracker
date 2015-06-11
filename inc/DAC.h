@@ -18,4 +18,7 @@ void AFSK_init();
 void AFSK_shutdown();
 void AFSK_startTransmission();
 
+extern volatile uint16_t packet_cnt;
+extern volatile uint8_t packetTransmissionComplete;
+
 #endif /* DAC_H_ */
