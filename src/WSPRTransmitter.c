@@ -7,8 +7,8 @@
 #include "stm32l1xx_conf.h"
 #include "WSPR.h"
 #include "DAC.h"
-#include "CDCEL913.h"
 #include <diag/Trace.h>
+#include "../inc/CDCE913.h"
 
 static volatile int16_t staticCorrection;
 static volatile int16_t symbolModulation;
@@ -16,7 +16,6 @@ static volatile uint8_t symbolNumber;
 static uint8_t symbolNumberChangeDetect;
 
 extern uint8_t getWSPRSymbol(uint8_t i);
-extern void WSPR_PLLinit(uint8_t output, const CDCEL913_PLL_Setting_t* setting);
 
 // WSPR DAC interrupt handler.
 // Could use DMA instead.
@@ -26,7 +25,7 @@ void TIM2_IRQHandler(void) {
 		uint8_t symbol = getWSPRSymbol(symbolNumber);
 		uint16_t dacData = (uint16_t)(symbol * symbolModulation + 2048 + staticCorrection - 1.5*symbolModulation + 0.5);
 
-		setDAC2(dacData);
+		setDAC(DAC2, dacData);
 
 		if (symbolNumber < 162) {
 			symbolNumber++;
@@ -53,15 +52,15 @@ void WSPR_stop() {
 	DAC_Cmd(DAC_Channel_2, DISABLE);
 	TIM_ITConfig(TIM2, TIM_IT_Update, DISABLE);
 	TIM_Cmd(TIM2, DISABLE);
-	CDCEL913_enableOutput(0, 0);
+	CDCE913_shutdown();
 }
 
-void setupInterruptDrivenWSPROut(uint8_t band, const CDCEL913_PLL_Setting_t* setting, int16_t _staticCorrection, int16_t _symbolModulation) {
+void setupInterruptDrivenWSPROut(uint8_t band, const TransmitterSetting_t* setting, int16_t _staticCorrection, int16_t _symbolModulation) {
 	symbolNumber = 0;
 	staticCorrection = _staticCorrection;
 	symbolModulation = _symbolModulation;
 
-	WSPR_PLLinit(1, setting);
+	CDCE913_init(1, setting);
 	trace_printf("PLL running\n");
 
 	/* Periph clocks enable */
@@ -86,19 +85,17 @@ void setupInterruptDrivenWSPROut(uint8_t band, const CDCEL913_PLL_Setting_t* set
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVIC_InitStructure);
 
-	setupChannel2DACForWSPR();
+	WSPR_DAC_Init();
 
 	TIM_Cmd(TIM2, ENABLE);
 }
 
-// TODO: Remove setting from here.
-void WSPR_TransmitCycle(uint8_t band, const CDCEL913_PLL_Setting_t* setting, int staticCorrection, int stepModulation) {
+void WSPR_TransmitCycle(uint8_t band, const TransmitterSetting_t* setting, int staticCorrection, int stepModulation) {
 	setupInterruptDrivenWSPROut(band, setting, staticCorrection, stepModulation);
 	trace_printf("Timer and IRQ running\n");
 
 	while (!WSPREnded()) {
 	  if (WSPRDidUpdate()) {
-	    //GPIO_ToggleBits(GPIOB, GPIO_Pin_6);
 	    GPIOB->ODR ^= (1<<6);
 	  }
 	}

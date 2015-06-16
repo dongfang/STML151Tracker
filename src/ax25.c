@@ -16,9 +16,10 @@
  */
 
 #include "ax25.h"
-#include "FMTransmitter.h"
 #include "DAC.h"
 #include <stdint.h>
+
+#include "CDCE913.h"
 
 // Module globals
 static uint16_t crc;
@@ -80,6 +81,14 @@ void ax25_send_flag() {
 	}
 }
 
+void ax25_diddle(int numBytes) {
+	int i;
+	for (i = 0; i < numBytes; i++) {
+		packet[i] = 0;
+	}
+	packet_size = i*8;
+}
+
 void ax25_send_string(const char *string) {
 	int i;
 	for (i = 0; string[i]; i++) {
@@ -87,29 +96,28 @@ void ax25_send_string(const char *string) {
 	}
 }
 
-void ax25_send_header(const AX25_Address_t *addresses, int num_addresses) {
+void ax25_send_header(const AX25_Address_t *addresses[], int num_addresses) {
 	int i, j;
 	packet_size = 0;
 	ones_in_a_row = 0;
 	crc = 0xffff;
 
 	// Send flags during TX_DELAY milliseconds (8 bit-flag = 8000/1200 ms)
-	for (i = 0; i < TX_DELAY * 3 / 20; i++) {
-		ax25_send_flag();
-	}
+	ax25_diddle(TX_DELAY*3/20);
+	ax25_send_flag();
 
 	for (i = 0; i < num_addresses; i++) {
 		// Transmit callsign
-		for (j = 0; addresses[i].callsign[j]; j++)
-			send_byte(addresses[i].callsign[j] << 1);
+		for (j = 0; addresses[i]->callsign[j]; j++)
+			send_byte(addresses[i]->callsign[j] << 1);
 		// Transmit pad
 		for (; j < 6; j++)
 			send_byte(' ' << 1);
 		// Transmit SSID. Termination signaled with last bit = 1
 		if (i == num_addresses - 1)
-			send_byte(('0' + addresses[i].ssid) << 1 | 1);
+			send_byte(('0' + addresses[i]->ssid) << 1 | 1);
 		else
-			send_byte(('0' + addresses[i].ssid) << 1);
+			send_byte(('0' + addresses[i]->ssid) << 1);
 	}
 
 	// Control field: 3 = APRS-UI frame
@@ -132,14 +140,3 @@ void ax25_send_footer() {
 	ax25_send_flag();
 }
 
-void ax25_flush_frame() {
-	trace_printf("AX.25 init\n");
-	AFSK_init();
-	trace_printf("AX.25 start\n");
-	AFSK_startTransmission();
-	while(!AFSK_ended())
-		;
-	trace_printf("AX.25 ending\n");
-	AFSK_endTransmission();
-	trace_printf("AX.25 ended\n");
-}

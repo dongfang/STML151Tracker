@@ -4,12 +4,47 @@
 #include <math.h>
 #include "stm32l1xx_conf.h"
 #include "WSPR.h"
+#include "CDCE913_26MHzXtal.h"
 #include "GPS.h"
 
 static uint8_t losslessCompressedBuf[11];
 uint8_t convolutionalBuf[21];
 uint8_t interleavedbuf[21];
 uint8_t symbolList[162 / 4 + 1];
+
+/*
+const BandSetting_t WSPR_BAND_SETTINGS[2] = {
+		{
+			.RFChannel = 1,
+			.numPLLOptions = sizeof(settingsFor30m)/sizeof(PLLSetting_t),
+			.PLLOptions = settingsFor30m,
+			.frequency = 10140200
+		},{
+				.RFChannel = 2,
+				.numPLLOptions = sizeof(settingsFor10m)/sizeof(PLLSetting_t),
+				.PLLOptions = settingsFor10m,
+				.frequency = 28126100
+			}
+};
+*/
+
+const TransmitterSetting_t settingsFor10m[] = PLL_SETTINGS_10m_WSPR;
+const TransmitterSetting_t settingsFor30m[] = PLL_SETTINGS_30m_WSPR;
+
+const WSPR_BandSetting_t WSPR_BAND_SETTINGS[2] = {
+		{
+			1,
+			sizeof(settingsFor30m)/sizeof(TransmitterSetting_t),
+			settingsFor30m,
+			10140200
+		},{
+			2,
+			sizeof(settingsFor10m)/sizeof(TransmitterSetting_t),
+			settingsFor10m,
+			 28126100
+		}
+};
+BandCalibration_t WSPR_BAND_CALIBRATIONS[2];
 
 extern uint16_t hash(const char* call, uint16_t length);
 
@@ -78,8 +113,8 @@ static uint8_t encodePower(uint8_t power) {
 static void encodeType1Message(const char* maidenhead4, uint8_t power) {
 
 	char myPaddedCall[7];
-	strcpy(myPaddedCall, MY_CALLSIGN);
-	for (uint8_t i = strlen(MY_CALLSIGN); i < 6; i++)
+	strcpy(myPaddedCall, MY_ADDRESS.callsign);
+	for (uint8_t i = strlen(MY_ADDRESS.callsign); i < 6; i++)
 		myPaddedCall[i] = ' ';
 
 	uint32_t N = encodeCallsign(myPaddedCall) << 4;
@@ -117,7 +152,7 @@ static void encodeType3Message(const char* maidenhead6, int8_t power) {
 	// trace_printf("n1 aka the num value of extended locator is %u\n", n1);
 	n1 = n1<<4;
 
-	uint32_t n2 = hash(MY_CALLSIGN, strlen(MY_CALLSIGN));
+	uint32_t n2 = hash(MY_ADDRESS.callsign, strlen(MY_ADDRESS.callsign));
 
 	//trace_printf("Power initially %d\n",power);
 	if (power > 60)
@@ -383,7 +418,7 @@ void prepareType1Transmission(uint8_t power) {
   completeMessage();
 }
 
-void prepareType3Transmission(uint8_t power, enum FAKE_EXTENDED_LOCATION_t fake) {
+void prepareType3Transmission(uint8_t power, enum WSPR_FAKE_EXTENDED_LOCATION fake) {
   char maidenhead6_fake[7];
   maidenhead6_fake[6] = 0;
   
@@ -445,7 +480,7 @@ uint8_t getWSPRSymbol(uint8_t i) {
   return sym;
 }
 
-void prepareWSPRMessage(uint8_t type, enum FAKE_EXTENDED_LOCATION_t fake, float txVoltageLevel) {
+void prepareWSPRMessage(uint8_t type, enum WSPR_FAKE_EXTENDED_LOCATION fake, float txVoltageLevel) {
     uint8_t power = voltageToDbm(txVoltageLevel);
   switch (type) {
   case 1:

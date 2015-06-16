@@ -1,5 +1,5 @@
 # put your *.o targets here, make should handle the rest!
-SRCS = main.c system_stm32l1xx.c Trace.c trace_impl.c _sbrk.c CDCEL913.c Si4463_SPI.c systick.c WSPR.c ADC_DMA.c SimpleIRQDrivenWSPR.c GPS.c SelfCalibration.c RTC.c DAC.c nhash.c Constants.c aprs.c ax25.c FMTransmitter.c
+SRCS = main.c system_stm32l1xx.c Trace.c trace_impl.c _sbrk.c CDCE913.c Si4463_SPI.c systick.c WSPR.c ADC_DMA.c WSPRTransmitter.c GPS.c SelfCalibration.c RTC.c DAC.c nhash.c Constants.c APRS.c ax25.c APRSTransmitter.c
 
 # all the files will be generated with this name (main.elf, main.bin, main.hex, etc)
 PROJ_NAME=main

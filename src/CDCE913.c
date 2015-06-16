@@ -1,16 +1,28 @@
-#include "CDCEL913.h"
+#include "stm32l1xx_conf.h"
+#include "CDCE913.h"
+#include "DataTypes.h"
+#include <diag/trace.h>
+#include "systick.h"
 
-#include <diag/Trace.h>
-#include <stm32l1xx.h>
-#include <stm32l1xx_gpio.h>
-#include <stm32l1xx_i2c.h>
-#include <stm32l1xx_rcc.h>
-#include <systick.h>
-
-#define CDCEL913_I2C_ADDR 0b1100101
+#define CDCE913_I2C_ADDR 0b1100101
 #define I2C_TIMEOUT 25
 
-void CDCEL913_init() {
+const TransmitterSetting_t* bestPLLSetting(const WSPR_BandSetting_t* bandSettings, double desiredMultiplication) {
+	double minError = 1000;
+	uint8_t i;
+	uint8_t besti = bandSettings->numPLLOptions/2;
+	for(i=0; i<bandSettings->numPLLOptions; i++) {
+		double error = bandSettings->PLLOptions[i].mul - desiredMultiplication;
+		if (error < 0) error = -error;
+		if (error < minError) {
+			besti = i;
+			minError = error;
+		}
+	}
+	return &bandSettings->PLLOptions[besti];
+}
+
+void CDCE913_initInterface() {
 	GPIO_InitTypeDef GPIO_InitStructure;
 	I2C_InitTypeDef I2C_InitStructure;
 
@@ -42,7 +54,7 @@ void CDCEL913_init() {
 	I2C_InitStructure.I2C_OwnAddress1 = 0x00;
 	I2C_InitStructure.I2C_Ack = I2C_Ack_Enable;
 	I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
-	I2C_InitStructure.I2C_ClockSpeed = IS_I2C_CLOCK_SPEED(100000);
+	I2C_InitStructure.I2C_ClockSpeed = IS_I2C_CLOCK_SPEED(400000);
 	I2C_Init(I2C1, &I2C_InitStructure);
 	//trace_printf("I2C initialized.\n");
 }
@@ -60,7 +72,7 @@ static uint8_t I2C_read(uint8_t reg_addr) {
 
 	/*send read command to chip*/
 	timer_mark();
-	I2C_Send7bitAddress(I2C1, CDCEL913_I2C_ADDR << 1, I2C_Direction_Transmitter);
+	I2C_Send7bitAddress(I2C1, CDCE913_I2C_ADDR << 1, I2C_Direction_Transmitter);
 	/*check master is now in Tx mode*/
 	while ((status = !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)) && !timer_elapsed(I2C_TIMEOUT))
 		;
@@ -88,7 +100,7 @@ static uint8_t I2C_read(uint8_t reg_addr) {
 	}
 	/*send read command to chip*/
 	timer_mark();
-	I2C_Send7bitAddress(I2C1, CDCEL913_I2C_ADDR << 1, I2C_Direction_Receiver);
+	I2C_Send7bitAddress(I2C1, CDCE913_I2C_ADDR << 1, I2C_Direction_Receiver);
 	/*check master is now in Rx mode*/
 	while ((status = !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED)) && !timer_elapsed(I2C_TIMEOUT))
 		;
@@ -130,7 +142,7 @@ void I2C_write(uint8_t reg_addr, uint8_t data) {
 
 	timer_mark();
 	/*send read command to chip*/
-	I2C_Send7bitAddress(I2C1, CDCEL913_I2C_ADDR << 1, I2C_Direction_Transmitter);
+	I2C_Send7bitAddress(I2C1, CDCE913_I2C_ADDR << 1, I2C_Direction_Transmitter);
 	/*check master is now in Tx mode*/
 	while ((status = !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)) && !timer_elapsed(I2C_TIMEOUT))
 		;
@@ -169,7 +181,7 @@ void I2C_write(uint8_t reg_addr, uint8_t data) {
 	}
 }
 
-void CDCEL913_setPLL(const CDCEL913_PLL_Setting_t* setting) {
+void CDCE913_setPLL(const TransmitterSetting_t* setting) {
 	uint8_t pllRange = 0;
 
 	// uint8_t r2 = I2C_read(0x02);
@@ -194,7 +206,7 @@ void CDCEL913_setPLL(const CDCEL913_PLL_Setting_t* setting) {
 // 3 : Use Y3 and ground the other two.
 // 4 : Feed xtal to Y1 with division.
 // The direct mode is not supported from here.
-void CDCEL913_enableOutput(uint8_t whichOutput, uint16_t pdiv) {
+void CDCE913_enableOutput(uint8_t whichOutput, uint16_t pdiv) {
 	uint8_t r1 = 0;
 	uint8_t r2 = 0;
 	uint8_t r0x14 = 0;
@@ -236,17 +248,22 @@ void CDCEL913_enableOutput(uint8_t whichOutput, uint16_t pdiv) {
 	I2C_write(0x14, r0x14);
 }
 
+void CDCE913_shutdown() {
+	CDCE913_enableOutput(0, 0);
+}
+
 // Well actually direct mode is the startup default.... haha
-void CDCEL913_setDirectModeWithDivision() {
-	uint16_t pdiv = CDCEL913_SELFCALIBRATION_DIVISION;
-	CDCEL913_enableOutput(4, pdiv);
+void CDCE913_setDirectModeWithDivision() {
+    CDCE913_initInterface();
+	uint16_t pdiv = CDCE913_SELFCALIBRATION_DIVISION;
+	CDCE913_enableOutput(4, pdiv);
 	// Enable VCXO
 	// I2C_write(1, 0b0101);
 	// Well! We still need set a divider.
 	// uint8_t r2 = I2C_read(0x02);
 	// I2C_write(0x02, (r2 & 0b01111100) | (pdiv >> 8));
 	// I2C_write(0x03, (uint8_t) pdiv);
-	I2C_write(5, CDCEL_TRIM_PF << 3); 	// Cap. in pF.
+	I2C_write(5, CDCE913_TRIM_PF << 3); 	// Cap. in pF.
 	// I2C_write(0x14, 0b00001010); // Disable Y2, Y3
 	// TODO: Also set feedthru mode (or trigger a reset if possible).
 }
@@ -265,12 +282,13 @@ void CECEL913_print() {
 }
 
 // Set up for WSPR with a 8.388608MHz xtal
-void WSPR_PLLinit(uint8_t output, const CDCEL913_PLL_Setting_t* setting) {
+void CDCE913_init(uint8_t output, const TransmitterSetting_t* setting) {
+	CDCE913_initInterface();
 	// Turn on Y1 output in all cases and PLL out
 	// I2C_write(1, 0b0101);
 	// I2C_write(2, (1 << 7) | (0b1111 << 2));
-	CDCEL913_enableOutput(output, setting->pdiv);
-	I2C_write(5, CDCEL_TRIM_PF << 3); 	// Cap. in pF.
+	CDCE913_enableOutput(output, setting->pdiv);
+	I2C_write(5, CDCE913_TRIM_PF << 3); 	// Cap. in pF.
 
 	// Turn on PLL1
 	// I2C_write(0x14, 0b00000101);
@@ -278,5 +296,5 @@ void WSPR_PLLinit(uint8_t output, const CDCEL913_PLL_Setting_t* setting) {
 	// Center mode SSC
 	// I2C_write(0x16, 0b10000000);
 
-	CDCEL913_setPLL(setting);
+	CDCE913_setPLL(setting);
 }

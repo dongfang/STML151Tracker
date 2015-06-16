@@ -7,15 +7,22 @@
 #include "stm32l1xx_conf.h"
 #include "SelfCalibration.h"
 #include "systick.h"
-#include "CDCEL913.h"
+#include "WSPR.h"
 #include <diag/trace.h>
+#include "../inc/CDCE913.h"
 
-#include "DAC.h"
-/**
- * @brief  Configures the Timer.
- * @param  None
- * @retval None
- */
+#include "SelfCalibration.h"
+
+// Slow and fine.
+const SelfCalibrationSettings_t WSPR_SELF_CALIBRATION = {
+		.maxTimeMillis = 20000, .DACChannel = DAC2, .modulation_PP = 1000,
+		.numCyclesPerRound = 5000, .numRounds = 5 };
+
+// Now so fine, that is not needed.
+const SelfCalibrationSettings_t HF_PACKET_SELF_CALIBRATION = { .maxTimeMillis =
+		5000, .DACChannel = DAC1, .modulation_PP = 100, .numCyclesPerRound =
+		1000, .numRounds = 5 };
+
 static void modulationCalibration_Config() {
 	TIM_ICInitTypeDef TIM_ICInitStructure;
 	GPIO_InitTypeDef GPIO_InitStructure;
@@ -97,7 +104,7 @@ void oscillatorCalibration_Config() {
 	// Jumper wired GPS timepulse
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz; // More was not better.
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_40MHz; // More was not better. really? Not better resolution?
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
 
 	GPIO_PinAFConfig(GPIOB, GPIO_PinSource12, GPIO_AF_TIM10);
@@ -160,6 +167,7 @@ static void oscillatorCalibration_Shutdown() {
 
 uint16_t previousTIM4TimerCapture, currentTIM4TimerCapture;
 __IO uint16_t TIM4CaptureCount = 0;
+__IO uint16_t TIM4CaptureStop = 0;
 __IO uint32_t TIM4CaptureValue32 = 0;
 
 uint16_t previousTIM10TimerCapture, currentTIM10TimerCapture;
@@ -181,18 +189,18 @@ void TIM4_IRQHandler(void) {
 			/* Get the initial Capture value */
 			previousTIM4TimerCapture = TIM_GetCapture2(TIM4);
 			TIM4CaptureCount++;
-		} else if (TIM4CaptureCount < SELF_CALIBRATION_NUM_CAPTURE_CYCLES) {
+		} else if (TIM4CaptureCount < TIM4CaptureStop) {
 			/* Get the Input Capture value */
 			currentTIM4TimerCapture = TIM_GetCapture2(TIM4);
-			TIM4CaptureValue32 += (uint16_t) (currentTIM4TimerCapture
-					- previousTIM4TimerCapture);
+			TIM4CaptureValue32 += (uint16_t)(
+					currentTIM4TimerCapture - previousTIM4TimerCapture);
 			previousTIM4TimerCapture = currentTIM4TimerCapture;
 			TIM4CaptureCount++;
-		} else if (TIM4CaptureCount == SELF_CALIBRATION_NUM_CAPTURE_CYCLES) {
+		} else if (TIM4CaptureCount == TIM4CaptureStop) {
 			/* Get the Input Capture value */
 			currentTIM4TimerCapture = TIM_GetCapture2(TIM4);
-			TIM4CaptureValue32 += (uint16_t) (currentTIM4TimerCapture
-					- previousTIM4TimerCapture);
+			TIM4CaptureValue32 += (uint16_t)(
+					currentTIM4TimerCapture - previousTIM4TimerCapture);
 			TIM4CaptureCount++;
 		} else {
 			// do nothing more.
@@ -249,45 +257,44 @@ static void oscillatorCalibration_Reset() {
  * Self calibrate : Set the deviation measured, and the measured frequency
  * (assuming a perfect SystemCoreClock)
  */
-uint8_t selfCalibrateModulation(
-		uint32_t maxTime,
+boolean selfCalibrateModulation(
 		uint32_t fsys,
+		const SelfCalibrationSettings_t* settings,
 		double* deviationMeasured,
 		double* oscillatorFrequencyMeasured) {
 
-	setupChannel2DACForWSPR();
+	TIM4CaptureStop = settings->numCyclesPerRound;
+	CDCE913_setDirectModeWithDivision();
+	WSPR_DAC_Init();
 	modulationCalibration_Config();
 
 	uint8_t offset = 0;
-
 	uint32_t counts[2] = { 0, 0 };
 	uint32_t totalCount = 0;
-	uint16_t DAC_Out = 2048 - SELF_CALIBRATION_MODULATION_AMPL_PP / 2;
+	uint16_t DAC_Out = 2048 - settings->modulation_PP / 2;
 	uint8_t i;
 
-	setDAC2(DAC_Out);
+	setDAC(settings->DACChannel, DAC_Out);
 	timer_sleep(1);
 
 	timer_mark();
 
 	modulationCalibration_Reset();
 
-	for (i = 0;
-	     (i < SELF_CALIBRATION_NUMCYCLES * 2) && (!timer_elapsed(maxTime));
-	     ) {
-	  // True if count is complete
-	  if (TIM4CaptureCount > SELF_CALIBRATION_NUM_CAPTURE_CYCLES) {
-	    trace_printf("DAC: %u, count: %u\n", DAC_Out, TIM4CaptureValue32);
-	    counts[offset] += TIM4CaptureValue32;
-	    totalCount += TIM4CaptureValue32;
-	    offset = !offset;
-	    DAC_Out = 2048 - SELF_CALIBRATION_MODULATION_AMPL_PP
-	      / 2 + offset * SELF_CALIBRATION_MODULATION_AMPL_PP;
-	    setDAC2(DAC_Out);
-	    timer_sleep(1);
-	    modulationCalibration_Reset();
-	    i++;
-	  }
+	for (i = 0; (i < settings->numRounds * 2) && (!timer_elapsed(settings->maxTimeMillis));) {
+		// True if count is complete
+		if (TIM4CaptureCount > TIM4CaptureStop) {
+			trace_printf("DAC: %u, count: %u\n", DAC_Out, TIM4CaptureValue32);
+			counts[offset] += TIM4CaptureValue32;
+			totalCount += TIM4CaptureValue32;
+			offset = !offset;
+			DAC_Out = 2048 - settings->modulation_PP / 2
+					+ offset * settings->modulation_PP;
+			setDAC(settings->DACChannel, DAC_Out);
+			timer_sleep(1);
+			modulationCalibration_Reset();
+			i++;
+		}
 	}
 
 	// Stop using hardware.
@@ -298,26 +305,17 @@ uint8_t selfCalibrateModulation(
 	trace_printf("Self-cal diff %d, counted total %u\n", diff, totalCount);
 	*deviationMeasured = (double) diff / counts[0];
 
-	 uint64_t oscFreq = (uint64_t)SELF_CALIBRATION_NUMCYCLES
-			* 2 * 8		// this number of captures
-			* (uint64_t)SELF_CALIBRATION_NUM_CAPTURE_CYCLES 			// all repeated this many times
-			* (uint64_t)fsys													// counting this number of CPU cycles each pulse
-			* (uint64_t)CDCEL913_SELFCALIBRATION_DIVISION						// the time of each pulse
-			/ (uint64_t)totalCount;
+	uint64_t oscFreq = (uint64_t) settings->numCyclesPerRound * 2 * 8// this number of captures
+			* (uint64_t) settings->numRounds	// all repeated this many times
+			* (uint64_t) fsys	// counting this number of CPU cycles each pulse
+			* (uint64_t) CDCE913_SELFCALIBRATION_DIVISION// the time of each pulse
+	/ (uint64_t) totalCount;
 
-	 trace_printf("Self-cal frequency %llu\n", oscFreq);
-	 *oscillatorFrequencyMeasured = oscFreq;
+	trace_printf("Self-cal frequency %llu\n", oscFreq);
+	*oscillatorFrequencyMeasured = oscFreq;
 
 	// true if we got finished.
-	return (i == SELF_CALIBRATION_NUMCYCLES * 2);
-}
-
-int16_t getADCStepCount(double undermodulationFactor, double testedDeviation,
-		double desiredDeviation) {
-	double idealStepsPerSymbol = SELF_CALIBRATION_MODULATION_AMPL_PP
-			* desiredDeviation / testedDeviation;
-	// trace_printf("Best steps : %d\r\n", (int) idealStepsPerSymbol);
-	return (int16_t) (idealStepsPerSymbol + 0.5);
+	return (i == settings->numRounds * 2);
 }
 
 uint8_t getOscillatorCalibration(uint32_t maxTime, uint32_t* result) {
@@ -326,7 +324,8 @@ uint8_t getOscillatorCalibration(uint32_t maxTime, uint32_t* result) {
 
 	timer_mark();
 
-	while ((!timer_elapsed(maxTime)) && (TIM10CaptureCount != GPS_TIMEPULSE_WASTED_PULSES + 2))
+	while ((!timer_elapsed(maxTime))
+			&& (TIM10CaptureCount != GPS_TIMEPULSE_WASTED_PULSES + 2))
 		;
 
 	oscillatorCalibration_Shutdown();
@@ -337,4 +336,58 @@ uint8_t getOscillatorCalibration(uint32_t maxTime, uint32_t* result) {
 	}
 
 	return 0;
+}
+
+void selfCalibrateForWSPR(uint32_t fSys) {
+	double deviationMeasured;
+	double oscillatorFrequencyMeasured;
+	const SelfCalibrationSettings_t* settings = &WSPR_SELF_CALIBRATION;
+
+	boolean selfCalSuccess = selfCalibrateModulation(
+			fSys,
+			settings,
+			&deviationMeasured,
+			&oscillatorFrequencyMeasured);
+
+	trace_printf("Self-cal success : %u\n", selfCalSuccess);
+	trace_printf("Self-cal deviation PPB : %d\n",
+			(int) (deviationMeasured * 1.0E9));
+	trace_printf("Self-cal osc freq: %d\n", (int) oscillatorFrequencyMeasured);
+
+	for (WSPRBand_t band = THIRTY_M; band <= TEN_M; band++) {
+		double targetFrequency = WSPR_BAND_SETTINGS[band].frequency;
+
+		double DACStepsPerHz = settings->modulation_PP
+				/ (deviationMeasured * targetFrequency);
+
+		float stepModulation = 12000.0 * DACStepsPerHz / 8192.0;
+		trace_printf("%d DAC steps per Hz and %d per WSPR step\n",
+				(int) DACStepsPerHz, (int) stepModulation);
+
+		double desiredMultiplication = targetFrequency
+				/ oscillatorFrequencyMeasured;
+
+		const TransmitterSetting_t* bestSetting =
+				bestPLLSetting(&WSPR_BAND_SETTINGS[band], desiredMultiplication);
+
+		double estimatedFrequency = bestSetting->mul * oscillatorFrequencyMeasured;
+
+		trace_printf("Best setting found: N=%u, f=%u\n",
+				bestSetting->N, (uint32_t) estimatedFrequency);
+
+		int16_t lastCorrection = (targetFrequency - estimatedFrequency) * DACStepsPerHz;
+
+		trace_printf("Final correction on modulation: %d\n", lastCorrection);
+
+		if (lastCorrection > 1500) {
+			lastCorrection = 1500;
+		} else if (lastCorrection < -1500) {
+			lastCorrection = -1500;
+		}
+
+		WSPR_BAND_CALIBRATIONS[band].selfCalibrationSymbolSize = stepModulation;
+		WSPR_BAND_CALIBRATIONS[band].selfCalibrationOffset = lastCorrection;
+		WSPR_BAND_CALIBRATIONS[band].estimatedFrequency = estimatedFrequency;
+		WSPR_BAND_CALIBRATIONS[band].bestPLLSetting = bestSetting;
+	}
 }
