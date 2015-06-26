@@ -30,32 +30,19 @@
 
 #include "APRSWorldMap.h"
 
-static const APRSPolygonVertex_t area144390[] = AREA_144390;
-static const APRSPolygonVertex_t area144620[] = AREA_144620;
-static const APRSPolygonVertex_t area144640[] = AREA_144640;
-static const APRSPolygonVertex_t area144660[] = AREA_144660;
-static const APRSPolygonVertex_t area144800[] = AREA_144800;
-static const APRSPolygonVertex_t area144930[] = AREA_144930;
-static const APRSPolygonVertex_t area145010[] = AREA_145010;
-static const APRSPolygonVertex_t area145525[] = AREA_145525;
-static const APRSPolygonVertex_t area145575[] = AREA_145575;
-
-static const APRSFrequencyDomain_t2 areaxxx = {10000, {{1,2},{3,4}}};
-
-const APRSFrequencyDomain_t APRS_WORLD_MAP[] = {
-		{ .frequency = 144390, .vertices = area144390 },
-		{ .frequency = 144620, .vertices = area144620 },
-		{ .frequency = 144640, .vertices = area144640 },
-		{ .frequency = 144660, .vertices = area144660 },
-		{ .frequency = 144800, .vertices = area144800 },
-		{ .frequency = 144930, .vertices = area144930 },
-		{ .frequency = 145010, .vertices = area145010 },
-		{ .frequency = 145525, .vertices = area145525 },
-		{ .frequency = 145575, .vertices = area145575 },
+static const APRSFrequencyDomain_t2 APRS_WORLD_MAP = {
+		144390, AREA_144390,
+		144620, AREA_144620,
+		144640, AREA_144640,
+		144660, AREA_144660,
+		144800, AREA_144800,
+		144930, AREA_144930,
+		145010, AREA_145010,
+		145525, AREA_145525,
+		145575, AREA_145575
 };
 
-const uint8_t APRS_WORLD_MAP_LENGTH = sizeof(APRS_WORLD_MAP)
-		/ sizeof(APRSFrequencyDomain_t);
+const uint8_t APRS_WORLD_MAP_LENGTH = 9;
 
 const uint8_t NUM_APRS_PARAMS = 1;
 const struct APRS_PARAM APRS_PARAMS[] = { { "foo", "V", { 0.01, 0.1, 1 } } };
