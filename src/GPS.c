@@ -128,6 +128,12 @@ void getGPSData() {
 	NVIC_EnableIRQ(USART1_IRQn);
 }
 
+void debugGPSTime() {
+	getGPSData();
+	trace_printf("GPS time: %02d:%02d:%02d\n", nmeaTimeInfo.time.hours,
+			nmeaTimeInfo.time.minutes, nmeaTimeInfo.time.seconds);
+}
+
 uint8_t GPS_waitForTimelock(uint32_t maxTime) {
 	timer_mark();
 	nmeaTimeInfo_unsafe.time.valid = 0;
@@ -136,14 +142,12 @@ uint8_t GPS_waitForTimelock(uint32_t maxTime) {
 		getGPSData();
 		timer_sleep(100);
 	} while ((!nmeaTimeInfo_unsafe.time.valid
-			|| (nmeaTimeInfo.time.hours == 0
-					&& nmeaTimeInfo.time.minutes == 0
+			|| (nmeaTimeInfo.time.hours == 0 && nmeaTimeInfo.time.minutes == 0
 					&& nmeaTimeInfo.time.seconds == 0))
 			&& !timer_elapsed(maxTime));
 	getGPSData();
 	if (nmeaTimeInfo.time.valid) {
-		trace_printf("Got GPS time: %02d:%02d:%02d\n", nmeaTimeInfo.time.hours,
-				nmeaTimeInfo.time.minutes, nmeaTimeInfo.time.seconds);
+		debugGPSTime();
 		return 1;
 	} else {
 		trace_printf("FAIL\n");
@@ -165,7 +169,9 @@ uint8_t GPS_waitForPosition(uint32_t maxTime) {
 				(int) (nmeaPositionInfo.lon * 1.0E7),
 				(int) nmeaPositionInfo.alt);
 	} else {
-		trace_printf("FAIL: valid:%c, fixMode:%u numSats:%u\n", nmeaPositionInfo.valid, nmeaStatusInfo.fixMode, nmeaStatusInfo.numberOfSatellites);
+		trace_printf("FAIL: valid:%c, fixMode:%u numSats:%u\n",
+				nmeaPositionInfo.valid, nmeaStatusInfo.fixMode,
+				nmeaStatusInfo.numberOfSatellites);
 	}
 	return nmeaPositionInfo.valid == 'A';
 }
@@ -176,17 +182,19 @@ uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) {
 	do {
 		getGPSData();
 		timer_sleep(100);
-	} while ((nmeaStatusInfo_unsafe.numberOfSatellites < 5 || nmeaStatusInfo.fixMode<2)
-			&& !timer_elapsed(maxTime));
+	} while ((nmeaStatusInfo_unsafe.numberOfSatellites < 5
+			|| nmeaStatusInfo.fixMode < 2) && !timer_elapsed(maxTime));
 	getGPSData();
-	if (nmeaStatusInfo.numberOfSatellites >= 5 && nmeaStatusInfo.fixMode>=2) {
+	if (nmeaStatusInfo.numberOfSatellites >= 5 && nmeaStatusInfo.fixMode >= 2) {
 		trace_printf("Got GPS position: %d, %d, %d\n",
 				(int) (nmeaPositionInfo.lat * 1.0E7),
 				(int) (nmeaPositionInfo.lon * 1.0E7),
 				(int) nmeaPositionInfo.alt);
 		return 1;
 	} else {
-		trace_printf("FAIL: valid:%c, fixMode:%u numSats:%u\n", nmeaPositionInfo.valid, nmeaStatusInfo.fixMode, nmeaStatusInfo.numberOfSatellites);
+		trace_printf("FAIL: valid:%c, fixMode:%u numSats:%u\n",
+				nmeaPositionInfo.valid, nmeaStatusInfo.fixMode,
+				nmeaStatusInfo.numberOfSatellites);
 		return 0;
 	}
 }

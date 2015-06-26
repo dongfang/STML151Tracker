@@ -1,7 +1,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "stm32l1xx_conf.h"
 #include <math.h>
-#include "DataTypes.h"
 #include "APRS.h"
 #include "DAC.h"
 
@@ -326,7 +325,7 @@ void GFSK_shutdown() {
 }
 
 // For WSPR (no DMA)
-void WSPR_DAC_Init() {
+void DAC2_initHW() {
 	// Setup DAC-out port and DAC's clock
 	GPIO_InitTypeDef GPIO_InitStructure;
 	/* Configure PA.04 (DAC_OUT1), PA.05 (DAC_OUT2) as analog */

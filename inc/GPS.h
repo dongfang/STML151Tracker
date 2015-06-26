@@ -2,26 +2,13 @@
 #define _NMEA_H_
 
 #include <stdint.h>
+#include "Types.h"
 
 typedef enum {
 	CONSUMED,
 	NEWDATA,
 	INVALID,
 } MessageState;
-
-typedef struct {
-	uint8_t hours;
-	uint8_t minutes;
-	uint8_t seconds;
-	uint8_t valid;
-} Time_t;
-
-typedef struct {
-	uint8_t year100;
-	uint8_t month;
-	uint8_t date;
-	uint8_t valid;
-} Date_t;
 
 // various data in whatever units NMEA has chosen to use.
 typedef struct {
@@ -53,6 +40,7 @@ typedef struct {
 
 void GPS_init(void);
 void GPS_shutdown(void);
+void debugGPSTime(void);
 uint8_t GPS_waitForTimelock(uint32_t maxTime);
 uint8_t GPS_waitForPosition(uint32_t maxTime);
 uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) ;

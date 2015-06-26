@@ -18,7 +18,6 @@
 #ifndef __APRS_H__
 #define __APRS_H__
 
-#include "DataTypes.h"
 #include "GPS.h"
 
 struct APRS_PARAM {
@@ -53,9 +52,7 @@ typedef struct {
 	const DACChannel_t DACChannel;
 	const APRSModulationMode_t modulationMode;	// FSK or AFSK
 	const float modulationAmplitude; 	// Amplitude of sine wave for FM
-	const uint8_t hardwareChannel;
-	// Function that makes the message
-	// void (*buildMessage) ();
+	const uint8_t hardwareChannel;		// Interpretation is up to the transmitter HW implementation used.
 	// Function that sets up the radio for transmission, transmits and shuts down
 	void (*initTransmitter) (uint32_t frequency, uint8_t hardwareChannel);
 	void (*shutdownTransmitter) ();
@@ -74,7 +71,8 @@ void aprs_statusMessage();
 void APRS_determineFrequencyFromPosition(
 		NMEA_PositionInfo_t* position,
 		boolean* result);
-void debug_APRSFrequency(boolean* result) ;
+void APRS_debugFrequency(boolean* result) ;
+void APRS_debugWorldMap();
 
 // Some are missing because precision sucks big time.
 #define APRS_FREQUENCIES_2M {144800,144390,144660,145175,144575.144930,144640}

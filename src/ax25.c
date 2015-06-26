@@ -19,8 +19,6 @@
 #include "DAC.h"
 #include <stdint.h>
 
-#include "CDCE913.h"
-
 // Module globals
 static uint16_t crc;
 static uint8_t ones_in_a_row;

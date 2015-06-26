@@ -8,24 +8,18 @@
 
 #include "APRS.h"
 #include "DAC.h"
-// Using a 26MHz xtal on the CDCEL913 today.
-#include "CDCE913_26MHzXtal.h"
+#include "PLL.h"
 
 const uint32_t frequencies2m[] = APRS_FREQUENCIES_2M;
 volatile APRSModulationMode_t currentMode;
 volatile uint16_t packet_cnt;
 volatile uint8_t packetTransmissionComplete;
 
-const TransmitterSetting_t settingsFor2m_APRS[] = PLL_SETTINGS_2m_APRS;
-const TransmitterSetting_t settingsFor30m_APRS = PLL_SETTING_30m_APRS;
-const TransmitterSetting_t settingsForSi4463VCXO= PLL_SETTING_1_1_VCXO;
-
 const APRS_Mode_t TWO_M_APRS_COMPRESSED_MESSAGE = {
 		.DACChannel = DAC1,
 		.modulationMode = AFSK,
 		.modulationAmplitude = 1,
 		.hardwareChannel = 1,
-		// .buildMessage = aprs_compressedMessage,
 };
 
 const APRS_Mode_t TWO_M_APRS_STATUS_MESSAGE = {
@@ -45,27 +39,29 @@ const APRS_Mode_t HF_APRS_COMPRESSED_MESSAGE = {
 };
 
 
-const TransmitterSetting_t* transmitterSetting2M_DirectlyFromPLL(uint32_t frequency) {
-	for (uint8_t i=0; i<sizeof(frequencies2m)/sizeof(uint32_t); i++) {
+const PLL_Setting_t* transmitterSetting2M_DirectlyFromPLL(uint32_t frequency) {
+	for (uint8_t i=0; i<NUM_PLL_OPTIONS_APRS_DIRECT_2m; i++) {
 		if (frequency == frequencies2m[i])
-			return settingsFor2m_APRS + i;
+			return PLL_OPTIONS_APRS_DIRECT_2m + i;
 	}
 	return 0;
 }
 
-void APRS_transmit2M_DirectlyFromPLL(uint32_t frequency, uint8_t hardwareChannel) {
-	const TransmitterSetting_t* transmitterSetting = transmitterSetting2M_DirectlyFromPLL(frequency);
-	CDCE913_init(hardwareChannel, transmitterSetting);
+/*
+void APRS_transmit2M_DirectlyFromPLL(CDCE913_OutputMode_t output, uint32_t frequency) {
+	const PLLSetting_t* transmitterSetting = transmitterSetting2M_DirectlyFromPLL(frequency);
+	CDCE913_init(output, CDCE913_PREFERRED_TRIM, transmitterSetting);
 }
 
 // Meaning: The CDCEL913 is used as a VCXO at a fixed frequency, which clocks an external tx circuit.
-void APRS_transmit2M_PLL_With_ExternalTransmitter(uint32_t frequency, uint8_t hardwareChannel) {
-	const TransmitterSetting_t* transmitterSetting = &settingsForSi4463VCXO;
-	CDCE913_init(hardwareChannel, transmitterSetting);
+void APRS_transmit2M_PLL_With_ExternalTransmitter(CDCE913_OutputMode_t output, uint32_t frequency) {
+	const PLLSetting_t* transmitterSetting = &settingsForSi4463VCXO;
+	CDCE913_init(output, CDCE913_PREFERRED_TRIM, transmitterSetting);
 }
 
-void APRS_transmit30M_DirectlyFromPLL(uint32_t frequency, uint8_t hardwareChannel) {
+void APRS_transmit30M_DirectlyFromPLL(CDCE913_OutputMode_t output, uint32_t frequency) {
 	// Ignore the frequency param, we only support one.
-	const TransmitterSetting_t* transmitterSetting = &settingsFor30m_APRS;
-	CDCE913_init(hardwareChannel, transmitterSetting);
+	const PLLSetting_t* transmitterSetting = &settingsFor30m_APRS;
+	CDCE913_init(output, CDCE913_PREFERRED_TRIM, transmitterSetting);
 }
+*/

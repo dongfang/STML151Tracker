@@ -51,6 +51,7 @@
  {-24,38},\
  {-24,36},\
  {-32,39},\
+ {-32,41},\
  \
  POLYGON_LIST_END \
  }
@@ -197,4 +198,30 @@
  \
  POLYGON_LIST_END\
 }
-#endif /* INC_APRSWORLDMAP_H_ */
+
+#define AREA_145010 {\
+ /* Venezuela. */\
+ {-75,13},\
+ {-68,1},\
+ {-60,4},\
+ {-60,11},\
+ {-75,13},\
+ \
+ POLYGON_LIST_END\
+}
+
+#define AREA_145575 {\
+ /* Brazil. */\
+ {-70,-4},\
+ {-68,1},\
+ {-60,4},\
+ {-40,-2},\
+ {-32,-5},\
+ {-38,-20},\
+ {-52,-33},\
+ {-70,-4},\
+ \
+ POLYGON_LIST_END\
+}
+
+ #endif /* INC_APRSWORLDMAP_H_ */

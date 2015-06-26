@@ -30,31 +30,12 @@
 #include <stdint.h>
 #include <math.h>
 
-#include "../inc/CDCE913.h"
-#include "stm32l1xx_conf.h"
-#include "Si4463_SPI.h"
-#include "DAC_DMA_SignalGeneration.h"
+#include "Types.h"
 #include "systick.h"
-#include "WSPR.h"
-#include "stm32l1xx_pwr.h"
-#include "ADC_DMA.h"
-#include "GPS.h"
+#include "ADC.h"
 #include "RTC.h"
-#include "SelfCalibration.h"
-#include "DataTypes.h"
-#include "aprs.h"
-
-uint8_t band = 1;
-uint8_t wsprMessageSeq;
-
-//extern void WSPR_TransmitCycle(const BandSetting_t* bandSettings, const BandCalibration_t* calibration);
-
-float temperature(uint16_t ADCvalue) {
-	float vTemp_mV = ADCvalue * 2200 / 4096;
-	float rootexp = 5.506 * 5.506 + 4 * 0.00176 * (870.6 - vTemp_mV);
-	float temp = (5.506 - sqrt(rootexp)) / (2 * -0.00176) + 30.0;
-	return temp;
-}
+#include "GPS.h"
+#include "StabilizedOscillator.h"
 
 void diagsWhyReset() {
 	uint8_t whyReset = (RCC->CSR >> 24);
@@ -75,18 +56,7 @@ void diagsWhyReset() {
 		trace_printf("Reset bc OBL\n");
 }
 
-int main() {
-	/*!< At this stage the microcontroller clock setting is already configured,
-	 this is done through SystemInit() function which is called from startup
-	 file (startup_stm32l1xx_xx.s) before to branch to application main.
-	 To reconfigure the default setting of SystemInit() function, refer to
-	 system_stm32l1xx.c file
-	 */
-
-	uint32_t bkup = RTC_ReadBackupRegister(RTC_BKP_DR0);
-	trace_printf("BKUP was %u\n", bkup);
-	RTC_WriteBackupRegister(RTC_BKP_DR0, bkup + 1);
-
+void initGeneralIOPorts() {
 	GPIO_InitTypeDef GPIO_InitStructure;
 
 	/* GPIOA and B Periph clock enable */
@@ -104,50 +74,106 @@ int main() {
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
 
 	// LED on (portB.6) .. the library way to do IO (As opposed to above direct way)
-	GPIO_WriteBit(GPIOB, GPIO_Pin_6, Bit_SET);
+	// GPIO_WriteBit(GPIOB, GPIO_Pin_6, Bit_SET);
+}
+
+int main() {
+	/*!< At this stage the microcontroller clock setting is already configured,
+	 this is done through SystemInit() function which is called from startup
+	 file (startup_stm32l1xx_xx.s) before to branch to application main.
+	 To reconfigure the default setting of SystemInit() function, refer to
+	 system_stm32l1xx.c file
+	 */
+
+	//uint32_t bkup = RTC_ReadBackupRegister(RTC_BKP_DR0);
+	//trace_printf("BKUP was %u\n", bkup);
+	//RTC_WriteBackupRegister(RTC_BKP_DR0, bkup + 1);
+	initGeneralIOPorts();
 
 	// Fire up systick
 	timer_start();
-
-	timer_sleep(2000);
-	trace_printf("Start\r\n");
-
-	GPS_init();
 	RTC_init();
+
+	timer_sleep(3000);
+	//uint16_t simpleBatteryVoltage = ADC_cheaplyMeasureBatteryVoltage();
+	//trace_printf("Start. Battery was %d\n", simpleBatteryVoltage);
+
+	ADC_DMA_init(ADCUnloadedValues);
+	while (!ADC_DMA_Complete)
+		;
+
+	trace_printf("ADCValue0: %d\n", ADCUnloadedValues[0]);
+	trace_printf("ADCValue1: %d\n", ADCUnloadedValues[1]);
+	trace_printf("ADCValue2: %d\n", ADCUnloadedValues[2]);
+
+	// This should NOT be needed!
+	// ADC_DMA_shutdown();
+
+	//ADC_DMA_init(ADCLoadedValues);
+	//ADC_DMA_start(ADCLoadedValues);
+	//while (!ADC_DMA_Complete)
+	//	;
+
+	 /*
+	 trace_printf("ADCValue0: %d\n", ADCLoadedValues[0]);
+	 trace_printf("ADCValue1: %d\n", ADCLoadedValues[1]);
+	 trace_printf("ADCValue2: %d\n", ADCLoadedValues[2]);
+	 ADC_DMA_shutdown();
+
+	 myBuffer[0] = myBuffer[0] + 1;
+	 trace_printf("My funny var is now: %u\n", myBuffer[0]);
+	 */
+	 trace_printf("Batt voltage: %d\n",
+	 (int) (1000 * batteryVoltage(ADCUnloadedValues[0])));
+	 trace_printf("Temperature mC: %d\n",
+	 (int) (1000 * temperature(ADCUnloadedValues[2])));
+
+	 /*
+	GPS_init();
 
 	if (GPS_waitForTimelock(300000)) {
 		trace_printf("GPS timelock okay\n");
 		setRTC(&nmeaTimeInfo.date, &nmeaTimeInfo.time);
 	}
+	*/
 
-	uint32_t fsys = 0;
-	uint8_t success = getOscillatorCalibration(300000, &fsys);
-	if (!success || fsys < 16E6 - 1600 || fsys > 16E6 + 1600) {
-		// Disregard, it's too absurd a claim of imprecision
-		trace_printf("Unrealistic fsys: status %u, ignore (%u, %u, %u, %u).\n",
-				(int) fsys, success, 16E6 - 1600, 16E6 + 1600, SystemCoreClock);
-		fsys = 16E6;
-	} else {
-		trace_printf("fsys %u\n", fsys);
-	}
+	// uint8_t success = oscillatorCalibration(300000, &fsys);
+	// if (!success || fsys < 16E6 - 1600 || fsys > 16E6 + 1600) {
+	// Disregard, it's too absurd a claim of imprecision
+	//	trace_printf("Unrealistic fsys: status %u, ignore (%u, %u, %u, %u).\n",
+	//h(int) fsys, success, 16E6 - 1600, 16E6 + 1600, SystemCoreClock);
+//		fsys = 16E6;
+//	} else {
+//		trace_printf("fsys %u\n", fsys);
+//	}
 
-	trace_printf("Waiting for position\n");
-	GPS_waitForPosition(300000);
+	//uint32_t nRTC = 0;
+	//success = RTCCalibration(300000, &nRTC);
+	//trace_printf("RTC cal: status %u, period %u\n", success, nRTC);
+
+	//double RTCSpeedFactor = (double)fsys / (double)nRTC;
+	//RTC_setCalibration(RTCSpeedFactor);
+
+	// trace_printf("Waiting for position\n");
+	// GPS_waitForPosition(300000);
 
 	// A very good position is a luxury that we don't care too much about.
-	trace_printf("Waiting for HP position\n");
-	GPS_waitForPrecisionPosition(300000);
+	// trace_printf("Waiting for HP position\n");
+	// GPS_waitForPrecisionPosition(300000);
 
-	boolean test[8];
+	// boolean test[8];
+	// APRS_determineFrequencyFromPosition(&nmeaPositionInfo, test);
+	// APRS_debugFrequency(test);
+	// GPS_shutdown();
 
-	APRS_determineFrequencyFromPosition(
-			&nmeaPositionInfo,
-			test);
+	// selfCalibrateForWSPR(fsys, 0.00003);
 
-	debug_APRSFrequency(test);
+	WSPRSynthesisExperiment(25998440);
+
+	// APRS_debugWorldMap();
 
 	// Finito with GPS. Well we might want to have a position too.
-	GPS_shutdown();
+	// GPS_shutdown();
 
 	//aprs_compressedMessage(123, 28);
 
@@ -156,31 +182,33 @@ int main() {
 	 uint16_t count = 0;
 	 *
 	 */
-	RTC_TimeTypeDef rtcTime;
-	RTC_GetTime(RTC_Format_BIN, &rtcTime);
-
-	trace_printf("Self-cal at %02u:%02u:%02u\n", rtcTime.RTC_Hours,
-			rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
-
+	// RTC_TimeTypeDef rtcTime;
+	// RTC_GetTime(RTC_Format_BIN, &rtcTime);
+	// scheduleASAPAlarmInSlot(1);
+	// setWakeup(10);
 	while (1) {
+		timer_sleep(10000);
+		debugGPSTime();
+		debugRTCTime();
+		trace_printf("\n");
 		/*
-		prepareWSPRMessage(wsprMessageSeq == 4 ? 1 : 3, wsprMessageSeq, 8);
-		do {
-			RTC_GetTime(RTC_HourFormat_24, &rtcTime);
-		} while ((rtcTime.RTC_Minutes % 2 != 0) || rtcTime.RTC_Seconds != 1);
+		 prepareWSPRMessage(wsprMessageSeq == 4 ? 1 : 3, wsprMessageSeq, 8);
+		 do {
+		 RTC_GetTime(RTC_HourFormat_24, &rtcTime);
+		 } while ((rtcTime.RTC_Minutes % 2 != 0) || rtcTime.RTC_Seconds != 1);
 
-		trace_printf("WSPR at %02u:%02u:%02u\n", rtcTime.RTC_Hours,
-				rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
+		 trace_printf("WSPR at %02u:%02u:%02u\n", rtcTime.RTC_Hours,
+		 rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
 
-		WSPR_TransmitCycle(bandSettings, calibration);
+		 WSPR_TransmitCycle(bandSettings, calibration);
 
-		trace_printf("End WSPR!\n");
+		 trace_printf("End WSPR!\n");
 
-		// Now we can turn on that stupid thing again.
-		// GPS_init();
+		 // Now we can turn on that stupid thing again.
+		 // GPS_init();
 
-		wsprMessageSeq = (wsprMessageSeq + 1) % 5;
-		*/
+		 wsprMessageSeq = (wsprMessageSeq + 1) % 5;
+		 */
 	}
 }
 

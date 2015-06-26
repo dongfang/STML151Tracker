@@ -58,6 +58,12 @@ uint8_t RTC_init() {
 	return 1; // okay
 }
 
+void debugRTCTime() {
+	RTC_TimeTypeDef rtcTime;
+	RTC_GetTime(RTC_Format_BIN, &rtcTime);
+	trace_printf("RTC is now %02u:%02u:%02u\n", rtcTime.RTC_Hours, rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
+}
+
 void setRTC(Date_t* date, Time_t* time) {
 	RTC_DateTypeDef rtcDate;
 
@@ -75,14 +81,13 @@ void setRTC(Date_t* date, Time_t* time) {
 	RTC_SetDate(RTC_HourFormat_24, &rtcDate);
 	RTC_SetTime(RTC_HourFormat_24, &rtcTime);
 
-	trace_printf("Set RTC to %02u:%02u:%02u\n", rtcTime.RTC_Hours,
-			rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
+	debugRTCTime();
 
-	// how to shift the clock
+	// how to shift the clock. Well might not be supported on this Category 1 bucket.
 	// RTC_SynchroShiftConfig(RTC_ShiftAdd1S_Reset, 0);
 }
 
-void init_RTC_NVIC() {
+void init_RTC_ALARMA_NVIC() {
 	EXTI_InitTypeDef exti; /// [12] According to manual RTC Alarm interrupt works
 	EXTI_ClearITPendingBit(EXTI_Line17); ///      in pair with external interrupt controller line 17.
 	exti.EXTI_Line = EXTI_Line17;
@@ -104,18 +109,44 @@ void init_RTC_NVIC() {
 	NVIC_Init(&NVIC_InitStructure);
 }
 
+void init_RTC_WKUP_NVIC() {
+	EXTI_InitTypeDef exti; /// [12] According to manual RTC Alarm interrupt works
+	EXTI_ClearITPendingBit(EXTI_Line20); ///      in pair with external interrupt controller line 17.
+	exti.EXTI_Line = EXTI_Line20;
+	exti.EXTI_Mode = EXTI_Mode_Interrupt; ///     Mode is interrupt, not event.
+	exti.EXTI_Trigger = EXTI_Trigger_Rising; ///     Interrupt sensetive to rising edge.
+	exti.EXTI_LineCmd = ENABLE;                 ///     Make line available.
+	EXTI_Init(&exti);
+
+	NVIC_InitTypeDef NVIC_InitStructure;
+
+	/* Configure one bit for preemption priority */
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
+
+	/* Enable the RTC Interrupt */
+	NVIC_InitStructure.NVIC_IRQChannel = RTC_WKUP_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 3;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
+}
+
 /**
  * @brief  This function handles RTC global interrupt request.
  * @param  None
  * @retval None
  */
-void RTC_IRQHandler(void) {
+void RTC_Alarm_IRQHandler(void) {
+	trace_printf("Well there is a rtc.\n");
+	EXTI_ClearFlag(EXTI_Line17);
+
 	if (RTC_GetITStatus(RTC_IT_ALRA) != RESET) {
+		trace_printf("It was alarm A\n");
 		/* Clear the RTC Second interrupt */
 		RTC_ClearITPendingBit(RTC_IT_ALRA);
 
 		/* Wait until last write operation on RTC registers has finished */
-//    RTC_WaitForLastTask();
+		//    RTC_WaitForLastTask();
 		/* Reset RTC Counter when Time is 23:59:59 */
 		//  if (RTC_GetCounter() == 0x00015180)
 		{
@@ -123,11 +154,45 @@ void RTC_IRQHandler(void) {
 			/* Wait until last write operation on RTC registers has finished */
 			//  RTC_WaitForLastTask();
 		}
-		trace_printf("RTC interrupt A\n");
+	}
+	if (RTC_GetITStatus(RTC_IT_WUT) != RESET) {
+		trace_printf("It was WUT\n");
+		/* Clear the RTC Second interrupt */
+		RTC_ClearITPendingBit(RTC_IT_WUT);
+	}
+	if (RTC_GetITStatus(RTC_IT_ALRB) != RESET) {
+		trace_printf("It was Alarm B\n");
+		/* Clear the RTC Second interrupt */
+		RTC_ClearITPendingBit(RTC_IT_ALRB);
+	}
+	if (RTC_GetITStatus(RTC_IT_TAMP) != RESET) {
+		trace_printf("It was tamper\n");
+		/* Clear the RTC Second interrupt */
+		RTC_ClearITPendingBit(RTC_IT_TAMP);
+	}
+	if (RTC_GetITStatus(RTC_IT_TAMP1) != RESET) {
+		trace_printf("It was tamper1\n");
+		/* Clear the RTC Second interrupt */
+		RTC_ClearITPendingBit(RTC_IT_TAMP1);
+	}
+	if (RTC_GetITStatus(RTC_IT_TS) != RESET) {
+		trace_printf("It was ts\n");
+		/* Clear the RTC Second interrupt */
+		RTC_ClearITPendingBit(RTC_IT_TS);
+	}
+}
+
+void RTC_WKUP_IRQHandler(void) {
+	EXTI_ClearFlag(EXTI_Line20);
+	if (RTC_GetITStatus(RTC_IT_WUT) != RESET) {
+		RTC_ClearITPendingBit(RTC_IT_WUT);
+		trace_printf("WKUP IRQ II @ ");
+		debugRTCTime();
 	}
 }
 
 void EXTI_IRQHandler(void) {
+	trace_printf("Well there is a stray exti\n");
 	if (EXTI_GetITStatus(EXTI_Line17) != RESET) {
 		EXTI_ClearITPendingBit(EXTI_Line17);
 		trace_printf("EXT interrupt\n");
@@ -135,29 +200,118 @@ void EXTI_IRQHandler(void) {
 }
 
 // Schedule an alarm event in the nearest possible future where the minutes mod slotMinutes = 0
-void scheduleASAPAlarmInSlot(int slotMinutes) {
-	RTC_TimeTypeDef rtcTime;
-	RTC_AlarmTypeDef rtcAlarm;
-	RTC_GetTime(RTC_HourFormat_24, &rtcTime);
-	rtcTime.RTC_Minutes += slotMinutes + 1;
-	rtcTime.RTC_Minutes -= rtcTime.RTC_Minutes % slotMinutes;
-	if (rtcTime.RTC_Minutes >= 60) {
-		rtcTime.RTC_Minutes -= 60;
-		rtcTime.RTC_Hours++;
-		if (rtcTime.RTC_Hours >= 24)
-			rtcTime.RTC_Hours = 0;
-	}
-	rtcTime.RTC_Seconds = 0;
-	rtcAlarm.RTC_AlarmTime = rtcTime;
-	rtcAlarm.RTC_AlarmMask =
-	RTC_AlarmMask_DateWeekDay | RTC_AlarmMask_Hours; // fire on minutes count??
+void scheduleASAPAlarmInSlot(uint16_t slotMinutes) {
+	init_RTC_ALARMA_NVIC();
 
-	RTC_AlarmCmd(RTC_Alarm_A, DISABLE);
-	RTC_SetAlarm(RTC_HourFormat_24, RTC_Alarm_A, &rtcAlarm);
-	RTC_AlarmCmd(RTC_Alarm_A, ENABLE);
-	RTC_ClearFlag(RTC_FLAG_ALRAF);
+	RTC_TimeTypeDef alarmTime;
+	RTC_AlarmTypeDef rtcAlarm;
+	RTC_GetTime(RTC_HourFormat_24, &alarmTime);
+//	alarmTime.RTC_H12
+	alarmTime.RTC_Minutes += slotMinutes + 1;
+	alarmTime.RTC_Minutes -= alarmTime.RTC_Minutes % slotMinutes;
+	if (alarmTime.RTC_Minutes >= 60) {
+		alarmTime.RTC_Minutes -= 60;
+		alarmTime.RTC_Hours++;
+		if (alarmTime.RTC_Hours >= 24)
+			alarmTime.RTC_Hours -= 24;
+	}
+
+	alarmTime.RTC_Seconds = 0;
+	rtcAlarm.RTC_AlarmTime = alarmTime;
+	rtcAlarm.RTC_AlarmMask = RTC_AlarmMask_DateWeekDay;//|RTC_AlarmMask_Minutes;
+	rtcAlarm.RTC_AlarmDateWeekDay = 1; // just some junk date that will be ignored.
+	rtcAlarm.RTC_AlarmDateWeekDaySel = RTC_AlarmDateWeekDaySel_Date;
+
+	//RTC_ClearITPendingBit(RTC_IT_ALRA);
+	//RTC_ClearFlag(RTC_FLAG_ALRAF);
 	RTC_ITConfig(RTC_IT_ALRA, ENABLE);
-	init_RTC_NVIC();
-	trace_printf("Scheduled an alarm at %02u:%02u:%02u\n", rtcTime.RTC_Hours,
-			rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
+
+	// RTC_WriteProtectionCmd(DISABLE);
+	uint8_t error = RTC_AlarmCmd(RTC_Alarm_A, DISABLE);
+	RTC_SetAlarm(RTC_Format_BIN, RTC_Alarm_A, &rtcAlarm);
+	error &= RTC_AlarmCmd(RTC_Alarm_A, ENABLE);
+
+	trace_printf("Scheduled an alarm at %02u:%02u:%02u with error %d\n",
+			alarmTime.RTC_Hours, alarmTime.RTC_Minutes, alarmTime.RTC_Seconds,
+			error);
 }
+
+/*
+ * To enable the RTC Wakeup interrupt, the following sequence is required:
+ 1. Configure and enable the EXTI Line 20 in interrupt mode and select the rising edge sensitivity.
+ 2. Configure and enable the RTC_WKUP IRQ channel in the NVIC.
+ 3. Configure the RTC to generate the RTC wakeup timer event.
+ */
+void setWakeup(uint16_t periodSeconds) {
+	init_RTC_WKUP_NVIC();
+
+	RTC_WakeUpCmd(DISABLE);
+	RTC_WakeUpClockConfig(RTC_WakeUpClock_CK_SPRE_16bits);
+	RTC_SetWakeUpCounter(periodSeconds-1);
+	RTC_WakeUpCmd(ENABLE);
+
+	RTC_ITConfig(RTC_IT_WUT, ENABLE);
+
+	trace_printf("Survived the WUT setup\n");
+}
+
+/*
+ void setWakeupNoNonsens(int periodSeconds) {
+ RTC->WPR = 0xCA;
+ RTC->WPR = 0x53;
+
+ / * Disable the Wakeup Timer * /
+ RTC->CR &= (uint32_t) ~RTC_CR_WUTE;
+ / * Wait till RTC WUTWF flag is set and if Time out is reached exit * /
+ do {
+ wutwfstatus = RTC->ISR & RTC_ISR_WUTWF;
+ wutcounter++;
+ } while ((wutcounter != INITMODE_TIMEOUT) && (wutwfstatus == 0x00));
+
+ / * Clear the Wakeup Timer clock source bits in CR register * /
+ RTC->CR &= (uint32_t) ~RTC_CR_WUCKSEL;
+
+ / * Configure the clock source * /
+ RTC->CR |= 4;
+
+ RTC->WUTR = periodSeconds;
+
+ RTC->WPR = 0xFF;
+ }
+ */
+
+
+/*
+ * Coarse-calibrate RTC.
+ */
+// rfactor is <1 when we are too slow and >1 when too fast.
+// = refcounts(1 GPS second) / refcounts(1 RTC second)
+void RTC_setCalibration(double rfactor) {
+	uint32_t ivalue = 0;
+	uint32_t sign = RTC_CalibSign_Positive;
+	double rvaluePPM = (1 - rfactor) * 1E6;
+	trace_printf("RTC is %d PPM too %s\n", (int)rvaluePPM, "slow");
+	if (rvaluePPM > 0) {
+		/* We are too slow. Positive: 4ppm stepsize
+		 *                This value should be between 0 and 126 when using positive sign
+		 *                with a 4-ppm step.
+		 */
+		ivalue = rvaluePPM / 4;
+		if (ivalue > 126) ivalue = 126;
+		sign = RTC_CalibSign_Positive;
+	} else if (rvaluePPM < 0) {
+		/* We are too fast. Negative: 2ppm stepsize
+		 * This value should be between 0 and 63 when using negative sign
+		 * with a 2-ppm step.
+		 */
+		ivalue = -rvaluePPM / 2;
+		if (ivalue > 63) ivalue = 63;
+		sign = RTC_CalibSign_Negative;
+	}
+	ErrorStatus result = RTC_CoarseCalibConfig(sign, ivalue);
+	trace_printf("Using sign %s and ivalue %d. Success: %s\n",
+			sign == RTC_CalibSign_Positive ? "pos" : "neg",
+					ivalue,
+					result == SUCCESS ? "ok" : "fail");
+}
+

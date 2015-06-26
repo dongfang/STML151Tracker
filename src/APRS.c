@@ -17,34 +17,43 @@
 
 #include "ax25.h"
 #include "aprs.h"
-#include "DataTypes.h"
 #include "GPS.h"
 #include "APRS.h"
 #include "DAC.h"
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <diag/trace.h>
 
 #include "APRSWorldMap.h"
 
-static const APRSPolygonVertex_t area144800[] = AREA_144800;
+static const APRSPolygonVertex_t area144390[] = AREA_144390;
+static const APRSPolygonVertex_t area144620[] = AREA_144620;
 static const APRSPolygonVertex_t area144640[] = AREA_144640;
 static const APRSPolygonVertex_t area144660[] = AREA_144660;
-static const APRSPolygonVertex_t area144620[] = AREA_144620;
-static const APRSPolygonVertex_t area144390[] = AREA_144390;
+static const APRSPolygonVertex_t area144800[] = AREA_144800;
 static const APRSPolygonVertex_t area144930[] = AREA_144930;
+static const APRSPolygonVertex_t area145010[] = AREA_145010;
+static const APRSPolygonVertex_t area145525[] = AREA_145525;
+static const APRSPolygonVertex_t area145575[] = AREA_145575;
 
-const APRSFrequencyDomain_t APRS_WORLD_MAP[] = { { .frequency = 144800,
-		.vertices = area144800 },
-		{ .frequency = 144640, .vertices = area144640 }, { .frequency = 144660,
-				.vertices = area144660 }, { .frequency = 144620, .vertices =
-				area144620 }, { .frequency = 144390, .vertices = area144390 }, {
-				.frequency = 144930, .vertices = area144930 }, };
+const APRSFrequencyDomain_t APRS_WORLD_MAP[] = {
+		{ .frequency = 144390, .vertices = area144390 },
+		{ .frequency = 144620, .vertices = area144620 },
+		{ .frequency = 144640, .vertices = area144640 },
+		{ .frequency = 144660, .vertices = area144660 },
+		{ .frequency = 144800, .vertices = area144800 },
+		{ .frequency = 144930, .vertices = area144930 },
+		{ .frequency = 145010, .vertices = area145010 },
+		{ .frequency = 145525, .vertices = area145525 },
+		{ .frequency = 145575, .vertices = area145575 },
+};
 
-const uint8_t APRS_WORLD_MAP_LENGTH = sizeof(APRS_WORLD_MAP) / sizeof(APRSFrequencyDomain_t);
+const uint8_t APRS_WORLD_MAP_LENGTH = sizeof(APRS_WORLD_MAP)
+		/ sizeof(APRSFrequencyDomain_t);
 
 const uint8_t NUM_APRS_PARAMS = 1;
 const struct APRS_PARAM APRS_PARAMS[] = { { "foo", "V", { 0.01, 0.1, 1 } } };
@@ -435,41 +444,58 @@ static boolean checkWithin(int16_t lon, int16_t lat,
 			result = false;
 		}
 	} while (areaList[*index].lat != initialLat
-			 || areaList[*index].lon != initialLon);
+			|| areaList[*index].lon != initialLon);
 	// Now index points at the last vertex which is same values as the first..
 	// Take it one step further.
-	trace_printf("Return to origin detected (or went stoopid)\n");
+	// trace_printf("Return to origin detected (or went stoopid)\n");
 	(*index)++;
 	return result;
 }
 
 void APRS_determineFrequency(
-		//APRS_Mode_t* mode,
-		//APRS_MessageType_t messageType,
-		int16_t lat,
-		int16_t lon,
-		boolean* result) {
-	trace_printf("lat %d, lon %d\n", lat, lon);
-	for (int i=0; i<APRS_WORLD_MAP_LENGTH; i++) {
+//APRS_Mode_t* mode,
+//APRS_MessageType_t messageType,
+		int16_t lat, int16_t lon, boolean* result) {
+	//trace_printf("lat %d, lon %d\n", lat, lon);
+	for (int i = 0; i < APRS_WORLD_MAP_LENGTH; i++) {
 		uint16_t vertexIndex = 0;
 		boolean within = false;
 		const APRSFrequencyDomain_t* region = &APRS_WORLD_MAP[i];
-		trace_printf("Trying region: %u\n", region->frequency);
-		while (!within && region->vertices[vertexIndex].lat != POLYGON_LIST_END_DEGREES) {
+		//trace_printf("Trying region: %u\n", region->frequency);
+		while (!within
+				&& region->vertices[vertexIndex].lat != POLYGON_LIST_END_DEGREES) {
 			within = checkWithin(lon, lat, region->vertices, &vertexIndex);
 		}
 		result[i] = within;
 	}
 }
 
-void APRS_determineFrequencyFromPosition(
-		NMEA_PositionInfo_t* position,
+void APRS_determineFrequencyFromPosition(NMEA_PositionInfo_t* position,
 		boolean* result) {
-	APRS_determineFrequency((int16_t)position->lat, (int16_t)position->lon, result);
+	APRS_determineFrequency((int16_t)(position->lat+0.5), (int16_t)(position->lon+0.5),
+			result);
 }
 
-void debug_APRSFrequency(boolean* result) {
-	for (int i=0; i<APRS_WORLD_MAP_LENGTH; i++) {
+void APRS_debugWorldMap() {
+	boolean frequencyList[APRS_WORLD_MAP_LENGTH];
+	for (int16_t lat = 70; lat >= -70; lat--) {
+		for (int16_t lon = -179; lon <= 180; lon++) {
+			APRS_determineFrequency(lat, lon, frequencyList);
+			trace_printf("%d;%d;", lat, lon);
+			boolean needsComma = false;
+			for (int i = 0; i < APRS_WORLD_MAP_LENGTH; i++) {
+				if (frequencyList[i]) {
+					if (needsComma) trace_printf(","); else needsComma = true;
+					trace_printf("%u", APRS_WORLD_MAP[i].frequency);
+				}
+			}
+			trace_printf("\n");
+		}
+	}
+}
+
+void APRS_debugFrequency(boolean* result) {
+	for (int i = 0; i < APRS_WORLD_MAP_LENGTH; i++) {
 		trace_printf("Frequency %u:", APRS_WORLD_MAP[i].frequency);
 		if (result[i]) {
 			trace_printf("*");

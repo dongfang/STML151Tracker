@@ -4,47 +4,16 @@
 #include <math.h>
 #include "stm32l1xx_conf.h"
 #include "WSPR.h"
-#include "CDCE913_26MHzXtal.h"
 #include "GPS.h"
+#include "PLL.h"
+#include "Callsigns.h"
 
 static uint8_t losslessCompressedBuf[11];
 uint8_t convolutionalBuf[21];
 uint8_t interleavedbuf[21];
 uint8_t symbolList[162 / 4 + 1];
 
-/*
-const BandSetting_t WSPR_BAND_SETTINGS[2] = {
-		{
-			.RFChannel = 1,
-			.numPLLOptions = sizeof(settingsFor30m)/sizeof(PLLSetting_t),
-			.PLLOptions = settingsFor30m,
-			.frequency = 10140200
-		},{
-				.RFChannel = 2,
-				.numPLLOptions = sizeof(settingsFor10m)/sizeof(PLLSetting_t),
-				.PLLOptions = settingsFor10m,
-				.frequency = 28126100
-			}
-};
-*/
-
-const TransmitterSetting_t settingsFor10m[] = PLL_SETTINGS_10m_WSPR;
-const TransmitterSetting_t settingsFor30m[] = PLL_SETTINGS_30m_WSPR;
-
-const WSPR_BandSetting_t WSPR_BAND_SETTINGS[2] = {
-		{
-			1,
-			sizeof(settingsFor30m)/sizeof(TransmitterSetting_t),
-			settingsFor30m,
-			10140200
-		},{
-			2,
-			sizeof(settingsFor10m)/sizeof(TransmitterSetting_t),
-			settingsFor10m,
-			 28126100
-		}
-};
-BandCalibration_t WSPR_BAND_CALIBRATIONS[2];
+const uint32_t WSPR_FREQUENCIES[] = {10140200, 28126100};
 
 extern uint16_t hash(const char* call, uint16_t length);
 
@@ -87,7 +56,7 @@ static uint32_t encodeCallsign(const char* callsign) {
 	result = result * 27 + encodeCharOnly(callsign[5]);
 	return result;
 }
-
+/*
 static uint32_t encodeCallsignFaster(char* callsign) {
 	uint32_t result = encode(callsign[0]) * ((uint32_t) 36 * 10 * 27 * 27 * 27);
 	result += encode(callsign[1]) * ((uint32_t) 10 * 27 * 27 * 27);
@@ -97,6 +66,7 @@ static uint32_t encodeCallsignFaster(char* callsign) {
 	result += encode(callsign[5]);
 	return result;
 }
+*/
 
 static uint32_t encode4DigitMaidenhead(const char* mh) {
 	uint32_t result = 10 * (mh[0] - 'A') + (mh[2] - '0');

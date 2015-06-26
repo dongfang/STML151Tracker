@@ -19,7 +19,8 @@
 #define __AX25_H__
 
 #include <stdint.h>
-#include "DataTypes.h"
+#include "Callsigns.h"
+
 #define TX_DELAY 75
 
 void ax25_send_header(const AX25_Address_t *addresses[], int num_addresses);

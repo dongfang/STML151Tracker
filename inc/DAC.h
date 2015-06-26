@@ -8,11 +8,11 @@
 #ifndef DAC_H_
 #define DAC_H_
 
-#include "DataTypes.h"
+#include "Types.h"
 
 // WSPR stuff - no DMA.
 // Setup DAC ch 2 but leave Ch1 floating
-void WSPR_DAC_Init();
+void DAC2_initHW();
 void setDAC(DACChannel_t channel, uint16_t value);
 
 // AFSK stuff - uses DMA
