@@ -8,9 +8,9 @@
 
 #include "APRS.h"
 #include "DAC.h"
-#include "PLL.h"
+//#include "PLL.h"
+#include "Bands.h"
 
-const uint32_t frequencies2m[] = APRS_FREQUENCIES_2M;
 volatile APRSModulationMode_t currentMode;
 volatile uint16_t packet_cnt;
 volatile uint8_t packetTransmissionComplete;
@@ -40,9 +40,9 @@ const APRS_Mode_t HF_APRS_COMPRESSED_MESSAGE = {
 
 
 const PLL_Setting_t* transmitterSetting2M_DirectlyFromPLL(uint32_t frequency) {
-	for (uint8_t i=0; i<NUM_PLL_OPTIONS_APRS_DIRECT_2m; i++) {
-		if (frequency == frequencies2m[i])
-			return PLL_OPTIONS_APRS_DIRECT_2m + i;
+	for (uint8_t i=0; i<NUM_VHF_PLL_BAND_DEFS; i++) {
+		if (frequency == VHF_PLL_BAND_DEFS[i].frequency)
+			return &VHF_PLL_BAND_DEFS[i].PLLSetting;
 	}
 	return 0;
 }

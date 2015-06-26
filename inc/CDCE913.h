@@ -27,6 +27,8 @@ typedef struct {
   uint8_t R;
 } CDCE913_PLLSetting_t;
 
+extern const int16_t PLL_XTAL_TRIM_PP10M[];
+
 // This is no typedef, as we want it to be representable as an uint8_t to thread though implementation-agnostic code.
 typedef enum {
 	CDCE913_OutputMode_SHUTDOWN,

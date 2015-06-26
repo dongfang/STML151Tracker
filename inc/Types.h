@@ -29,13 +29,9 @@ typedef struct {
 } Time_t;
 
 typedef enum {
-	THIRTY_M,
-	TEN_M
-} WSPRBand_t;
-
-typedef enum {
 	DAC1,
 	DAC2
 } DACChannel_t;
+
 
 #endif /* INC_TYPES_H_ */

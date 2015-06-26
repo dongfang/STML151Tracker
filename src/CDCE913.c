@@ -1,27 +1,47 @@
 #include "stm32l1xx_conf.h"
 #include "CDCE913.h"
 #include "Types.h"
+#include "WSPR.h"
 #include <diag/trace.h>
 #include "systick.h"
+#include "Bands.h"
 
 #define CDCE913_I2C_ADDR 0b1100101
 #define I2C_TIMEOUT 25
-/*
- const TransmitterSetting_t* bestPLLSetting(const WSPR_BandSetting_t* bandSettings, double desiredMultiplication) {
- double minError = 1000;
- uint8_t i;
- uint8_t besti = bandSettings->numPLLOptions/2;
- for(i=0; i<bandSettings->numPLLOptions; i++) {
- double error = bandSettings->PLLOptions[i].mul - desiredMultiplication;
- if (error < 0) error = -error;
- if (error < minError) {
- besti = i;
- minError = error;
- }
- }
- return &bandSettings->PLLOptions[besti];
- }
- */
+
+const int16_t PLL_XTAL_TRIM_PP10M[] = PLL_XTAL_TRIM_PP10M_VALUES;
+
+// These are different options for the same frequency.
+static const CDCE913_PLLSetting_t PLL_OPTIONS_WSPR_10m[] =
+		CDCE913_PLL_SETTINGS_10m_WSPR;
+
+// These are different options for the same frequency.
+static const CDCE913_PLLSetting_t PLL_OPTIONS_WSPR_30m[] =
+		CDCE913_PLL_SETTINGS_30m_WSPR
+;
+
+// These are different options for the same frequency (maybe one is enough).
+// static const CDCE913_PLLSetting_t PLL_OPTIONS_APRS_30m[];
+
+// These are different options but each for its OWN frequency.
+// static const CDCE913_PLLSetting_t PLL_OPTIONS_APRS_DIRECT_2m[];
+// This does not belong here at ALL but try to get the compiler convinced that they really are const
+// if coming from a different source .. it's not possible.
+
+const HF_BandDef_t HF_BAND_DEFS[] = { { .hardwareChannel = 1, .numPLLOptions =
+		sizeof(PLL_OPTIONS_WSPR_30m) / sizeof(CDCE913_PLLSetting_t),
+		.PLLOptions = PLL_OPTIONS_WSPR_30m, .frequency = 10140200 }, {
+		.hardwareChannel = 1, .numPLLOptions = sizeof(PLL_OPTIONS_WSPR_10m)
+				/ sizeof(CDCE913_PLLSetting_t), .PLLOptions =
+				PLL_OPTIONS_WSPR_10m, .frequency = 28126100 } };
+
+const VHF_ChannelDef_PLL_t VHF_PLL_BAND_DEFS[] = {
+};
+const uint8_t NUM_VHF_PLL_BAND_DEFS = sizeof(VHF_PLL_BAND_DEFS)/sizeof(VHF_ChannelDef_PLL_t);
+
+const VHF_ChannelDef_Si6643_t VHF_SI4463_BAND_DEFS[] = { 144390, 144620, 144640, 144575,
+		144660, 144930, 144800, 145010, 145175, 145525, 145575 };
+const uint8_t NUM_VHF_SI4463_BAND_DEFS = sizeof(VHF_SI4463_BAND_DEFS)/sizeof(VHF_ChannelDef_Si6643_t);
 
 static void CDCE913_initInterface() {
 	GPIO_InitTypeDef GPIO_InitStructure;
@@ -77,8 +97,7 @@ static uint8_t I2C_read(uint8_t reg_addr) {
 	I2C_Send7bitAddress(I2C1, CDCE913_I2C_ADDR << 1, I2C_Direction_Transmitter);
 	/*check master is now in Tx mode*/
 	while ((status = !I2C_CheckEvent(I2C1,
-			I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED))
-			&& !timer_elapsed(I2C_TIMEOUT))
+	I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)) && !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending address (1)\n");
@@ -109,8 +128,7 @@ static uint8_t I2C_read(uint8_t reg_addr) {
 	I2C_Send7bitAddress(I2C1, CDCE913_I2C_ADDR << 1, I2C_Direction_Receiver);
 	/*check master is now in Rx mode*/
 	while ((status = !I2C_CheckEvent(I2C1,
-			I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED))
-			&& !timer_elapsed(I2C_TIMEOUT))
+	I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED)) && !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending address (2)\n");
@@ -157,8 +175,7 @@ static void I2C_write(uint8_t reg_addr, uint8_t data) {
 	I2C_Send7bitAddress(I2C1, CDCE913_I2C_ADDR << 1, I2C_Direction_Transmitter);
 	/*check master is now in Tx mode*/
 	while ((status = !I2C_CheckEvent(I2C1,
-			I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED))
-			&& !timer_elapsed(I2C_TIMEOUT))
+	I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)) && !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending address\n");
@@ -298,13 +315,6 @@ void CDCE913_setPLL(CDCE913_OutputMode_t output,
 	// I2C_write(2, (1 << 7) | (0b1111 << 2));
 	CDCE913_enableOutput(output, setting->pdiv);
 	I2C_write(5, trim << 3); 	// Cap. in pF.
-
-	// Turn on PLL1
-	// I2C_write(0x14, 0b00000101);
-
-	// Center mode SSC
-	// I2C_write(0x16, 0b10000000);
-
 	CDCE913_setPLLValue(setting);
 }
 

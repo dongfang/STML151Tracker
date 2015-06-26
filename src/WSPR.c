@@ -13,7 +13,7 @@ uint8_t convolutionalBuf[21];
 uint8_t interleavedbuf[21];
 uint8_t symbolList[162 / 4 + 1];
 
-const uint32_t WSPR_FREQUENCIES[] = {10140200, 28126100};
+//const uint32_t WSPR_FREQUENCIES[] = {10140200, 28126100};
 
 extern uint16_t hash(const char* call, uint16_t length);
 

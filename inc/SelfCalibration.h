@@ -81,7 +81,7 @@ typedef struct {
 #define DEFAULT_CALIBRATION { \
 	.HSEFrequency = 16E6,	\
 	.transmitterOscillatorFrequencyAtDefaultTrim = 26E6,\
-	.RTCErrorPP10M = 1000, /* This xtal is VERY bad */ \
+	.RTCNeededCorrectionPP10M = -1000, /* This xtal is VERY bad */ \
 	.temperature = 0, \
 	.checksum = 0 \
 }

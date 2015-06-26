@@ -43,6 +43,12 @@ typedef struct {
 	const APRSPolygonVertex_t* vertices;
 } APRSFrequencyDomain_t;
 
+typedef struct {
+	const uint32_t frequency;
+	// Special out of range vertices mark end of polygon or end of list.
+	const APRSPolygonVertex_t vertices[];
+} APRSFrequencyDomain_t2;
+
 typedef enum {
 	AFSK, GFSK
 } APRSModulationMode_t;
@@ -74,8 +80,6 @@ void APRS_determineFrequencyFromPosition(
 void APRS_debugFrequency(boolean* result) ;
 void APRS_debugWorldMap();
 
-// Some are missing because precision sucks big time.
-#define APRS_FREQUENCIES_2M {144800,144390,144660,145175,144575.144930,144640}
 
 void APRS_transmitMessage(const APRS_Mode_t* mode);
 #endif

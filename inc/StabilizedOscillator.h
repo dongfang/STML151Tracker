@@ -9,21 +9,12 @@
 #define INC_STABILIZEDOSCILLATOR_H_
 
 #include "SelfCalibration.h"
+#include "PLL.h"
 
 /*
  * Whereas SelfCalibration.h was about finding clock frequencies of various oscillators,
  * this is about using those frequencies for estimating good oscillator settings.
  */
-
-/*
- * For transmitting on a frequency, which options are aviailable
- */
-typedef struct {
-	const uint8_t hardwareChannel;	// Which hardware output is used (implementation-specific interpretation)
-	const uint8_t numPLLOptions;	// How many different PLL settings can we try using
-	const void* PLLOptions;			// The PLL settings (implementation-specific data format)
-	const uint32_t frequency;		// WSPR frequency of band
-} TransmissionOptions_t;
 
 /*
  * For calibration to temperatures, we have a choice between:
@@ -56,5 +47,7 @@ typedef struct {
 } TransmitterTuning_t;
 
 void WSPRSynthesisExperiment(uint32_t oscillatorFrequencyMeasured);
+
+void PLLSettingExperiment(const PLL_Setting_t* pllSettings, uint8_t numSettings, double desiredMultiplication) ;
 
 #endif /* INC_STABILIZEDOSCILLATOR_H_ */

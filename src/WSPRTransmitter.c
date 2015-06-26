@@ -8,6 +8,8 @@
 #include "WSPR.h"
 #include "DAC.h"
 #include "PLL.h"
+#include "StabilizedOscillator.h"
+#include "Bands.h"
 #include <diag/Trace.h>
 #include "../inc/CDCE913.h"
 
@@ -97,7 +99,7 @@ void WSPR_initHW(
 
 void WSPR_TransmitCycle(
 		uint8_t band,
-		const CDCE913_PLLSetting_t* setting,
+		const PLL_Setting_t* setting,
 		uint8_t trim,
 		float stepModulation) {
 
@@ -116,4 +118,16 @@ void WSPR_TransmitCycle(
 	}
 
 	WSPR_shutdownHW();
+}
+
+void WSPRSynthesisExperiment(uint32_t oscillatorFrequencyMeasured) {
+	for (WSPRBand_t band = THIRTY_M; band <= TEN_M; band++) {
+		trace_printf("Trying band %d\n", band);
+		double targetFrequency = HF_BAND_DEFS[band].frequency;
+
+		double desiredMultiplication = (double) targetFrequency
+				/ oscillatorFrequencyMeasured;
+
+		PLLSettingExperiment(HF_BAND_DEFS[band].PLLOptions, HF_BAND_DEFS[band].numPLLOptions, desiredMultiplication);
+	}
 }

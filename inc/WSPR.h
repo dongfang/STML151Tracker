@@ -21,8 +21,10 @@ enum WSPR_FAKE_EXTENDED_LOCATION {
   TELEMETRY
 };
 
-// WSPR all-inclusive settings
-// extern const WSPR_BandSetting_t WSPR_BAND_SETTINGS[2];
+typedef enum {
+	THIRTY_M,
+	TEN_M
+} WSPRBand_t;
 
 void prepareWSPRMessage(uint8_t type, enum WSPR_FAKE_EXTENDED_LOCATION extendedFake, float txVoltage);
 uint8_t WSPRDidUpdate();

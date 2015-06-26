@@ -76,6 +76,12 @@ SECTIONS
    	 _ebss = . ;
     } >RAM
     
+    /*
+    .noload (NOLOAD)  : AT(0x20002000) {
+	    . = ALIGN(4);
+    } > RAM
+    */
+    
     PROVIDE ( end = _ebss );
     PROVIDE ( _end = _ebss );
     

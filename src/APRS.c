@@ -40,6 +40,8 @@ static const APRSPolygonVertex_t area145010[] = AREA_145010;
 static const APRSPolygonVertex_t area145525[] = AREA_145525;
 static const APRSPolygonVertex_t area145575[] = AREA_145575;
 
+static const APRSFrequencyDomain_t2 areaxxx = {10000, {{1,2},{3,4}}};
+
 const APRSFrequencyDomain_t APRS_WORLD_MAP[] = {
 		{ .frequency = 144390, .vertices = area144390 },
 		{ .frequency = 144620, .vertices = area144620 },
