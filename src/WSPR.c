@@ -319,6 +319,7 @@ void completeMessage() {
 	makeSymbolList();
 }
 
+/*
 uint8_t voltageToDbm(float voltage) {
   float power = voltage*voltage / (72 * 8); // the 8 are (2 sqrt 2)^2, the conversion from p-p to RMS squared.
   power = power*1000; // to milliwatts.
@@ -326,6 +327,7 @@ uint8_t voltageToDbm(float voltage) {
   if (power < 0) power = 0; else if (power > 37) power = 37;
   return (uint8_t) power;
 }
+*/
 
 void positionAs4DigitMaidenhead(double lat, double lon, char* target) {
 	lon = lon + 180;
@@ -450,8 +452,24 @@ uint8_t getWSPRSymbol(uint8_t i) {
   return sym;
 }
 
-void prepareWSPRMessage(uint8_t type, enum WSPR_FAKE_EXTENDED_LOCATION fake, float txVoltageLevel) {
-    uint8_t power = voltageToDbm(txVoltageLevel);
+uint8_t fake_dBm(float voltage) {
+	/*
+	voltage = voltage * 3 / (4 * sqrt(2));
+	float power_mW = voltage*voltage*1000/72.0;// Z is 72 Ohms
+	float dB = log10(power_mW) * 10;
+	return dB;
+	*/
+	// 3.0 -> 10mW (10 dBm)
+	// 4.5 -> 100mW (20 dBm)
+	// y = 10 (x-3) + 10
+	int8_t result = (voltage - 3) * 10 + 10;
+	if (result < 10) result = 10;
+	return result - result%3;
+}
+
+void prepareWSPRMessage(uint8_t type, enum WSPR_FAKE_EXTENDED_LOCATION fake, float voltage) {
+    uint8_t power = //voltageToDbm(txVoltageLevel);
+    		fake_dBm(voltage);
   switch (type) {
   case 1:
     prepareType1Transmission(power);

@@ -8,13 +8,20 @@
 #ifndef INC_RECORDSTORAGE_H_
 #define INC_RECORDSTORAGE_H_
 
+#include "Types.h"
+
 typedef struct {
 	uint8_t initialVoltageValue;
-	boolean didStartGPS;
-	boolean didSurviveGPS;
-	boolean didStartWSPR;
-	boolean didSurviveWSPR;
-	uint8_t checksum;
+	boolean wasGPSRunning;
+	boolean wasWSPRRunning;
+	boolean wasSi4463Running;
+
+	// Not used for anything else than show / diags!
+	boolean wasGPSSuccessful;
+	boolean wasWSPRSuccessful;
+	boolean wasSi4463Successful;
+
+	uint16_t checksum;
 } StartupRecord_t;
 
 // Should be 5*8 = 40 bytes
@@ -32,7 +39,14 @@ typedef struct {
 
 #define NUM_STORED_RECORDS 150
 
+extern StartupRecord_t startupLog;
+
 // 6000 bytes or there about.
 extern StoredRecord_t storedRecords[NUM_STORED_RECORDS];
+
+uint16_t startupRecordChecksum();
+void setStartupRecordChecksum();
+boolean checkStartupRecordValid();
+void invalidateStartupLog();
 
 #endif /* INC_RECORDSTORAGE_H_ */

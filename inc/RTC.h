@@ -18,8 +18,10 @@ void scheduleASAPAlarmInSlot(uint16_t minutes);
 
 void setWakeup(uint16_t periodSeconds);
 
-void RTC_setCalibration(double rfactor);
+void RTC_setCalibration(int16_t correction_PP10M);
 
 void debugRTCTime();
+
+void RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds);
 
 #endif /* RTC_H_ */

@@ -3,6 +3,7 @@
 #include <math.h>
 #include "GPS.h"
 #include "systick.h"
+#include "Setup.h"
 #include <diag/Trace.h>
 #include "stm32l1xx_conf.h"
 
@@ -30,12 +31,12 @@ static uint8_t commitCheck;
 // managed safe copies and re-enable interrupts.
 NMEA_TimeInfo_t nmeaTimeInfo_unsafe;
 NMEA_CRS_SPD_Info_t nmeaCRSSPDInfo_unsafe;
-NMEA_PositionInfo_t nmeaPositionInfo_unsafe;
+Position_t nmeaPositionInfo_unsafe;
 NMEA_StatusInfo_t nmeaStatusInfo_unsafe;
 
 NMEA_TimeInfo_t nmeaTimeInfo;
 NMEA_CRS_SPD_Info_t nmeaCRSSPDInfo;
-NMEA_PositionInfo_t nmeaPositionInfo;
+Position_t nmeaPositionInfo;
 NMEA_StatusInfo_t nmeaStatusInfo;
 
 uint8_t nmea_parse(char c);
@@ -181,8 +182,11 @@ uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) {
 	nmeaStatusInfo_unsafe.numberOfSatellites = 0;
 	do {
 		getGPSData();
+		// TODO: Low power sleep.
 		timer_sleep(100);
-	} while ((nmeaStatusInfo_unsafe.numberOfSatellites < 5
+	} while ((
+			nmeaStatusInfo_unsafe.numberOfSatellites < REQUIRE_HIGH_PRECISION_NUM_SATS
+			|| (REQUIRE_HIGH_PRECISION_ALTITUDE && nmeaPositionInfo.alt == 0)
 			|| nmeaStatusInfo.fixMode < 2) && !timer_elapsed(maxTime));
 	getGPSData();
 	if (nmeaStatusInfo.numberOfSatellites >= 5 && nmeaStatusInfo.fixMode >= 2) {
@@ -594,7 +598,7 @@ void GPS_shutdown(void) {
 	GPIOA->ODR |= GPIO_Pin_0;
 	USART_Cmd(USART1, DISABLE);
 
-	/* Enable USART1 IRQ (on the USART hw) */
+	/* Disable USART1 IRQ (on the USART hw) */
 	USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
 	USART_ITConfig(USART1, USART_IT_RXNE, DISABLE);
 

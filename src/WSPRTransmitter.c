@@ -51,14 +51,14 @@ uint8_t WSPREnded() {
 	return symbolNumber >= 162;
 }
 
-void WSPR_shutdownHW() {
+static void WSPR_shutdownHW() {
 	DAC_Cmd(DAC_Channel_2, DISABLE);
 	TIM_ITConfig(TIM2, TIM_IT_Update, DISABLE);
 	TIM_Cmd(TIM2, DISABLE);
 	CDCE913_shutdown();
 }
 
-void WSPR_initHW(
+static void WSPR_initHW(
 		uint8_t band,
 		const PLL_Setting_t* setting,
 		uint8_t trim,
@@ -120,6 +120,32 @@ void WSPR_TransmitCycle(
 	WSPR_shutdownHW();
 }
 
+void WSPRBestSettings(WSPRBand_t band, uint32_t oscillatorFrequencyMeasured,
+		uint8_t* bestSettingIndex, uint8_t* bestTrim) {
+		double targetFrequency = HF_BAND_DEFS[band].frequency;
+
+		double desiredMultiplication = (double) targetFrequency
+				/ oscillatorFrequencyMeasured;
+
+		bestPLLSetting(HF_BAND_DEFS[band].PLLOptions, HF_BAND_DEFS[band].numPLLOptions, desiredMultiplication,
+				bestSettingIndex, bestTrim);
+}
+
+void WSPR_transmit(WSPRBand_t band, uint32_t oscillatorFrequencyMeasured, float stepModulation) {
+	uint8_t bestSetting;
+	uint8_t bestTrim;
+	WSPRBestSettings(band, oscillatorFrequencyMeasured, &bestSetting, &bestTrim);
+
+	trace_printf("Chose setting #%d with trim%d and step size %d\n", bestSetting, bestTrim, (int)stepModulation);
+
+	WSPR_TransmitCycle(
+			band,
+			HF_BAND_DEFS[band].PLLOptions + bestSetting,
+			bestTrim,
+			stepModulation);
+}
+
+/*
 void WSPRSynthesisExperiment(uint32_t oscillatorFrequencyMeasured) {
 	for (WSPRBand_t band = THIRTY_M; band <= TEN_M; band++) {
 		trace_printf("Trying band %d\n", band);
@@ -131,3 +157,4 @@ void WSPRSynthesisExperiment(uint32_t oscillatorFrequencyMeasured) {
 		PLLSettingExperiment(HF_BAND_DEFS[band].PLLOptions, HF_BAND_DEFS[band].numPLLOptions, desiredMultiplication);
 	}
 }
+*/

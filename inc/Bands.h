@@ -20,6 +20,7 @@ typedef struct {
 	const uint32_t frequency;		// WSPR frequency of band (the
 } HF_BandDef_t;
 
+// HF 30 m APRS: Mark 10149200, space 10149400, avg. 10149300
 extern const HF_BandDef_t HF_BAND_DEFS[];
 
 /*

@@ -59,12 +59,6 @@ void timerExperiment() {
 }
 
 void PWMTest2(void) {
-	/*!< At this stage the microcontroller clock setting is already configured,
-	 this is done through SystemInit() function which is called from startup
-	 file (startup_stm32l1xx_xx.s) before to branch to application main.
-	 To reconfigure the default setting of SystemInit() function, refer to
-	 system_stm32l1xx.c file
-	 */
 	TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
 	GPIO_InitTypeDef GPIO_InitStructure;
 	//uint16_t PrescalerValue = 0;

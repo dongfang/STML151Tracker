@@ -9,9 +9,7 @@
 #define SELFCALIBRATION_H_
 
 #include "Types.h"
-
-#define GPS_TIMEPULSE_WASTED_PULSES 0
-#define RTC_WUT_WASTED_PULSES 0
+#include "Setup.h"
 
 typedef struct {
 	// Time before giving up (some hardware or config fault - no signal)
@@ -30,7 +28,7 @@ typedef struct {
 	const DACChannel_t DACChannel;
 } SelfCalibrationConfig_t;
 
-extern const SelfCalibrationConfig_t WSPR_SELF_CALIBRATION;
+extern const SelfCalibrationConfig_t WSPR_MODULATION_SELF_CALIBRATION;
 extern const SelfCalibrationConfig_t HF_PACKET_SELF_CALIBRATION;
 extern const SelfCalibrationConfig_t TRIM_SELF_CALIBRATION;
 
@@ -72,7 +70,7 @@ typedef struct {
 	uint32_t transmitterOscillatorFrequencyAtDefaultTrim;
 
 	// RTC error measured against HSE (which is again against GPS)
-	uint16_t RTCNeededCorrectionPP10M;
+	int16_t RTCNeededCorrectionPP10M;
 
 	// Temperature measured at
 	uint8_t temperature;

@@ -27,7 +27,7 @@ typedef struct {
 	Time_t fixTime;
 	float alt;
 	char valid; // The A or V of the position
-} NMEA_PositionInfo_t;
+} Position_t;
 
 typedef struct {
 	uint8_t fixMode;
@@ -47,7 +47,7 @@ uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) ;
 
 extern NMEA_TimeInfo_t nmeaTimeInfo;
 extern NMEA_CRS_SPD_Info_t nmeaCRSSPDInfo;
-extern NMEA_PositionInfo_t nmeaPositionInfo;
+extern Position_t nmeaPositionInfo;
 extern NMEA_StatusInfo_t nmeaStatusInfo;
 
 #endif // _NMEA_H_

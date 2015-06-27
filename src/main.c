@@ -33,9 +33,14 @@
 #include "Types.h"
 #include "systick.h"
 #include "ADC.h"
+#include "WSPR.h"
 #include "RTC.h"
 #include "GPS.h"
 #include "StabilizedOscillator.h"
+#include "APRSWorldMap.h"
+#include "Power.h"
+#include "SelfCalibration.h"
+#include "RecordStorage.h"
 
 void diagsWhyReset() {
 	uint8_t whyReset = (RCC->CSR >> 24);
@@ -63,7 +68,6 @@ void initGeneralIOPorts() {
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
 
-	/* Configure PD0 and PD1 or PD3 and PD7 in output pushpull mode */
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_0;
 
 	// The 1 LED port
@@ -72,9 +76,112 @@ void initGeneralIOPorts() {
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
+}
 
-	// LED on (portB.6) .. the library way to do IO (As opposed to above direct way)
-	// GPIO_WriteBit(GPIOB, GPIO_Pin_6, Bit_SET);
+void performPrecisionADC() {
+	ADC_DMA_init(ADCUnloadedValues);
+
+	// TODO: Power save sleep.
+	while (!ADC_DMA_Complete)
+		;
+
+	trace_printf("ADCValue0: %d\n", ADCUnloadedValues[0]);
+	trace_printf("ADCValue1: %d\n", ADCUnloadedValues[1]);
+	trace_printf("ADCValue2: %d\n", ADCUnloadedValues[2]);
+
+	ADC_DMA_shutdown();
+
+	trace_printf("Batt voltage: %d\n",
+			(int) (1000 * batteryVoltage(ADCUnloadedValues[0])));
+	trace_printf("Temperature mC: %d\n",
+			(int) (1000 * temperature(ADCUnloadedValues[2])));
+}
+
+/*
+ * Squeeze all relevant info out of GPS, including:
+ * - Time
+ * - Position
+ * - Calibration if not already having one for current temperature
+ */
+void GPSCycle(uint8_t simpleBatteryVoltage, int8_t temperature) {
+	if (isSafeToUseGPS(simpleBatteryVoltage)) {
+		startGPS(simpleBatteryVoltage);
+		GPS_init();
+
+		if (GPS_waitForTimelock(300000)) {
+			setRTC(&nmeaTimeInfo.date, &nmeaTimeInfo.time);
+		}
+
+		if (REQUIRE_HIGH_PRECISION_POSITIONS
+				&& simpleBatteryVoltage >= COARSE_BATT_ADC_3V3) {
+			trace_printf("Waiting for HP position\n");
+			GPS_waitForPrecisionPosition(
+			REQUIRE_HIGH_PRECISION_MAX_TIME_S * 1000);
+		}
+
+		// This will (be warned) kill the GPS.
+		// Reason is that the GPS is such a hog on the supply that the PLL runs rough.
+		// WUT interrupt will also be disabled (check if that is really needed!).
+		const CalibrationRecord_t* cal = getCalibration(temperature, true);
+
+		// As a side effect, fix the RTC.
+		RTC_setCalibration(cal->RTCNeededCorrectionPP10M);
+
+		// If calibration was not done above, just make sure the stupid thing is off.
+		GPS_shutdown();
+		// Store the fact that we successfully used GPS.
+		stopGPS();
+	} else {
+		trace_printf(
+				"Not starting GPS right now, it didn't go well last time\n");
+	}
+}
+
+void WSPRCycle(int8_t temperature) {
+	const CalibrationRecord_t* cal = getCalibration(temperature, false);
+	while (1) {
+		prepareWSPRMessage(1, REAL_EXTENDED_LOCATION, 3.5);
+		RTC_waitTillModuloMinutes(2,1);
+		WSPR_transmit(THIRTY_M, cal->transmitterOscillatorFrequencyAtDefaultTrim, 32);
+	}
+}
+
+void commsCycle() {
+
+}
+
+void onWakeup() {
+	uint16_t simpleBatteryVoltage = ADC_cheaplyMeasureBatteryVoltage();
+	trace_printf("Simple voltage %d\n", simpleBatteryVoltage);
+	int8_t simpleTemperature;
+
+	if (simpleBatteryVoltage >= COARSE_BATT_ADC_3V0) {
+		performPrecisionADC();
+		simpleTemperature = ADC_simpleTemperature();
+	}
+
+	if (simpleBatteryVoltage >= COARSE_BATT_ADC_3V7) {
+		trace_printf("Good batt\n");
+		GPSCycle(simpleBatteryVoltage, simpleTemperature);
+		WSPRCycle(simpleTemperature);
+
+		// Do the GPS acq and calibration
+		// Check and tx APRS
+		// Check and tx WSPR
+		// Reschedule normal
+	} else if (simpleBatteryVoltage >= COARSE_BATT_ADC_3V3) {
+		trace_printf("OK batt\n");
+		GPSCycle(simpleBatteryVoltage, simpleTemperature);
+		// Do the GPS acq and calibration
+		// Check and tx APRS
+		// Reschedule slow
+	} else if (simpleBatteryVoltage >= COARSE_BATT_ADC_3V0) {
+		trace_printf("Low batt\n");
+		// Transmit APRS without GPS (using old position to decide, and assuming no core)
+	} else {
+		trace_printf("VERY low batt %d, gng back to sleep.\n",
+				simpleBatteryVoltage);
+	}
 }
 
 int main() {
@@ -85,170 +192,73 @@ int main() {
 	 system_stm32l1xx.c file
 	 */
 
-	//uint32_t bkup = RTC_ReadBackupRegister(RTC_BKP_DR0);
-	//trace_printf("BKUP was %u\n", bkup);
-	//RTC_WriteBackupRegister(RTC_BKP_DR0, bkup + 1);
 	initGeneralIOPorts();
 
 	// Fire up systick
 	timer_start();
 	RTC_init();
 
-	timer_sleep(3000);
-	//uint16_t simpleBatteryVoltage = ADC_cheaplyMeasureBatteryVoltage();
-	//trace_printf("Start. Battery was %d\n", simpleBatteryVoltage);
+	timer_sleep(4000);
 
-	ADC_DMA_init(ADCUnloadedValues);
-	while (!ADC_DMA_Complete)
-		;
-
-	trace_printf("ADCValue0: %d\n", ADCUnloadedValues[0]);
-	trace_printf("ADCValue1: %d\n", ADCUnloadedValues[1]);
-	trace_printf("ADCValue2: %d\n", ADCUnloadedValues[2]);
-
-	// This should NOT be needed!
-	// ADC_DMA_shutdown();
-
-	//ADC_DMA_init(ADCLoadedValues);
-	//ADC_DMA_start(ADCLoadedValues);
-	//while (!ADC_DMA_Complete)
-	//	;
-
-	 /*
-	 trace_printf("ADCValue0: %d\n", ADCLoadedValues[0]);
-	 trace_printf("ADCValue1: %d\n", ADCLoadedValues[1]);
-	 trace_printf("ADCValue2: %d\n", ADCLoadedValues[2]);
-	 ADC_DMA_shutdown();
-
-	 myBuffer[0] = myBuffer[0] + 1;
-	 trace_printf("My funny var is now: %u\n", myBuffer[0]);
-	 */
-	 trace_printf("Batt voltage: %d\n",
-	 (int) (1000 * batteryVoltage(ADCUnloadedValues[0])));
-	 trace_printf("Temperature mC: %d\n",
-	 (int) (1000 * temperature(ADCUnloadedValues[2])));
-
-	 /*
-	GPS_init();
-
-	if (GPS_waitForTimelock(300000)) {
-		trace_printf("GPS timelock okay\n");
-		setRTC(&nmeaTimeInfo.date, &nmeaTimeInfo.time);
+	if (DEFEAT_VOLTAGE_CHECKS) {
+		invalidateStartupLog();
 	}
-	*/
 
-	// uint8_t success = oscillatorCalibration(300000, &fsys);
-	// if (!success || fsys < 16E6 - 1600 || fsys > 16E6 + 1600) {
-	// Disregard, it's too absurd a claim of imprecision
-	//	trace_printf("Unrealistic fsys: status %u, ignore (%u, %u, %u, %u).\n",
-	//h(int) fsys, success, 16E6 - 1600, 16E6 + 1600, SystemCoreClock);
-//		fsys = 16E6;
-//	} else {
-//		trace_printf("fsys %u\n", fsys);
-//	}
+	onWakeup();
 
-	//uint32_t nRTC = 0;
-	//success = RTCCalibration(300000, &nRTC);
-	//trace_printf("RTC cal: status %u, period %u\n", success, nRTC);
+	double deviation;
+	uint32_t frequency;
 
-	//double RTCSpeedFactor = (double)fsys / (double)nRTC;
-	//RTC_setCalibration(RTCSpeedFactor);
+	while (1) {
+		for (uint8_t i = 0; i < 21; i++) {
+			selfCalibrateTrimming(&deviation, i);
+			trace_printf("%d pF: %d\n", i, (int) (deviation * 1E7));
+		}
 
-	// trace_printf("Waiting for position\n");
-	// GPS_waitForPosition(300000);
+		selfCalibrateModulation(16E6, &WSPR_MODULATION_SELF_CALIBRATION, 13,
+				&deviation, &frequency);
 
-	// A very good position is a luxury that we don't care too much about.
-	// trace_printf("Waiting for HP position\n");
-	// GPS_waitForPrecisionPosition(300000);
+		trace_printf("WSPR dev %d\n", (int) (deviation * 1E7));
 
-	// boolean test[8];
-	// APRS_determineFrequencyFromPosition(&nmeaPositionInfo, test);
-	// APRS_debugFrequency(test);
-	// GPS_shutdown();
-
-	// selfCalibrateForWSPR(fsys, 0.00003);
-
-	WSPRSynthesisExperiment(25998440);
-
-	// APRS_debugWorldMap();
-
-	// Finito with GPS. Well we might want to have a position too.
-	// GPS_shutdown();
-
-	//aprs_compressedMessage(123, 28);
+	}
 
 	/*
-	 * 	double modulation[2] = { 0, 0 };
-	 uint16_t count = 0;
-	 *
+	 WSPRSynthesisExperiment(25998440);
+
+	 // APRS_debugWorldMap();
+
+	 // Finito with GPS. Well we might want to have a position too.
+	 // GPS_shutdown();
+
+	 //aprs_compressedMessage(123, 28);
+
+	 // RTC_TimeTypeDef rtcTime;
+	 // RTC_GetTime(RTC_Format_BIN, &rtcTime);
+	 // scheduleASAPAlarmInSlot(1);
+	 // setWakeup(10);
+	 while (1) {
+	 timer_sleep(10000);
+	 debugGPSTime();
+	 debugRTCTime();
+	 trace_printf("\n");
+
+	 prepareWSPRMessage(wsprMessageSeq == 4 ? 1 : 3, wsprMessageSeq, 8);
+	 do {
+	 RTC_GetTime(RTC_HourFormat_24, &rtcTime);
+	 } while ((rtcTime.RTC_Minutes % 2 != 0) || rtcTime.RTC_Seconds != 1);
+
+	 trace_printf("WSPR at %02u:%02u:%02u\n", rtcTime.RTC_Hours,
+	 rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
+
+	 WSPR_TransmitCycle(bandSettings, calibration);
+
+	 trace_printf("End WSPR!\n");
+
+	 // Now we can turn on that stupid thing again.
+	 // GPS_init();
+
+	 wsprMessageSeq = (wsprMessageSeq + 1) % 5;
 	 */
-	// RTC_TimeTypeDef rtcTime;
-	// RTC_GetTime(RTC_Format_BIN, &rtcTime);
-	// scheduleASAPAlarmInSlot(1);
-	// setWakeup(10);
-	while (1) {
-		timer_sleep(10000);
-		debugGPSTime();
-		debugRTCTime();
-		trace_printf("\n");
-		/*
-		 prepareWSPRMessage(wsprMessageSeq == 4 ? 1 : 3, wsprMessageSeq, 8);
-		 do {
-		 RTC_GetTime(RTC_HourFormat_24, &rtcTime);
-		 } while ((rtcTime.RTC_Minutes % 2 != 0) || rtcTime.RTC_Seconds != 1);
-
-		 trace_printf("WSPR at %02u:%02u:%02u\n", rtcTime.RTC_Hours,
-		 rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
-
-		 WSPR_TransmitCycle(bandSettings, calibration);
-
-		 trace_printf("End WSPR!\n");
-
-		 // Now we can turn on that stupid thing again.
-		 // GPS_init();
-
-		 wsprMessageSeq = (wsprMessageSeq + 1) % 5;
-		 */
-	}
 }
-
-/**
- * @brief  Delay Function.
- * @param  nCount:specifies the Delay time length.
- * @retval None
- */
-void Delay(__IO uint32_t nCount) {
-	while (nCount--) {
-	}
-}
-
-#ifdef  USE_FULL_ASSERT
-
-/**
- * @brief  Reports the name of the source file and the source line number
- *         where the assert_param error has occurred.
- * @param  file: pointer to the source file name
- * @param  line: assert_param error line source number
- * @retval None
- */
-void assert_failed(uint8_t* file, uint32_t line)
-{
-	/* User can add his own implementation to report the file name and line number,
-	 ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-
-	/* Infinite loop */
-	while (1)
-	{
-	}
-}
-#endif
-
-/**
- * @}
- */
-
-/**
- * @}
- */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

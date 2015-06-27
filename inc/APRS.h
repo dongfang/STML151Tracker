@@ -40,14 +40,9 @@ typedef struct {
 typedef struct {
 	const uint32_t frequency;
 	// Special out of range vertices mark end of polygon or end of list.
-	const APRSPolygonVertex_t* vertices;
-} APRSFrequencyDomain_t;
-
-typedef struct {
-	const uint32_t frequency;
-	// Special out of range vertices mark end of polygon or end of list.
-	const APRSPolygonVertex_t vertices[];
-} APRSFrequencyDomain_t2;
+	const APRSPolygonVertex_t* boundary;
+	const APRSPolygonVertex_t* core;
+} APRSFrequencyRegion_t;
 
 typedef enum {
 	AFSK, GFSK
@@ -64,7 +59,7 @@ typedef struct {
 	void (*shutdownTransmitter) ();
 } APRS_Mode_t;
 
-extern const APRSFrequencyDomain_t APRS_FREQUENCY_MAP[];
+extern const APRSFrequencyRegion_t APRS_FREQUENCY_MAP[];
 extern const uint8_t NUM_APRS_PARAMS;
 extern const struct APRS_PARAM APRS_PARAMS[];
 extern volatile APRSModulationMode_t currentMode;
@@ -74,9 +69,10 @@ extern volatile uint8_t packetTransmissionComplete;
 void aprs_compressedMessage();
 void aprs_statusMessage();
 
-void APRS_determineFrequencyFromPosition(
-		NMEA_PositionInfo_t* position,
-		boolean* result);
+void APRS_frequencyFromPosition(
+		Position_t* position,
+		boolean* frequencyVector,
+		boolean* coreVector);
 void APRS_debugFrequency(boolean* result) ;
 void APRS_debugWorldMap();
 

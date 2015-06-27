@@ -46,8 +46,12 @@ typedef struct {
 	uint32_t estimatedFrequency;
 } TransmitterTuning_t;
 
-void WSPRSynthesisExperiment(uint32_t oscillatorFrequencyMeasured);
+const CalibrationRecord_t* getCalibration(int8_t temperature, boolean doAttemptCalibrate);
 
-void PLLSettingExperiment(const PLL_Setting_t* pllSettings, uint8_t numSettings, double desiredMultiplication) ;
+void bestPLLSetting(const PLL_Setting_t* pllSettings, uint8_t numSettings, double desiredMultiplication,
+		uint8_t* bestIndex, uint8_t* bestTrim);
+
+//void WSPRSynthesisExperiment(uint32_t oscillatorFrequencyMeasured);
+//void PLLSettingExperiment(const PLL_Setting_t* pllSettings, uint8_t numSettings, double desiredMultiplication) ;
 
 #endif /* INC_STABILIZEDOSCILLATOR_H_ */

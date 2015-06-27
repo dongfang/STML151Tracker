@@ -278,8 +278,9 @@ void CDCE913_enableOutput(CDCE913_OutputMode_t whichOutput, uint16_t pdiv) {
 		I2C_write(0x03, (uint8_t) pdiv);
 		break;
 	case CDCE913_OutputMode_XO_PASSTHROUGH:
-		// TODO - impl
-		break;
+		r1 = 0b00000101; 	// power on, VCXO and default address
+		r2 = 0b10111100;
+		r0x14 = 0b11101010;	// Disable Y2, Y3 to low
 	}
 	I2C_write(0x01, r1);
 	I2C_write(0x02, r2);

@@ -61,7 +61,19 @@ uint8_t RTC_init() {
 void debugRTCTime() {
 	RTC_TimeTypeDef rtcTime;
 	RTC_GetTime(RTC_Format_BIN, &rtcTime);
-	trace_printf("RTC is now %02u:%02u:%02u\n", rtcTime.RTC_Hours, rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
+	trace_printf("RTC is now %02u:%02u:%02u\n", rtcTime.RTC_Hours,
+			rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
+}
+
+void RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds) {
+	uint8_t minutes;
+	uint8_t _seconds;
+	do {
+		RTC_TimeTypeDef rtcTime;
+		RTC_GetTime(RTC_Format_BIN, &rtcTime);
+		minutes = rtcTime.RTC_Minutes;
+		_seconds = rtcTime.RTC_Seconds;
+	} while (seconds != _seconds || (minutes % modulo) != 0);
 }
 
 void setRTC(Date_t* date, Time_t* time) {
@@ -218,7 +230,7 @@ void scheduleASAPAlarmInSlot(uint16_t slotMinutes) {
 
 	alarmTime.RTC_Seconds = 0;
 	rtcAlarm.RTC_AlarmTime = alarmTime;
-	rtcAlarm.RTC_AlarmMask = RTC_AlarmMask_DateWeekDay;//|RTC_AlarmMask_Minutes;
+	rtcAlarm.RTC_AlarmMask = RTC_AlarmMask_DateWeekDay; //|RTC_AlarmMask_Minutes;
 	rtcAlarm.RTC_AlarmDateWeekDay = 1; // just some junk date that will be ignored.
 	rtcAlarm.RTC_AlarmDateWeekDaySel = RTC_AlarmDateWeekDaySel_Date;
 
@@ -247,7 +259,7 @@ void setWakeup(uint16_t periodSeconds) {
 
 	RTC_WakeUpCmd(DISABLE);
 	RTC_WakeUpClockConfig(RTC_WakeUpClock_CK_SPRE_16bits);
-	RTC_SetWakeUpCounter(periodSeconds-1);
+	RTC_SetWakeUpCounter(periodSeconds - 1);
 	RTC_WakeUpCmd(ENABLE);
 
 	RTC_ITConfig(RTC_IT_WUT, ENABLE);
@@ -280,38 +292,36 @@ void setWakeup(uint16_t periodSeconds) {
  }
  */
 
-
 /*
  * Coarse-calibrate RTC.
  */
 // rfactor is <1 when we are too slow and >1 when too fast.
 // = refcounts(1 GPS second) / refcounts(1 RTC second)
-void RTC_setCalibration(double rfactor) {
-	uint32_t ivalue = 0;
-	uint32_t sign = RTC_CalibSign_Positive;
-	double rvaluePPM = (1 - rfactor) * 1E6;
-	trace_printf("RTC is %d PPM too %s\n", (int)rvaluePPM, "slow");
-	if (rvaluePPM > 0) {
+void RTC_setCalibration(int16_t correction_PP10M) {
+	uint16_t ivalue;
+	uint32_t sign;
+	if (correction_PP10M >= 0) {
 		/* We are too slow. Positive: 4ppm stepsize
 		 *                This value should be between 0 and 126 when using positive sign
 		 *                with a 4-ppm step.
 		 */
-		ivalue = rvaluePPM / 4;
-		if (ivalue > 126) ivalue = 126;
+		ivalue = correction_PP10M / 40;
+		if (ivalue > 126)
+			ivalue = 126;
 		sign = RTC_CalibSign_Positive;
-	} else if (rvaluePPM < 0) {
+	} else if (correction_PP10M < 0) {
 		/* We are too fast. Negative: 2ppm stepsize
 		 * This value should be between 0 and 63 when using negative sign
 		 * with a 2-ppm step.
 		 */
-		ivalue = -rvaluePPM / 2;
-		if (ivalue > 63) ivalue = 63;
+		ivalue = -correction_PP10M / 20;
+		if (ivalue > 63)
+			ivalue = 63;
 		sign = RTC_CalibSign_Negative;
 	}
 	ErrorStatus result = RTC_CoarseCalibConfig(sign, ivalue);
 	trace_printf("Using sign %s and ivalue %d. Success: %s\n",
-			sign == RTC_CalibSign_Positive ? "pos" : "neg",
-					ivalue,
-					result == SUCCESS ? "ok" : "fail");
+			sign == RTC_CalibSign_Positive ? "pos" : "neg", ivalue,
+			result == SUCCESS ? "ok" : "fail");
 }
 

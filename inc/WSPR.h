@@ -26,8 +26,11 @@ typedef enum {
 	TEN_M
 } WSPRBand_t;
 
+//uint8_t WSPRDidUpdate();
+//uint8_t WSPREnded();
+//void WSPR_shutdownHW();
+
 void prepareWSPRMessage(uint8_t type, enum WSPR_FAKE_EXTENDED_LOCATION extendedFake, float txVoltage);
-uint8_t WSPRDidUpdate();
-uint8_t WSPREnded();
-void WSPR_shutdownHW();
+void WSPR_transmit(WSPRBand_t band, uint32_t oscillatorFrequencyMeasured, float stepModulation);
+
 #endif /* WSPR_H_ */

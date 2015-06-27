@@ -53,7 +53,9 @@ uint16_t ADC_cheaplyMeasureBatteryVoltage() {
 	/* Check that HSI oscillator is ready */
 	while (RCC_GetFlagStatus(RCC_FLAG_HSIRDY) == RESET)
 		;
+
 	/* Enable ADC1 */
+	ADC_Cmd(ADC1, DISABLE);
 	ADC_Init(ADC1, &ADC_InitStructure);
 	ADC_Cmd(ADC1, ENABLE);
 
@@ -69,16 +71,17 @@ uint16_t ADC_cheaplyMeasureBatteryVoltage() {
 	// Wait until conversion completion
 	while (ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == RESET)
 		;
-	// Get the conversion value
 
+	// Get the conversion value
 	uint16_t result = ADC_GetConversionValue(ADC1);
+
+	trace_printf("Heavens! ADC &ff is %d and the MSBs are %d\n", result & 0xff, result >> 8);
 
 	/* Enable ADC1 */
 	ADC_Cmd(ADC1, DISABLE);
 
-	// RCC_HSICmd(DISABLE);
-	// We still haven't disabled HSI again... need do that when we shut down
-	return result;
+	RCC_HSICmd(DISABLE);
+	return result>>8;
 }
 
 /*
@@ -175,6 +178,8 @@ void ADC_DMA_init(volatile uint16_t* conversionTargetArray) {
 	ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;
 	ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
 	ADC_InitStructure.ADC_NbrOfConversion = NUM_ADC_VALUES;
+
+	ADC_Cmd(ADC1, DISABLE);
 	ADC_Init(ADC1, &ADC_InitStructure);
 
 	/* ADC1 regular channel1 configuration. Ch21 is supposedly the PB15 thermometer. */
@@ -248,6 +253,12 @@ float temperature(uint16_t ADCvalue) {
 	return temp;
 }
 
+int8_t ADC_simpleTemperature() {
+	float t = temperature(ADCUnloadedValues[2]);
+	if (t>30) t = 30; else if (t<-65) t = -65;
+	return (int8_t)t;
+}
+
 float batteryVoltage(uint16_t ADCvalue12) {
 	return ADCvalue12 * BATT_ADC_VDIV_FACTOR;
 }
@@ -271,15 +282,5 @@ void DMA1_Channel1_IRQHandler(void) {
 // 4.2V ~ 18
 // No good!!
 // Instead, do: 3V->12, 3.33V->15, 3.66V->18, 4.0V->21, 4.33V->24
-uint8_t fake_dBm(float voltage) {
-	/*
-	voltage = voltage * 3 / (4 * sqrt(2));
-	float power_mW = voltage*voltage*1000/72.0;// Z is 72 Ohms
-	float dB = log10(power_mW) * 10;
-	return dB;
-	*/
-	float result = (voltage - 3) * 9;
-	if (result < 9) result = 9;
-	return (uint8_t) result;
-}
+
 

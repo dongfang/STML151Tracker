@@ -8,7 +8,6 @@
 
 #include "APRS.h"
 #include "DAC.h"
-//#include "PLL.h"
 #include "Bands.h"
 
 volatile APRSModulationMode_t currentMode;
@@ -27,7 +26,6 @@ const APRS_Mode_t TWO_M_APRS_STATUS_MESSAGE = {
 		.modulationMode = AFSK,
 		.modulationAmplitude = 1,
 		.hardwareChannel = 1,
-		// .buildMessage = &aprs_statusMessage
 };
 
 const APRS_Mode_t HF_APRS_COMPRESSED_MESSAGE = {
