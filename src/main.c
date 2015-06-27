@@ -139,11 +139,10 @@ void GPSCycle(uint8_t simpleBatteryVoltage, int8_t temperature) {
 
 void WSPRCycle(int8_t temperature) {
 	const CalibrationRecord_t* cal = getCalibration(temperature, false);
-	while (1) {
-		prepareWSPRMessage(1, REAL_EXTENDED_LOCATION, 3.5);
-		RTC_waitTillModuloMinutes(2,1);
-		WSPR_transmit(THIRTY_M, cal->transmitterOscillatorFrequencyAtDefaultTrim, 32);
-	}
+	prepareWSPRMessage(1, REAL_EXTENDED_LOCATION, 3.5);
+	RTC_waitTillModuloMinutes(2, 1);
+	WSPR_transmit(THIRTY_M, cal->transmitterOscillatorFrequencyAtDefaultTrim,
+			32);
 }
 
 void commsCycle() {
@@ -204,7 +203,8 @@ int main() {
 		invalidateStartupLog();
 	}
 
-	onWakeup();
+	while(1)
+		onWakeup();
 
 	double deviation;
 	uint32_t frequency;

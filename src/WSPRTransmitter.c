@@ -56,6 +56,7 @@ static void WSPR_shutdownHW() {
 	TIM_ITConfig(TIM2, TIM_IT_Update, DISABLE);
 	TIM_Cmd(TIM2, DISABLE);
 	CDCE913_shutdown();
+	GPIOB->ODR &= ~(1 << 6);
 }
 
 static void WSPR_initHW(
@@ -109,8 +110,6 @@ void WSPR_TransmitCycle(
 			trim,
 			stepModulation);
 
-	trace_printf("Timer and IRQ running\n");
-
 	while (!WSPREnded()) {
 		if (WSPRDidUpdate()) {
 			GPIOB->ODR ^= (1 << 6);
@@ -136,7 +135,7 @@ void WSPR_transmit(WSPRBand_t band, uint32_t oscillatorFrequencyMeasured, float 
 	uint8_t bestTrim;
 	WSPRBestSettings(band, oscillatorFrequencyMeasured, &bestSetting, &bestTrim);
 
-	trace_printf("Chose setting #%d with trim%d and step size %d\n", bestSetting, bestTrim, (int)stepModulation);
+	trace_printf("Chose setting #%d with trim %d\n", bestSetting, bestTrim);
 
 	WSPR_TransmitCycle(
 			band,
