@@ -8,7 +8,7 @@
 #ifndef INC_PLL_H_
 #define INC_PLL_H_
 
-#include <stdint.h>
+#include "Types.h"
 // #include "Bands.h"
 
 // the implementation PLL type decides what PLLSetting_t actually is.
@@ -24,6 +24,6 @@ typedef CDCE913_PLLSetting_t PLL_Setting_t;
  * PLL options for different frequencies.
  */
 
-void setPLL(uint8_t output, const PLL_Setting_t* setting, uint8_t trim);
+void setPLL(uint8_t output, const PLL_Setting_t* setting);
 
 #endif /* INC_PLL_H_ */

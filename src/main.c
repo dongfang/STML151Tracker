@@ -27,12 +27,12 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include <diag/Trace.h>
-#include <stdint.h>
 #include <math.h>
 
 #include "Types.h"
 #include "systick.h"
 #include "ADC.h"
+#include "APRS.h"
 #include "WSPR.h"
 #include "RTC.h"
 #include "GPS.h"
@@ -65,6 +65,7 @@ void initGeneralIOPorts() {
 	GPIO_InitTypeDef GPIO_InitStructure;
 
 	/* GPIOA and B Periph clock enable */
+	/* TODO: Add WSPR "arm", default to disarm. */
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
 
@@ -85,16 +86,16 @@ void performPrecisionADC() {
 	while (!ADC_DMA_Complete)
 		;
 
-	trace_printf("ADCValue0: %d\n", ADCUnloadedValues[0]);
-	trace_printf("ADCValue1: %d\n", ADCUnloadedValues[1]);
-	trace_printf("ADCValue2: %d\n", ADCUnloadedValues[2]);
+	trace_printf("ADCValue0: %d\t", ADCUnloadedValues[0] & 0xfff);
+	trace_printf("ADCValue1: %d\t", ADCUnloadedValues[1] & 0xfff);
+	trace_printf("ADCValue2: %d\n", ADCUnloadedValues[2] & 0xfff);
 
 	ADC_DMA_shutdown();
 
-	trace_printf("Batt voltage: %d\n",
-			(int) (1000 * batteryVoltage(ADCUnloadedValues[0])));
+	trace_printf("Precision batt voltage: %d\n",
+			(int) (1000 * batteryVoltage(ADCUnloadedValues[0] & 0xfff)));
 	trace_printf("Temperature mC: %d\n",
-			(int) (1000 * temperature(ADCUnloadedValues[2])));
+			(int) (1000 * temperature(ADCUnloadedValues[2] & 0xfff)));
 }
 
 /*
@@ -104,16 +105,19 @@ void performPrecisionADC() {
  * - Calibration if not already having one for current temperature
  */
 void GPSCycle(uint8_t simpleBatteryVoltage, int8_t temperature) {
+	// Just in case. it bothers the GPS pretty bad.
+	CDCE913_shutdown();
+
 	if (isSafeToUseGPS(simpleBatteryVoltage)) {
 		startGPS(simpleBatteryVoltage);
 		GPS_init();
 
 		if (GPS_waitForTimelock(300000)) {
-			setRTC(&nmeaTimeInfo.date, &nmeaTimeInfo.time);
+			setRTC(&GPSTime.date, &GPSTime.time);
 		}
 
 		if (REQUIRE_HIGH_PRECISION_POSITIONS
-				&& simpleBatteryVoltage >= COARSE_BATT_ADC_3V3) {
+				&& simpleBatteryVoltage >= REV_COARSE(BATT_ADC_3V3)) {
 			trace_printf("Waiting for HP position\n");
 			GPS_waitForPrecisionPosition(
 			REQUIRE_HIGH_PRECISION_MAX_TIME_S * 1000);
@@ -139,10 +143,45 @@ void GPSCycle(uint8_t simpleBatteryVoltage, int8_t temperature) {
 
 void WSPRCycle(int8_t temperature) {
 	const CalibrationRecord_t* cal = getCalibration(temperature, false);
-	prepareWSPRMessage(1, REAL_EXTENDED_LOCATION, 3.5);
-	RTC_waitTillModuloMinutes(2, 1);
-	WSPR_transmit(THIRTY_M, cal->transmitterOscillatorFrequencyAtDefaultTrim,
-			32);
+	//prepareWSPRMessage(1, REAL_EXTENDED_LOCATION, 3.5);
+
+	PLL_Setting_t pllSetting;
+	double maxError = 10E-6;
+	while (maxError < 100E-6) {
+		if (bestPLLSetting(cal->transmitterOscillatorFrequencyAtDefaultTrim,
+				WSPR_FREQUENCIES[THIRTY_M], maxError, &pllSetting)) {
+
+			trace_printf("Using fOsc=%d, N=%d, M=%d, trim=%d\n",
+					cal->transmitterOscillatorFrequencyAtDefaultTrim,
+					pllSetting.N, pllSetting.M, pllSetting.trim);
+
+			trace_printf("Waiting for WSPR window\n");
+			RTC_waitTillModuloMinutes(2, 0);
+			prepareWSPRMessage(1, REAL_EXTENDED_LOCATION, 3.5);
+
+			WSPR_Transmit(THIRTY_M, &pllSetting, 32);
+			break;
+		} else {
+			trace_printf("NO feasible PLL setting in range! Should not really happen. Anyway, we try again with more tolerance.\n");
+			maxError += 10E-5;
+		}
+	}
+}
+
+void APRSCycle(uint8_t temperature) {
+	boolean frequenciesVector[APRS_WORLD_MAP_LENGTH];
+	boolean coreAreaVector[APRS_WORLD_MAP_LENGTH];
+	APRS_frequenciesFromPosition(&lastNonzeroGPSPosition, frequenciesVector,
+			coreAreaVector);
+
+	for (uint8_t i = 0; i < APRS_WORLD_MAP_LENGTH; i++) {
+		if (frequenciesVector[i]) {
+			// we wanna:
+			// Compose a message
+			// Ask the transmitter to transmit on the frequency
+			aprs_compressedMessage();
+		}
+	}
 }
 
 void commsCycle() {
@@ -150,16 +189,16 @@ void commsCycle() {
 }
 
 void onWakeup() {
-	uint16_t simpleBatteryVoltage = ADC_cheaplyMeasureBatteryVoltage();
+	uint8_t simpleBatteryVoltage = ADC_cheaplyMeasureBatteryVoltage();
 	trace_printf("Simple voltage %d\n", simpleBatteryVoltage);
 	int8_t simpleTemperature;
 
-	if (simpleBatteryVoltage >= COARSE_BATT_ADC_3V0) {
+	if (simpleBatteryVoltage >= REV_COARSE(BATT_ADC_3V0)) {
 		performPrecisionADC();
 		simpleTemperature = ADC_simpleTemperature();
 	}
 
-	if (simpleBatteryVoltage >= COARSE_BATT_ADC_3V7) {
+	if (simpleBatteryVoltage >= REV_COARSE(BATT_ADC_3V7)) {
 		trace_printf("Good batt\n");
 		GPSCycle(simpleBatteryVoltage, simpleTemperature);
 		WSPRCycle(simpleTemperature);
@@ -168,13 +207,13 @@ void onWakeup() {
 		// Check and tx APRS
 		// Check and tx WSPR
 		// Reschedule normal
-	} else if (simpleBatteryVoltage >= COARSE_BATT_ADC_3V3) {
+	} else if (simpleBatteryVoltage >= REV_COARSE(BATT_ADC_3V3)) {
 		trace_printf("OK batt\n");
 		GPSCycle(simpleBatteryVoltage, simpleTemperature);
 		// Do the GPS acq and calibration
 		// Check and tx APRS
 		// Reschedule slow
-	} else if (simpleBatteryVoltage >= COARSE_BATT_ADC_3V0) {
+	} else if (simpleBatteryVoltage >= REV_COARSE(BATT_ADC_3V0)) {
 		trace_printf("Low batt\n");
 		// Transmit APRS without GPS (using old position to decide, and assuming no core)
 	} else {
@@ -203,8 +242,13 @@ int main() {
 		invalidateStartupLog();
 	}
 
-	while(1)
+	PLL_Setting_t pllSetting;
+
+	while (1) {
+		trace_printf("For 144660000\n");
+		bestPLLSetting(26E6, 144660000, 25E-6, &pllSetting);
 		onWakeup();
+	}
 
 	double deviation;
 	uint32_t frequency;

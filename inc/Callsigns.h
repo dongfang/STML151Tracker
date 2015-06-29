@@ -8,7 +8,7 @@
 #ifndef CALLSIGNS_H_
 #define CALLSIGNS_H_
 
-#include <stdint.h>
+#include "Types.h"
 
 // An AX.25 address.
 typedef struct {

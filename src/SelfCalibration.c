@@ -318,7 +318,7 @@ boolean selfCalibrateModulation(
 		uint32_t* oscillatorFrequencyMeasured) {
 
 	TIM4CaptureStop = settings->numCyclesPerRound;
-	CDCE913_setDirectModeWithDivision(trim);
+	CDCE913_setDirectModeWithDivision(trim,CDCE913_SELFCALIBRATION_DIVISION);
 	DAC2_initHW();
 	modulationCalibration_initHW();
 
@@ -466,6 +466,7 @@ boolean selfCalibrate(CalibrationRecord_t* target) {
 	double deviationThrowAway;
 
 	boolean result = true;
+	GPS_init();
 
 	trace_printf("HSE cal\n");
 	result &= HSECalibration(120000, &hseFrequency);

@@ -1,8 +1,9 @@
 # put your *.o targets here, make should handle the rest!
-SRCS = main.c system_stm32l1xx.c Trace.c trace_impl.c _sbrk.c CDCE913.c Si4463_SPI.c systick.c WSPR.c ADC.c StabilizedOscillator.c WSPRTransmitter.c GPS.c SelfCalibration.c RTC.c DAC.c nhash.c Callsigns.c APRS.c ax25.c APRSTransmitter.c Power.c RecordStorage.c
+SRCS = main.c system_stm32l1xx.c Trace.c trace_impl.c _sbrk.c CDCE913.c Si4463_SPI.c Systick.c WSPR.c ADC.c StabilizedOscillator.c WSPRTransmitter.c GPS.c SelfCalibration.c RTC.c DAC.c nhash.c Callsigns.c APRS.c AX25.c APRSTransmitter.c Power.c RecordStorage.c
+SRCS += RH_RF24.cpp radio_rf24.cpp SPI.c
 
 # all the files will be generated with this name (main.elf, main.bin, main.hex, etc)
-PROJ_NAME=main
+PROJ_NAME=wspr
 
 # Location of the Libraries folder from the STM32F0xx Standard Peripheral Library
 STD_PERIPH_LIB=Libraries
@@ -21,6 +22,7 @@ OPENOCD_PROC_FILE=extra/stm32f0-openocd.cfg
 ###################################################
 
 CC=arm-none-eabi-gcc
+CPPC=arm-none-eabi-g++
 OBJCOPY=arm-none-eabi-objcopy
 OBJDUMP=arm-none-eabi-objdump
 SIZE=arm-none-eabi-size
@@ -34,6 +36,7 @@ CFLAGS += -Wl,--gc-sections -Wl,-Map=$(PROJ_NAME).map
 ###################################################
 
 vpath %.c src
+vpath %.cpp src
 vpath %.a $(STD_PERIPH_LIB)
 
 ROOT=$(shell pwd)
@@ -64,6 +67,7 @@ proj: 	$(PROJ_NAME).elf
 
 $(PROJ_NAME).elf: $(SRCS)
 	$(CC) $(CFLAGS) $^ -o $@ -L$(STD_PERIPH_LIB) -lstm32l1 -L$(LDSCRIPT_INC) -Tstm32l1xx.ld
+#	$(CPPC) $(CPPFLAGS) $^ -o $@ -L$(STD_PERIPH_LIB) -lstm32l1 -L$(LDSCRIPT_INC) -Tstm32l1xx.ld
 	$(OBJCOPY) -O ihex $(PROJ_NAME).elf $(PROJ_NAME).hex
 	$(OBJCOPY) -O binary $(PROJ_NAME).elf $(PROJ_NAME).bin
 	$(OBJDUMP) -St $(PROJ_NAME).elf >$(PROJ_NAME).lst

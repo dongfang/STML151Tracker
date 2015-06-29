@@ -7,7 +7,6 @@
 #include "stm32l1xx_conf.h"
 #include "WSPR.h"
 #include "DAC.h"
-#include "PLL.h"
 #include "StabilizedOscillator.h"
 #include "Bands.h"
 #include <diag/Trace.h>
@@ -62,13 +61,12 @@ static void WSPR_shutdownHW() {
 static void WSPR_initHW(
 		uint8_t band,
 		const PLL_Setting_t* setting,
-		uint8_t trim,
 		float _symbolModulation) {
+
 	symbolNumber = 0;
 	symbolModulation = _symbolModulation;
 
-	// TODO: Use derived trim.
-	CDCE913_setPLL((CDCE913_OutputMode_t)1, setting, trim);
+	CDCE913_setPLL((CDCE913_OutputMode_t)3, setting, setting->trim);
 	trace_printf("PLL running\n");
 
 	/* Periph clocks enable */
@@ -98,16 +96,14 @@ static void WSPR_initHW(
 	TIM_Cmd(TIM2, ENABLE);
 }
 
-void WSPR_TransmitCycle(
+void WSPR_Transmit(
 		uint8_t band,
 		const PLL_Setting_t* setting,
-		uint8_t trim,
 		float stepModulation) {
 
 	WSPR_initHW(
 			band,
 			setting,
-			trim,
 			stepModulation);
 
 	while (!WSPREnded()) {
@@ -119,6 +115,7 @@ void WSPR_TransmitCycle(
 	WSPR_shutdownHW();
 }
 
+/*
 void WSPRBestSettings(WSPRBand_t band, uint32_t oscillatorFrequencyMeasured,
 		uint8_t* bestSettingIndex, uint8_t* bestTrim) {
 		double targetFrequency = HF_BAND_DEFS[band].frequency;
@@ -126,16 +123,13 @@ void WSPRBestSettings(WSPRBand_t band, uint32_t oscillatorFrequencyMeasured,
 		double desiredMultiplication = (double) targetFrequency
 				/ oscillatorFrequencyMeasured;
 
-		bestPLLSetting(HF_BAND_DEFS[band].PLLOptions, HF_BAND_DEFS[band].numPLLOptions, desiredMultiplication,
+		bestStoredPLLSetting(HF_BAND_DEFS[band].PLLOptions, HF_BAND_DEFS[band].numPLLOptions, desiredMultiplication,
 				bestSettingIndex, bestTrim);
 }
 
-void WSPR_transmit(WSPRBand_t band, uint32_t oscillatorFrequencyMeasured, float stepModulation) {
-	uint8_t bestSetting;
-	uint8_t bestTrim;
-	WSPRBestSettings(band, oscillatorFrequencyMeasured, &bestSetting, &bestTrim);
-
-	trace_printf("Chose setting #%d with trim %d\n", bestSetting, bestTrim);
+void WSPR_transmit(WSPRBand_t band, uint32_t oscillatorFrequencyMeasured, PLL_Setting_t* pllSetting, float stepModulation) {
+	// WSPRBestSettings(band, oscillatorFrequencyMeasured, &bestSetting, &bestTrim);
+	// trace_printf("Chose setting #%d with trim %d\n", bestSetting, bestTrim);
 
 	WSPR_TransmitCycle(
 			band,
@@ -143,6 +137,7 @@ void WSPR_transmit(WSPRBand_t band, uint32_t oscillatorFrequencyMeasured, float 
 			bestTrim,
 			stepModulation);
 }
+*/
 
 /*
 void WSPRSynthesisExperiment(uint32_t oscillatorFrequencyMeasured) {

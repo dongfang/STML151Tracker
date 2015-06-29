@@ -2,15 +2,17 @@
 #include <diag/Trace.h>
 
 void SPI_init() {
-//Enable clock of the SPI module
+//	  SPI_Cmd(SPI1, DISABLE);           /* Disable the SPI  */
+
+  //Enable clock of the SPI module
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, ENABLE);
 
   /* Enable SCK, MOSI and MISO GPIO clocks */
   RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
 
   GPIO_PinAFConfig(GPIOA, GPIO_PinSource5, GPIO_AF_SPI1);
-  GPIO_PinAFConfig(GPIOA, GPIO_PinSource12, GPIO_AF_SPI1);
-  GPIO_PinAFConfig(GPIOA, GPIO_PinSource11, GPIO_AF_SPI1);
+  GPIO_PinAFConfig(GPIOA, GPIO_PinSource6, GPIO_AF_SPI1);
+  GPIO_PinAFConfig(GPIOA, GPIO_PinSource7, GPIO_AF_SPI1);
 
   GPIO_InitTypeDef GPIO_InitStructure;
 

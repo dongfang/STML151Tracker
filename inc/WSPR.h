@@ -8,8 +8,8 @@
 #ifndef WSPR_H_
 #define WSPR_H_
 
-#include <stdint.h>
 #include "Types.h"
+#include "PLL.h"
 
 extern const uint32_t WSPR_FREQUENCIES[];
 
@@ -31,6 +31,8 @@ typedef enum {
 //void WSPR_shutdownHW();
 
 void prepareWSPRMessage(uint8_t type, enum WSPR_FAKE_EXTENDED_LOCATION extendedFake, float txVoltage);
-void WSPR_transmit(WSPRBand_t band, uint32_t oscillatorFrequencyMeasured, float stepModulation);
-
+void WSPR_Transmit(
+		uint8_t band,
+		const PLL_Setting_t* setting,
+		float stepModulation);
 #endif /* WSPR_H_ */

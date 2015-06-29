@@ -6,7 +6,7 @@
  */
 
 // ----------------------------------------------------------------------------
-#include <stdint.h>
+#include "Types.h"
 
 volatile uint32_t timer_delayCount;
 volatile uint32_t timerMark;

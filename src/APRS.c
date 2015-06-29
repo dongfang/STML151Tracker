@@ -125,7 +125,7 @@ float meters_to_feet(float m) {
  *  Created on: Apr 11, 2015
  *      Author: dongfang
  */
-#include <stdint.h>
+#include "Types.h"
 
 void base91encode2char(uint16_t val, char* out) {
 	if (val > 8280)
@@ -344,7 +344,7 @@ void aprs_statusMessage() {
 
 	sprintf(temp, "%u", sequence);
 	ax25_send_string(temp);             // speed (knots)
-	sprintf(temp, ",%d", (int) nmeaPositionInfo.alt);
+	sprintf(temp, ",%d", (int) GPSPosition.alt);
 	ax25_send_string(temp);             // speed (knots)
 	sprintf(temp, ",%d", (int) /*climb*/0);
 	ax25_send_string(temp);
@@ -376,8 +376,8 @@ void aprs_compressedMessage() {
 	aprs_send_header(&APRS_APSTM1_DEST);
 	ax25_send_byte('!'); // Report w/o timestamp, no APRS messaging.
 	uint8_t end = 0;
-	end = compressPosition(nmeaPositionInfo.lat, nmeaPositionInfo.lon,
-			nmeaPositionInfo.alt, temp);
+	end = compressPosition(GPSPosition.lat, GPSPosition.lon,
+			GPSPosition.alt, temp);
 	end += compressTelemetry(seq, 4, vals, temp + end);
 	seq++;
 	if (seq > 8280) {
@@ -412,7 +412,7 @@ void APRS_message(APRS_Mode_t* mode, APRS_MessageType_t messageType,
 	}
 
 	packet_cnt = 0;
-	mode->initTransmitter(frequency, mode->hardwareChannel);
+	mode->initTransmitter(frequency);
 
 	// Go now.
 	packetTransmissionComplete = false;

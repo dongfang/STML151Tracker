@@ -18,7 +18,7 @@
 #ifndef __AX25_H__
 #define __AX25_H__
 
-#include <stdint.h>
+#include "Types.h"
 #include "Callsigns.h"
 
 #define TX_DELAY 75

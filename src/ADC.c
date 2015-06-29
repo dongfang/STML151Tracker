@@ -7,7 +7,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 
-#include "../inc/ADC.h"
+#include "ADC.h"
 
 #include <math.h>
 
@@ -40,7 +40,7 @@ uint16_t ADC_cheaplyMeasureBatteryVoltage() {
 
 	/* ADC1 configuration */
 	ADC_InitTypeDef ADC_InitStructure;
-	ADC_InitStructure.ADC_Resolution = ADC_Resolution_8b; // just pretty coarse.
+	ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b; // #@$##!! Damn
 	ADC_InitStructure.ADC_ScanConvMode = DISABLE;
 	ADC_InitStructure.ADC_ContinuousConvMode = DISABLE;
 	ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;
@@ -63,7 +63,7 @@ uint16_t ADC_cheaplyMeasureBatteryVoltage() {
 	while (ADC_GetFlagStatus(ADC1, ADC_FLAG_ADONS) == RESET) {
 	}
 
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_4Cycles);
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_48Cycles);
 
 	// Start the conversion
 	ADC_SoftwareStartConv(ADC1);
@@ -75,13 +75,13 @@ uint16_t ADC_cheaplyMeasureBatteryVoltage() {
 	// Get the conversion value
 	uint16_t result = ADC_GetConversionValue(ADC1);
 
-	trace_printf("Heavens! ADC &ff is %d and the MSBs are %d\n", result & 0xff, result >> 8);
-
-	/* Enable ADC1 */
+		/* Enable ADC1 */
 	ADC_Cmd(ADC1, DISABLE);
 
 	RCC_HSICmd(DISABLE);
-	return result>>8;
+	// return result / 16; // 8 and 12b mixed just won't work... Have no idea what is wrong.
+	// Simulate 8 from 12.
+	return 210;
 }
 
 /*
@@ -183,9 +183,9 @@ void ADC_DMA_init(volatile uint16_t* conversionTargetArray) {
 	ADC_Init(ADC1, &ADC_InitStructure);
 
 	/* ADC1 regular channel1 configuration. Ch21 is supposedly the PB15 thermometer. */
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_24Cycles); // Batt
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 2, ADC_SampleTime_24Cycles); // Main solar
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_21, 3, ADC_SampleTime_24Cycles); // Temperature
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_48Cycles); // Batt
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 2, ADC_SampleTime_48Cycles); // Main solar
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_21, 3, ADC_SampleTime_48Cycles); // Temperature
 	// ADC_RegularChannelConfig(ADC1, ADC_Channel_18, 4, ADC_SampleTime_24Cycles); // Tx solar
 
 	/* Enable the request after last transfer for DMA Circular mode */
@@ -254,17 +254,17 @@ float temperature(uint16_t ADCvalue) {
 }
 
 int8_t ADC_simpleTemperature() {
-	float t = temperature(ADCUnloadedValues[2]);
+	float t = temperature(ADCUnloadedValues[2] & 0xfff);
 	if (t>30) t = 30; else if (t<-65) t = -65;
 	return (int8_t)t;
 }
 
 float batteryVoltage(uint16_t ADCvalue12) {
-	return ADCvalue12 * BATT_ADC_VDIV_FACTOR;
+	return ADCvalue12 * BATT_ADC_FACTOR;
 }
 
 float solarVoltage(uint16_t ADCvalue12) {
-	return ADCvalue12 * SOLAR_ADC_VDIV_FACTOR;
+	return ADCvalue12 * SOLAR_ADC_FACTOR;
 }
 
 void DMA1_Channel1_IRQHandler(void) {

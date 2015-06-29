@@ -34,10 +34,12 @@ NMEA_CRS_SPD_Info_t nmeaCRSSPDInfo_unsafe;
 Position_t nmeaPositionInfo_unsafe;
 NMEA_StatusInfo_t nmeaStatusInfo_unsafe;
 
-NMEA_TimeInfo_t nmeaTimeInfo;
-NMEA_CRS_SPD_Info_t nmeaCRSSPDInfo;
-Position_t nmeaPositionInfo;
-NMEA_StatusInfo_t nmeaStatusInfo;
+NMEA_TimeInfo_t GPSTime;
+NMEA_CRS_SPD_Info_t GPSCourseSpeed;
+Position_t GPSPosition;
+NMEA_StatusInfo_t GPSStatus;
+
+Position_t lastNonzeroGPSPosition __attribute__((section (".noinit")));
 
 uint8_t nmea_parse(char c);
 
@@ -121,18 +123,21 @@ void getGPSData() {
 	__DSB();
 	__ISB();
 
-	nmeaTimeInfo = nmeaTimeInfo_unsafe;
-	nmeaCRSSPDInfo = nmeaCRSSPDInfo_unsafe;
-	nmeaPositionInfo = nmeaPositionInfo_unsafe;
-	nmeaStatusInfo = nmeaStatusInfo_unsafe;
+	GPSTime = nmeaTimeInfo_unsafe;
+	GPSCourseSpeed = nmeaCRSSPDInfo_unsafe;
+	GPSPosition = nmeaPositionInfo_unsafe;
+	if (GPSPosition.lat != 0 && GPSPosition.lon != 0) {
+		lastNonzeroGPSPosition = GPSPosition;
+	}
+	GPSStatus = nmeaStatusInfo_unsafe;
 
 	NVIC_EnableIRQ(USART1_IRQn);
 }
 
 void debugGPSTime() {
 	getGPSData();
-	trace_printf("GPS time: %02d:%02d:%02d\n", nmeaTimeInfo.time.hours,
-			nmeaTimeInfo.time.minutes, nmeaTimeInfo.time.seconds);
+	trace_printf("GPS time: %02d:%02d:%02d\n", GPSTime.time.hours,
+			GPSTime.time.minutes, GPSTime.time.seconds);
 }
 
 uint8_t GPS_waitForTimelock(uint32_t maxTime) {
@@ -143,11 +148,11 @@ uint8_t GPS_waitForTimelock(uint32_t maxTime) {
 		getGPSData();
 		timer_sleep(100);
 	} while ((!nmeaTimeInfo_unsafe.time.valid
-			|| (nmeaTimeInfo.time.hours == 0 && nmeaTimeInfo.time.minutes == 0
-					&& nmeaTimeInfo.time.seconds == 0))
+			|| (GPSTime.time.hours == 0 && GPSTime.time.minutes == 0
+					&& GPSTime.time.seconds == 0))
 			&& !timer_elapsed(maxTime));
 	getGPSData();
-	if (nmeaTimeInfo.time.valid) {
+	if (GPSTime.time.valid) {
 		debugGPSTime();
 		return 1;
 	} else {
@@ -156,7 +161,7 @@ uint8_t GPS_waitForTimelock(uint32_t maxTime) {
 	}
 }
 
-uint8_t GPS_waitForPosition(uint32_t maxTime) {
+boolean GPS_waitForPosition(uint32_t maxTime) {
 	timer_mark();
 	nmeaPositionInfo_unsafe.valid = 'V';
 	do {
@@ -164,17 +169,17 @@ uint8_t GPS_waitForPosition(uint32_t maxTime) {
 		timer_sleep(100);
 	} while (nmeaPositionInfo_unsafe.valid != 'A' && !timer_elapsed(maxTime));
 	getGPSData();
-	if (nmeaPositionInfo.valid == 'A') {
+	if (GPSPosition.valid == 'A') {
 		trace_printf("Got GPS position: %d, %d, %d\n",
-				(int) (nmeaPositionInfo.lat * 1.0E7),
-				(int) (nmeaPositionInfo.lon * 1.0E7),
-				(int) nmeaPositionInfo.alt);
+				(int) (GPSPosition.lat * 1.0E7),
+				(int) (GPSPosition.lon * 1.0E7),
+				(int) GPSPosition.alt);
 	} else {
 		trace_printf("FAIL: valid:%c, fixMode:%u numSats:%u\n",
-				nmeaPositionInfo.valid, nmeaStatusInfo.fixMode,
-				nmeaStatusInfo.numberOfSatellites);
+				GPSPosition.valid, GPSStatus.fixMode,
+				GPSStatus.numberOfSatellites);
 	}
-	return nmeaPositionInfo.valid == 'A';
+	return GPSPosition.valid == 'A';
 }
 
 uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) {
@@ -183,24 +188,23 @@ uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) {
 	do {
 		getGPSData();
 		// TODO: Low power sleep.
-		timer_sleep(100);
+		trace_printf("GPS pos: lat %d, lon %d, alt %d, valid %c, fix %d, sat %d\n",
+			(int)(GPSPosition.lat*1000),
+			(int)(GPSPosition.lon*1000),
+			(int)(GPSPosition.alt),
+			GPSPosition.valid,
+			GPSStatus.fixMode,
+			GPSStatus.numberOfSatellites
+		);
+		timer_sleep(1000);
 	} while ((
+			GPSPosition.valid != 'A'
+			||
 			nmeaStatusInfo_unsafe.numberOfSatellites < REQUIRE_HIGH_PRECISION_NUM_SATS
-			|| (REQUIRE_HIGH_PRECISION_ALTITUDE && nmeaPositionInfo.alt == 0)
-			|| nmeaStatusInfo.fixMode < 2) && !timer_elapsed(maxTime));
-	getGPSData();
-	if (nmeaStatusInfo.numberOfSatellites >= 5 && nmeaStatusInfo.fixMode >= 2) {
-		trace_printf("Got GPS position: %d, %d, %d\n",
-				(int) (nmeaPositionInfo.lat * 1.0E7),
-				(int) (nmeaPositionInfo.lon * 1.0E7),
-				(int) nmeaPositionInfo.alt);
-		return 1;
-	} else {
-		trace_printf("FAIL: valid:%c, fixMode:%u numSats:%u\n",
-				nmeaPositionInfo.valid, nmeaStatusInfo.fixMode,
-				nmeaStatusInfo.numberOfSatellites);
-		return 0;
-	}
+			|| (REQUIRE_HIGH_PRECISION_ALTITUDE && GPSPosition.alt==0)
+			|| GPSStatus.fixMode < REQUIRE_HIGH_PRECISION_FIXLEVEL) && !timer_elapsed(maxTime));
+
+	return GPSPosition.valid == 'A';
 }
 
 MessageState latestGPSState = CONSUMED;
@@ -272,6 +276,8 @@ static void parseTime(char c, uint8_t* state, Time_t* value) {
 	}
 }
 
+static boolean debugParseDegrees;
+
 static void parseDegrees(char c, uint8_t* state, double* value) {
 	static uint32_t ivalue;
 	uint8_t i;
@@ -313,6 +319,10 @@ static void parseDegrees(char c, uint8_t* state, double* value) {
 		}
 		*value += temp;
 		break;
+	}
+
+	if (debugParseDegrees) {
+		trace_printf("in %c, state %d, value %d\n", c, *state, (int)(*value * 1000));
 	}
 }
 
@@ -535,8 +545,8 @@ void parseGPGSV(char c) {
 void parseGPGLL(char c) {
 	static uint8_t state;
 	if (c == ',') {
+		state = 0;
 		if (commaindex++ == 0) {
-			state = 0;
 			tempLat = 0;
 			tempLon = 0;
 		}
@@ -550,7 +560,9 @@ void parseGPGLL(char c) {
 				tempLat = -tempLat;
 			break;
 		case 3:
+			debugParseDegrees = false;
 			parseDegrees(c, &state, &tempLon);
+			debugParseDegrees = false;
 			break;
 		case 4:
 			if (c == 'W')

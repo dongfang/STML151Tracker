@@ -8,8 +8,8 @@
 #ifndef CDCE913_H_
 #define CDCE913_H_
 
-#include <stdint.h>
-#include "CDCE913_26MHzXtal.h"
+#include "CDCE913_Xtal.h"
+#include "Types.h"
 #include "ExperimentallyDerivedConstants.h"
 
 #define CDCE913_SELFCALIBRATION_DIVISION 1000
@@ -25,6 +25,8 @@ typedef struct {
   uint8_t pdiv;
   uint8_t Q;
   uint8_t R;
+  uint16_t M;
+  uint8_t trim;
 } CDCE913_PLLSetting_t;
 
 extern const int16_t PLL_XTAL_TRIM_PP10M[];
@@ -39,8 +41,14 @@ typedef enum {
 	CDCE913_OutputMode_XO_PASSTHROUGH
 } CDCE913_OutputMode_t;
 
+boolean bestPLLSetting(
+		uint32_t oscillatorFrequency,
+		uint32_t desiredFrequency,
+		double maxError,
+		CDCE913_PLLSetting_t* result) ;
+
 // Use feedthrough but do divide down
-void CDCE913_setDirectModeWithDivision(uint8_t trim);
+void CDCE913_setDirectModeWithDivision(uint8_t trim, uint16_t pdiv);
 
 // Use the direct feedthrough (not even a divider is on the path)
 void CDCE913_setXOPassthroughMode(uint8_t trim);
@@ -52,6 +60,6 @@ void CDCE913_setPLL(CDCE913_OutputMode_t output,const CDCE913_PLLSetting_t* pllS
 void CDCE913_shutdown();
 
 // Print settings.
-void CECE913_debug();
+void CECE913_printSettings();
 
 #endif /* CDCE913_H_ */

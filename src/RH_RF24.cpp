@@ -4,19 +4,11 @@
 // $Id: RH_RF24.cpp,v 1.10 2014/09/17 22:41:47 mikem Exp $
 
 #include "RH_RF24.h"
-#include "stddef.h"
-#include "config.h"
 #include "SPI.h"
-#include <avr/pgmspace.h>
-#include <util/delay.h>
+#include "systick.h"
+#include <string.h>
 // Generated with Silicon Labs WDS software:
 #include "radio_config_Si4460.h"
-
-#ifdef DEBUG
-#include <stdio.h>
-#include "SerialStream.h"
-extern UARTSerial serial0;
-#endif
 
 // Interrupt vectors for the 3 Arduino interrupt pins
 // Each interrupt can be handled by a different instance of RH_RF24, allowing you to have
@@ -26,7 +18,7 @@ extern UARTSerial serial0;
 
 // This configuration data is defined in radio_config_Si4460.h 
 // which was generated with the Silicon Labs WDS program
-PROGMEM const uint8_t RFM26_CONFIGURATION_DATA[] =
+const uint8_t RFM26_CONFIGURATION_DATA[] =
 		RADIO_CONFIGURATION_DATA_ARRAY;
 
 // These configurations were all generated originally by the Silicon LAbs WDS configuration tool.
@@ -34,7 +26,7 @@ PROGMEM const uint8_t RFM26_CONFIGURATION_DATA[] =
 // RH_RF24_property_data/convert.pl was used to generate the entry for this table.
 // Contributions of new complete and tested ModemConfigs ready to add to this list will be readily accepted.
 // Casual suggestions of new schemes without working examples will probably be passed over
-PROGMEM static const RH_RF24::ModemConfig MODEM_CONFIG_TABLE[] =
+static const RH_RF24::ModemConfig MODEM_CONFIG_TABLE[] =
 		{
 				{ 0b11101000, 0x01, 0x86, 0xa0, 0x01, 0x00, 0x00, 0x00, 0x00,
 						0x32, 0x20, 0x00, 0x5e, 0x05, 0x76, 0x1a, 0x02, 0xb9,
@@ -47,8 +39,7 @@ PROGMEM static const RH_RF24::ModemConfig MODEM_CONFIG_TABLE[] =
 						0xfc, 0x0f, 0x00, 0x3f, 0x2c, 0x0e, 0x04, 0x0c, 0x73, }
 		};
 
-RH_RF24::RH_RF24() :
-		RHSPIDriver() {
+RH_RF24::RH_RF24() {
 	_mode = RHModeInitialising;
 	_idleMode = RH_RF24_DEVICE_STATE_READY;
 }
@@ -57,7 +48,7 @@ void RH_RF24::setIdleMode(uint8_t idleMode) {
 	_idleMode = idleMode;
 }
 
-bool RH_RF24::initWarm() {
+boolean RH_RF24::initWarm() {
 	// Initialise the radio
 	power_on_reset();
 	// cmd_clear_all_interrupts();
@@ -181,13 +172,13 @@ bool RH_RF24::setModemConfig(ModemConfigChoice index) {
 		return false;
 
 	ModemConfig cfg;
-	memcpy_P(&cfg, &MODEM_CONFIG_TABLE[index], sizeof(RH_RF24::ModemConfig));
+	memcpy(&cfg, &MODEM_CONFIG_TABLE[index], sizeof(RH_RF24::ModemConfig));
 	setModemRegisters(&cfg);
 
 	return true;
 }
 
-bool RH_RF24::setFrequency(float centre, float afcPullInRange) {
+bool RH_RF24::setFrequency(uint32_t freq_kHz) {
 	// See Si446x Data Sheet section 5.3.1
 	// Also the Si446x PLL Synthesizer / VCO_CNT Calculator Rev 0.4
 	uint8_t outdiv;
@@ -195,30 +186,30 @@ bool RH_RF24::setFrequency(float centre, float afcPullInRange) {
 	if (_deviceType == 0x4460 || _deviceType == 0x4461
 			|| _deviceType == 0x4463) {
 		// Non-continuous frequency bands
-		if (centre <= 1050.0 && centre >= 850.0)
+		if (freq_kHz <= 1050000 && freq_kHz >= 850000)
 			outdiv = 4, band = 0;
-		else if (centre <= 525.0 && centre >= 425.0)
+		else if (freq_kHz <= 525000 && freq_kHz >= 425000)
 			outdiv = 8, band = 2;
-		else if (centre <= 350.0 && centre >= 284.0)
+		else if (freq_kHz <= 350000 && freq_kHz >= 284000)
 			outdiv = 12, band = 3;
-		else if (centre <= 175.0 && centre >= 142.0)
+		else if (freq_kHz <= 175000 && freq_kHz >= 142000)
 			outdiv = 24, band = 5;
 		else
 			return false;
 	} else {
 		// 0x4464
 		// Continuous frequency bands
-		if (centre <= 960.0 && centre >= 675.0)
+		if (freq_kHz <= 960000 && freq_kHz >= 675000)
 			outdiv = 4, band = 1;
-		else if (centre < 675.0 && centre >= 450.0)
+		else if (freq_kHz < 675000 && freq_kHz >= 450000)
 			outdiv = 6, band = 2;
-		else if (centre < 450.0 && centre >= 338.0)
+		else if (freq_kHz < 450000 && freq_kHz >= 338000)
 			outdiv = 8, band = 3;
-		else if (centre < 338.0 && centre >= 225.0)
+		else if (freq_kHz < 338000 && freq_kHz >= 225000)
 			outdiv = 12, band = 4;
-		else if (centre < 225.0 && centre >= 169.0)
+		else if (freq_kHz < 225000 && freq_kHz >= 160000)
 			outdiv = 16, band = 4;
-		else if (centre < 169.0 && centre >= 119.0)
+		else if (freq_kHz < 169000 && freq_kHz >= 119000)
 			outdiv = 24, band = 5;
 		else
 			return false;
@@ -230,14 +221,16 @@ bool RH_RF24::setFrequency(float centre, float afcPullInRange) {
 			sizeof(modem_clkgen)))
 		return false;
 
-	centre *= 1000000.0; // Convert to Hz
+	freq_kHz *= 1000; // Convert to Hz
 
 	// Now generate the RF frequency properties
 	// Need the Xtal/XO freq from the radio_config file:
 	uint32_t xtal_frequency[1] = RADIO_CONFIGURATION_DATA_RADIO_XO_FREQ;
 	unsigned long f_pfd = 2 * xtal_frequency[0] / outdiv;
-	unsigned int n = ((unsigned int) (centre / f_pfd)) - 1;
-	float ratio = centre / (float) f_pfd;
+
+	unsigned int n = ((unsigned int) (freq_kHz / f_pfd)) - 1;
+	float ratio = freq_kHz / (float) f_pfd;
+
 	float rest = ratio - (float) n;
 	unsigned long m = (unsigned long) (rest * 524288UL);
 	unsigned int m2 = m / 0x10000;
@@ -323,31 +316,31 @@ bool RH_RF24::command(uint8_t cmd, const uint8_t* write_buf, uint8_t write_len,
 	// ATOMIC_BLOCK_START;
 	// First send the command
 	// digitalWrite(_slaveSelectPin, LOW);
-	assertSS();
-	SPI.transfer(cmd);
+	SPI_assertSS();
+	SPI_transfer(cmd);
 
 	// Now write any write data
 	if (write_buf && write_len) {
 		while (write_len--)
-			SPI.transfer(*write_buf++);
+			SPI_transfer(*write_buf++);
 	}
 	// Sigh, the RFM26 at least has problems if we deselect too quickly :-(
 	// Innocuous timewaster:
 	// digitalWrite(_slaveSelectPin, LOW);
 	// And finalise the command
-	releaseSS();
+	SPI_releaseSS();
 
 	uint16_t count; // Number of times we have tried to get CTS
 	for (count = 0; !done && count < RH_RF24_CTS_RETRIES; count++) {
 		// Wait for the CTS
-		assertSS();
+		SPI_assertSS();
 
-		SPI.transfer(RH_RF24_CMD_READ_BUF);
-		if (SPI.transfer(0) == RH_RF24_REPLY_CTS) {
+		SPI_transfer(RH_RF24_CMD_READ_BUF);
+		if (SPI_transfer(0) == RH_RF24_REPLY_CTS) {
 			// Now read any expected reply data
 			if (read_buf && read_len) {
 				while (read_len--) {
-					*read_buf++ = SPI.transfer(0);
+					*read_buf++ = SPI_transfer(0);
 				}
 			}
 			done = true;
@@ -356,7 +349,7 @@ bool RH_RF24::command(uint8_t cmd, const uint8_t* write_buf, uint8_t write_len,
 		// Innocuous timewaster:
 		// digitalWrite(_slaveSelectPin, LOW);
 		// Finalise the read
-		releaseSS();
+		SPI_releaseSS();
 	}
 	// ATOMIC_BLOCK_END;
 	return done; // False if too many attempts at CTS
@@ -368,9 +361,9 @@ bool RH_RF24::configure(const uint8_t* commands) {
 	// <bytecount> <command> <bytecount-2 bytes of args/data>
 	uint8_t next_cmd_len;
 
-	while (memcpy_P(&next_cmd_len, commands, 1), next_cmd_len > 0) {
+	while (memcpy(&next_cmd_len, commands, 1), next_cmd_len > 0) {
 		uint8_t buf[20]; // As least big as the biggest permitted command/property list of 15
-		memcpy_P(buf, commands + 1, next_cmd_len);
+		memcpy(buf, commands + 1, next_cmd_len);
 		command(buf[0], buf + 1, next_cmd_len - 1);
 		commands += (next_cmd_len + 1);
 	}
@@ -378,7 +371,7 @@ bool RH_RF24::configure(const uint8_t* commands) {
 }
 
 bool RH_RF24::shutdown() {
-	RF24_SDN_PORT |= (1 << RF24_SDN_BIT);
+	GPIOA->ODR |= (1 << RF24_SDN_BIT);
 	return true;
 }
 
@@ -389,8 +382,8 @@ void RH_RF24::power_on_reset() {
 	// RF24_SDN_PORT |= (1 << RF24_SDN_BIT);
 	// RF24_SDN_DDR |= (1 << RF24_SDN_BIT);
 	// _delay_ms(10);
-	RF24_SDN_PORT &= ~(1 << RF24_SDN_BIT);
-	_delay_ms(10);
+	GPIOA->ODR &= ~(1 << RF24_SDN_BIT);
+	timer_sleep(10);
 }
 
 bool RH_RF24::set_properties(uint16_t firstProperty, const uint8_t* values,

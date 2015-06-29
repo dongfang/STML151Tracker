@@ -14,28 +14,17 @@ volatile APRSModulationMode_t currentMode;
 volatile uint16_t packet_cnt;
 volatile uint8_t packetTransmissionComplete;
 
-const APRS_Mode_t TWO_M_APRS_COMPRESSED_MESSAGE = {
-		.DACChannel = DAC1,
+const APRS_Mode_t TWO_M_APRS_MESSAGE = {
+		 //.DACChannel = DAC1,
 		.modulationMode = AFSK,
 		.modulationAmplitude = 1,
-		.hardwareChannel = 1,
 };
 
-const APRS_Mode_t TWO_M_APRS_STATUS_MESSAGE = {
-		.DACChannel = DAC1,
-		.modulationMode = AFSK,
-		.modulationAmplitude = 1,
-		.hardwareChannel = 1,
-};
-
-const APRS_Mode_t HF_APRS_COMPRESSED_MESSAGE = {
-		.DACChannel = DAC1,
+const APRS_Mode_t HF_APRS_MESSAGE = {
+		 //.DACChannel = DAC1,
 		.modulationMode = GFSK,
 		.modulationAmplitude = 0.1,
-		.hardwareChannel = 2,
-		// .buildMessage = &aprs_compressedMessage
 };
-
 
 const PLL_Setting_t* transmitterSetting2M_DirectlyFromPLL(uint32_t frequency) {
 	for (uint8_t i=0; i<NUM_VHF_PLL_BAND_DEFS; i++) {

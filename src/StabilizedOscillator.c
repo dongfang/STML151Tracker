@@ -36,14 +36,14 @@ const CalibrationRecord_t* getCalibration(int8_t temperature, boolean doAttemptC
 		index++;
 
 	uint32_t check = checksum(calibrationByTemperatureRanges+index);
-	if (check != calibrationByTemperatureRanges[index].checksum) {
+	if (!REUSE_CALIBRATION || check != calibrationByTemperatureRanges[index].checksum) {
 		trace_printf("No calibration found for temperature %d in range %d\n", temperature, index);
 		if (!doAttemptCalibrate) {
 			trace_printf("No calibration attempts made.\n");
 			return &defaultCalibration;	// damn, we had nothing!
 		}
 
-		trace_printf("No calibration found, trying to create one\n");
+		trace_printf("Calibrating...\n");
 		if (!selfCalibrate(calibrationByTemperatureRanges + index)) {
 			return  &defaultCalibration;	// damn, we failed!
 		}
@@ -109,7 +109,7 @@ void PLLSettingExperiment(const PLL_Setting_t* pllSettings, uint8_t numSettings,
 	}
 }
 
-void bestPLLSetting(const PLL_Setting_t* pllSettings, uint8_t numSettings, double desiredMultiplication,
+void bestStoredPLLSetting(const PLL_Setting_t* pllSettings, uint8_t numSettings, double desiredMultiplication,
 		uint8_t* bestIndex, uint8_t* bestTrim) {
 	uint8_t i;
 	uint16_t smallestError = -1;

@@ -320,8 +320,10 @@ void RTC_setCalibration(int16_t correction_PP10M) {
 		sign = RTC_CalibSign_Negative;
 	}
 	ErrorStatus result = RTC_CoarseCalibConfig(sign, ivalue);
+	/*
 	trace_printf("Using sign %s and ivalue %d. Success: %s\n",
 			sign == RTC_CalibSign_Positive ? "pos" : "neg", ivalue,
 			result == SUCCESS ? "ok" : "fail");
+	*/
 }
 

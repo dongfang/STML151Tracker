@@ -1,5 +1,5 @@
 #include <diag/Trace.h>
-#include <stdint.h>
+#include "Types.h"
 #include <string.h>
 #include <math.h>
 #include "stm32l1xx_conf.h"
@@ -13,7 +13,7 @@ uint8_t convolutionalBuf[21];
 uint8_t interleavedbuf[21];
 uint8_t symbolList[162 / 4 + 1];
 
-//const uint32_t WSPR_FREQUENCIES[] = {10140200, 28126100};
+const uint32_t WSPR_FREQUENCIES[] = {10140200, 28126100};
 
 extern uint16_t hash(const char* call, uint16_t length);
 
@@ -274,15 +274,6 @@ static void interleave() {
   }
 }
 
-static const uint8_t SYNC_VECTOR[162] = { 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1,
-		1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
-		1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1,
-		0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1,
-		1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0,
-		0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0,
-		1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 0,
-		1, 1, 0, 0, 0 };
-
 static const uint32_t SYNC_VECTOR_COMPACT[162/8+1] = {
 0b11000000100011100010010111100000,
 0b00100101000000101100110100011010,
@@ -293,11 +284,9 @@ static const uint32_t SYNC_VECTOR_COMPACT[162/8+1] = {
 
 static inline uint8_t readSyncVectorSym(uint8_t idx);
 static uint8_t readSyncVectorSym(uint8_t idx) {
-	uint8_t oldvalue =  SYNC_VECTOR[idx];
     uint8_t index = idx/32;
     uint32_t mask = 1<<(31-(idx%32));
     uint8_t newvalue = (SYNC_VECTOR_COMPACT[index] & mask) != 0 ? 1 : 0;
-    if (newvalue != oldvalue) trace_printf("Lort %u!!\n", idx);
     return newvalue;
 }
 
@@ -339,7 +328,7 @@ void positionAs4DigitMaidenhead(double lat, double lon, char* target) {
 }
 
 void currentPositionAs4DigitMaidenhead(char* target) {
-	positionAs4DigitMaidenhead(nmeaPositionInfo.lat, nmeaPositionInfo.lon, target);
+	positionAs4DigitMaidenhead(GPSPosition.lat, GPSPosition.lon, target);
 	target[4] = 0;
 }
 
@@ -355,7 +344,7 @@ void positionAs6DigitMaidenhead(double lat, double lon, char* target) {
 }
 
 void currentPositionAs6DigitMaidenhead(char* target) {
-  positionAs6DigitMaidenhead(nmeaPositionInfo.lat, nmeaPositionInfo.lon, target);
+  positionAs6DigitMaidenhead(GPSPosition.lat, GPSPosition.lon, target);
   target[6] = 0;
 }
 
@@ -379,7 +368,7 @@ void positionAsMaidenheadSuperfine(double lat, double lon, char* target) {
 }
 
 void currentPositionAsMaidenheadSuperfine(char* target) {
-  positionAsMaidenheadSuperfine(nmeaPositionInfo.lat, nmeaPositionInfo.lon, target);
+  positionAsMaidenheadSuperfine(GPSPosition.lat, GPSPosition.lon, target);
 }
 
 
@@ -415,7 +404,7 @@ void prepareType3Transmission(uint8_t power, enum WSPR_FAKE_EXTENDED_LOCATION fa
   case ALTITUDE:
     currentPositionAs4DigitMaidenhead(maidenhead6_fake);
     // add data here
-    int16_t ialt = (int16_t)(nmeaPositionInfo.alt / 100);
+    int16_t ialt = (int16_t)(GPSPosition.alt / 100);
     if (ialt < 0) ialt = 0;
     // 144 units of 100m each
     maidenhead6_fake[4] = 'a' + (ialt / 12)*2;
@@ -453,18 +442,32 @@ uint8_t getWSPRSymbol(uint8_t i) {
 }
 
 uint8_t fake_dBm(float voltage) {
+	static const uint8_t nonweirdPowerLevels[] =
+	{0, 3, 7};
 	/*
 	voltage = voltage * 3 / (4 * sqrt(2));
 	float power_mW = voltage*voltage*1000/72.0;// Z is 72 Ohms
 	float dB = log10(power_mW) * 10;
 	return dB;
 	*/
+
+	static int8_t power = -1;
+	power++;
+	if (power > 37) power = 0;
+
+	trace_printf("Fake-O-Power: %d at ", power);
+	debugRTCTime();
+
+	return power;
+
+
+
 	// 3.0 -> 10mW (10 dBm)
 	// 4.5 -> 100mW (20 dBm)
 	// y = 10 (x-3) + 10
 	int8_t result = (voltage - 3) * 10 + 10;
 	if (result < 10) result = 10;
-	return result - result%3;
+	// return result - result%3;
 }
 
 void prepareWSPRMessage(uint8_t type, enum WSPR_FAKE_EXTENDED_LOCATION fake, float voltage) {

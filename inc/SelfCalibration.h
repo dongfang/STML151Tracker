@@ -77,10 +77,10 @@ typedef struct {
 } CalibrationRecord_t;
 
 #define DEFAULT_CALIBRATION { \
-	.HSEFrequency = 16E6,	\
-	.transmitterOscillatorFrequencyAtDefaultTrim = 26E6,\
-	.RTCNeededCorrectionPP10M = -1000, /* This xtal is VERY bad */ \
-	.temperature = 0, \
+	.HSEFrequency = 16000166,	\
+	.transmitterOscillatorFrequencyAtDefaultTrim = 26000435,\
+	.RTCNeededCorrectionPP10M = -1066, /* This xtal is VERY bad */ \
+	.temperature = 25, \
 	.checksum = 0 \
 }
 

@@ -8,7 +8,7 @@
 #ifndef INC_TYPES_H_
 #define INC_TYPES_H_
 
-#include <stdint.h>
+#include "Types.h"
 
 typedef uint8_t boolean;
 #define true 1

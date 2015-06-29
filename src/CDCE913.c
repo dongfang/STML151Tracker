@@ -13,11 +13,11 @@ const int16_t PLL_XTAL_TRIM_PP10M[] = PLL_XTAL_TRIM_PP10M_VALUES;
 
 // These are different options for the same frequency.
 static const CDCE913_PLLSetting_t PLL_OPTIONS_WSPR_10m[] =
-		CDCE913_PLL_SETTINGS_10m_WSPR;
+CDCE913_PLL_SETTINGS_10m_WSPR;
 
 // These are different options for the same frequency.
 static const CDCE913_PLLSetting_t PLL_OPTIONS_WSPR_30m[] =
-		CDCE913_PLL_SETTINGS_30m_WSPR
+CDCE913_PLL_SETTINGS_30m_WSPR
 ;
 
 // These are different options for the same frequency (maybe one is enough).
@@ -35,13 +35,14 @@ const HF_BandDef_t HF_BAND_DEFS[] = { { .hardwareChannel = 1, .numPLLOptions =
 				/ sizeof(CDCE913_PLLSetting_t), .PLLOptions =
 				PLL_OPTIONS_WSPR_10m, .frequency = 28126100 } };
 
-const VHF_ChannelDef_PLL_t VHF_PLL_BAND_DEFS[] = {
-};
-const uint8_t NUM_VHF_PLL_BAND_DEFS = sizeof(VHF_PLL_BAND_DEFS)/sizeof(VHF_ChannelDef_PLL_t);
+const VHF_ChannelDef_PLL_t VHF_PLL_BAND_DEFS[] = { };
+const uint8_t NUM_VHF_PLL_BAND_DEFS = sizeof(VHF_PLL_BAND_DEFS)
+		/ sizeof(VHF_ChannelDef_PLL_t);
 
-const VHF_ChannelDef_Si6643_t VHF_SI4463_BAND_DEFS[] = { 144390, 144620, 144640, 144575,
-		144660, 144930, 144800, 145010, 145175, 145525, 145575 };
-const uint8_t NUM_VHF_SI4463_BAND_DEFS = sizeof(VHF_SI4463_BAND_DEFS)/sizeof(VHF_ChannelDef_Si6643_t);
+const VHF_ChannelDef_Si6643_t VHF_SI4463_BAND_DEFS[] = { 144390, 144620, 144640,
+		144575, 144660, 144930, 144800, 145010, 145175, 145525, 145575 };
+const uint8_t NUM_VHF_SI4463_BAND_DEFS = sizeof(VHF_SI4463_BAND_DEFS)
+		/ sizeof(VHF_ChannelDef_Si6643_t);
 
 static void CDCE913_initInterface() {
 	GPIO_InitTypeDef GPIO_InitStructure;
@@ -78,6 +79,12 @@ static void CDCE913_initInterface() {
 	I2C_InitStructure.I2C_ClockSpeed = IS_I2C_CLOCK_SPEED(400000);
 	I2C_Init(I2C1, &I2C_InitStructure);
 	//trace_printf("I2C initialized.\n");
+}
+
+static void CDCE913_initInterfaceIfNecessary() {
+	if (!(I2C1->CR1 & I2C_CR1_PE)) {
+		CDCE913_initInterface();
+	}
 }
 
 static uint8_t I2C_read(uint8_t reg_addr) {
@@ -240,7 +247,8 @@ static void CDCE913_setPLLValue(const CDCE913_PLLSetting_t* setting) {
 // 3 : Use Y3 and ground the other two.
 // 4 : Feed xtal to Y1 with division.
 // The direct mode is not supported from here.
-void CDCE913_enableOutput(CDCE913_OutputMode_t whichOutput, uint16_t pdiv) {
+static void CDCE913_enableOutput(CDCE913_OutputMode_t whichOutput,
+		uint16_t pdiv) {
 	uint8_t r1 = 0;
 	uint8_t r2 = 0;
 	uint8_t r0x14 = 0;
@@ -279,8 +287,9 @@ void CDCE913_enableOutput(CDCE913_OutputMode_t whichOutput, uint16_t pdiv) {
 		break;
 	case CDCE913_OutputMode_XO_PASSTHROUGH:
 		r1 = 0b00000101; 	// power on, VCXO and default address
-		r2 = 0b10111100;
+		r2 = 0b10111100 | (pdiv >> 8);
 		r0x14 = 0b11101010;	// Disable Y2, Y3 to low
+		I2C_write(0x03, (uint8_t) pdiv);
 	}
 	I2C_write(0x01, r1);
 	I2C_write(0x02, r2);
@@ -288,38 +297,185 @@ void CDCE913_enableOutput(CDCE913_OutputMode_t whichOutput, uint16_t pdiv) {
 }
 
 void CDCE913_shutdown() {
-	CDCE913_enableOutput(0, 0);
+	CDCE913_initInterfaceIfNecessary();
+	CDCE913_enableOutput(CDCE913_OutputMode_SHUTDOWN, 0);
 }
 
-// Well actually direct mode is the startup default.... haha
-void CDCE913_setDirectModeWithDivision(uint8_t trim) {
-	CDCE913_initInterface();
-	uint16_t pdiv = CDCE913_SELFCALIBRATION_DIVISION;
-	CDCE913_enableOutput(4, pdiv);
-	// Enable VCXO
-	// I2C_write(1, 0b0101);
-	// Well! We still need set a divider.
-	// uint8_t r2 = I2C_read(0x02);
-	// I2C_write(0x02, (r2 & 0b01111100) | (pdiv >> 8));
-	// I2C_write(0x03, (uint8_t) pdiv);
+void CDCE913_setDirectModeWithDivision(uint8_t trim, uint16_t pdiv) {
+	CDCE913_initInterfaceIfNecessary();
+	CDCE913_enableOutput(CDCE913_OutputMode_SELFCALIBRATION_DIVISION_AT_1,
+			pdiv);
 	I2C_write(5, trim << 3); 	// Cap. in pF.
-	// I2C_write(0x14, 0b00001010); // Disable Y2, Y3
-	// TODO: Also set feedthru mode (or trigger a reset if possible).
+}
+
+void CDCE913_setPassthroughMode(uint8_t trim) {
+	CDCE913_initInterfaceIfNecessary();
+	CDCE913_enableOutput(CDCE913_OutputMode_XO_PASSTHROUGH, 1);
+	I2C_write(5, trim << 3); 	// Cap. in pF.
+}
+
+// 0-->0
+// 1-->0	// 1 is wrong, should be 0!
+// 2-->1
+// 3-->1
+// 4-->2
+// etc
+uint8_t ilog2(uint16_t N) {
+	uint8_t result = 0;
+	N >>= 1; // 0->0, 1->0, which both will correctly return 0
+	while (N) {
+		N >>= 1;
+		result++;
+	}
+	return result;
+}
+
+void setPQR(uint16_t N, uint16_t M, CDCE913_PLLSetting_t* result) {
+	int8_t P = 4 - ilog2(N / M);
+	if (P < 0)
+		P = 0;
+	result->P = P;
+	uint32_t Nprime = N * (1 << P);
+	result->Q = Nprime / M;
+	result->R = Nprime - M * result->Q;
+}
+
+boolean findM(
+		int16_t N,
+		double desiredMultiplication,
+		uint16_t* M,
+		double* signedError) {
+	// desiredMultiplication = Fvco/Fin = N/M
+	// M = N/desiredMultiplication
+	int16_t Mlo = N / desiredMultiplication;
+	// yeah Mhi will be wrong in case of an exact division.
+	// But in that case, the Mhi result will be discarded anyway as the Mlo
+	// one is "infinitely better" so no reason to make a big deal of it.
+	int16_t Mhi = Mlo + 1;
+
+	double unsignedError = 1000;
+
+	boolean hadResult = false;
+	//trace_printf("FindM start\n");
+
+	if (Mlo > 0 && Mlo < 512) {
+		//trace_printf("FindM 1\n");
+		double error = (double) N / (double) Mlo - desiredMultiplication;
+		*signedError = error;
+		unsignedError = (error < 0) ? -error : error;
+		*M = Mlo;
+		hadResult = true;
+	}
+
+	if (Mhi < 512) {
+		//trace_printf("FindM 2\n");
+		double error = (double) N / (double) Mhi - desiredMultiplication;
+		double localUnsignedError = (error < 0) ? -error : error;
+		if (localUnsignedError < unsignedError) {
+			*signedError = error;
+			*M = Mhi;
+			hadResult = true;
+		}
+	}
+
+	//trace_printf("FindM returns %d and error %d\n", hadResult, (int)(*signedError*1000));
+	return hadResult;
+}
+
+static int8_t getBestTrim(double desiredTrim) {
+	int32_t desiredPP10M = desiredTrim * 1E7;
+	// trace_printf("Trim desired change pp10m: %d\n", desiredPP10M);
+	int16_t bestError = 1500;
+	int8_t bestIndex = -1;
+
+	for (uint8_t i = PLL_MIN_TRIM_INDEX_VALUE; i <= PLL_MAX_TRIM_INDEX_VALUE;
+			i++) {
+		int16_t test = desiredPP10M - PLL_XTAL_TRIM_PP10M[i];
+		if (test < 0)
+			test = -test;
+		if (test < bestError) {
+			bestError = test;
+			bestIndex = i;
+		}
+	}
+	return bestIndex;
+}
+
+boolean bestPLLSetting(
+		uint32_t oscillatorFrequency,
+		uint32_t desiredFrequency,
+		double maxError,
+		CDCE913_PLLSetting_t* result) {
+	trace_printf("bestPLLSetting: %d %d\n", oscillatorFrequency, desiredFrequency);
+
+	// okay the rounding is off if somebody wants 100MHz. But nobody wants that.
+	int Pdivmin = 100E6 / (double)desiredFrequency + 1;
+	int pdivMax = 200E6 / (double)desiredFrequency;
+	double bestError = 1;
+	int bestPdiv;
+	boolean feasible = false;
+
+	for (int Pdiv = Pdivmin; Pdiv <= pdivMax && bestError > maxError; Pdiv++) {
+		double desiredMultiplication = ((double)desiredFrequency * Pdiv)
+				/ oscillatorFrequency;
+		if (desiredMultiplication < 1)
+			continue;
+		uint16_t Nmax = desiredMultiplication * 511;
+		if (Nmax > 4095) {
+			Nmax = 4095;
+		}
+		// trace_printf("Trying Pdiv : %d, N from 1 to %d\n", Pdiv, Nmax);
+		uint16_t M;
+		// Just cut it short as we get within decent trim range, which is about +-30ppm
+		for (uint16_t N = 1; N <= Nmax && bestError > maxError; N++) {
+			double signedError;
+			double unsignedError;
+			if (findM(N, desiredMultiplication, &M, &signedError)) {
+				unsignedError = signedError < 0 ? -signedError : signedError;
+				// trace_printf("N: %d, US %d S %d\n", N, (int)(unsignedError*1000), (int)(signedError*1000));
+				if (unsignedError < bestError) {
+					bestError = unsignedError;
+					// trace_printf("Best N:%d,M:%d, error pp10M:%u\n", N, M, (int) (signedError * 1E7));
+					bestPdiv = Pdiv;
+					result->pdiv = Pdiv;
+					result->N = N;
+					result->M = M;
+					setPQR(N, M, result);
+
+					int8_t trim = getBestTrim(-signedError);
+
+					if (trim != -1) {
+						/*
+						trace_printf("desired:%d, real:%d, error:%d, trim: %d\n",
+								(int) (desiredMultiplication * 1E7),
+								(int) (1E7 * (double) N / (double) M),
+								(int) (signedError * 1E7),
+								trim);
+						*/
+						result->trim = trim;
+						feasible = true;
+					}
+				}
+			}
+		}
+	}
+	return feasible;
 }
 
 // Set up for WSPR with a 8.388608MHz xtal
 void CDCE913_setPLL(CDCE913_OutputMode_t output,
 		const CDCE913_PLLSetting_t* setting, uint8_t trim) {
-	CDCE913_initInterface();
+	CDCE913_initInterfaceIfNecessary();
 	// Turn on Y1 output in all cases and PLL out
 	// I2C_write(1, 0b0101);
 	// I2C_write(2, (1 << 7) | (0b1111 << 2));
 	CDCE913_enableOutput(output, setting->pdiv);
 	I2C_write(5, trim << 3); 	// Cap. in pF.
 	CDCE913_setPLLValue(setting);
+	// CECE913_printSettings();
 }
 
-void CECEL913_debug() {
+void CECE913_printSettings() {
 	uint16_t r18 = I2C_read(0x18);
 	uint16_t r19 = I2C_read(0x19);
 	trace_printf("N=%u\n", (r18 << 4) + (r19 >> 4));

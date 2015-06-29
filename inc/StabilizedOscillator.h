@@ -48,7 +48,7 @@ typedef struct {
 
 const CalibrationRecord_t* getCalibration(int8_t temperature, boolean doAttemptCalibrate);
 
-void bestPLLSetting(const PLL_Setting_t* pllSettings, uint8_t numSettings, double desiredMultiplication,
+void bestStoredPLLSetting(const PLL_Setting_t* pllSettings, uint8_t numSettings, double desiredMultiplication,
 		uint8_t* bestIndex, uint8_t* bestTrim);
 
 //void WSPRSynthesisExperiment(uint32_t oscillatorFrequencyMeasured);

@@ -21,8 +21,10 @@
 #ifndef RH_RF24_h
 #define RH_RF24_h
 
-//#include "RHGenericSPI.h"
-#include "RHSPIDriver.h"
+#include "Types.h"
+
+// The shutdown is on PA8.
+#define RF24_SDN_BIT 8
 
 // This is the maximum number of interrupts the driver can support
 // Most Arduinos can handle 2, Megas can handle more
@@ -634,8 +636,7 @@
 /// \endcode
 /// Caution: the actual radiated power output will depend heavily on the power supply voltage and the antenna.
 
-class RH_RF24 : public RHSPIDriver
-{
+class RH_RF24 {
 public:
     /// \brief Defines different operating modes for the transport hardware
     ///
@@ -786,8 +787,8 @@ EXPERIMENTAL_CW = 0
     /// - Attaches an interrupt handler
     /// \return  true if everything was successful
     // bool        init();
-    bool        initCold();
-    bool        initWarm();
+    boolean        initCold();
+    boolean        initWarm();
 
     /// - Configures the RF24 module
    //  bool        initWarm();
@@ -811,7 +812,7 @@ EXPERIMENTAL_CW = 0
     /// \param[in] afcPullInRange Not used
     /// \return true if the selected frequency is within a valid range for the connected radio and if
     ///         setting the new frequency succeeded.
-    bool        setFrequency(float centre, float afcPullInRange = 0.05);
+    bool        setFrequency(uint32_t freq_kHz);
 
     /// Sets all the properties required to configure the data modem in the RF24, including the data rate, 
     /// bandwidths etc. You can use this to configure the modem with custom configurations if none of the 

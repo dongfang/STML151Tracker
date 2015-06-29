@@ -1,7 +1,6 @@
 #ifndef _NMEA_H_
 #define _NMEA_H_
 
-#include <stdint.h>
 #include "Types.h"
 
 typedef enum {
@@ -45,9 +44,10 @@ uint8_t GPS_waitForTimelock(uint32_t maxTime);
 uint8_t GPS_waitForPosition(uint32_t maxTime);
 uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) ;
 
-extern NMEA_TimeInfo_t nmeaTimeInfo;
-extern NMEA_CRS_SPD_Info_t nmeaCRSSPDInfo;
-extern Position_t nmeaPositionInfo;
-extern NMEA_StatusInfo_t nmeaStatusInfo;
+extern NMEA_TimeInfo_t GPSTime;
+extern NMEA_CRS_SPD_Info_t GPSCourseSpeed;
+extern Position_t GPSPosition;
+extern NMEA_StatusInfo_t GPSStatus;
+extern Position_t lastNonzeroGPSPosition;
 
 #endif // _NMEA_H_

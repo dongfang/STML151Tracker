@@ -11,7 +11,7 @@
 #include "Types.h"
 
 typedef struct {
-	uint8_t initialVoltageValue;
+	uint16_t initialVoltageValue;
 	boolean wasGPSRunning;
 	boolean wasWSPRRunning;
 	boolean wasSi4463Running;

@@ -50,16 +50,18 @@ typedef enum {
 
 // APRS
 typedef struct {
-	const DACChannel_t DACChannel;
+	// const DACChannel_t DACChannel;
 	const APRSModulationMode_t modulationMode;	// FSK or AFSK
-	const float modulationAmplitude; 	// Amplitude of sine wave for FM
-	const uint8_t hardwareChannel;		// Interpretation is up to the transmitter HW implementation used.
+	const float modulationAmplitude; 			// Amplitude of sine wave for FM
+	// const uint8_t hardwareChannel;			// Interpretation is up to the transmitter HW implementation used.
 	// Function that sets up the radio for transmission, transmits and shuts down
-	void (*initTransmitter) (uint32_t frequency, uint8_t hardwareChannel);
+	void (*initTransmitter) (uint32_t frequency);
 	void (*shutdownTransmitter) ();
 } APRS_Mode_t;
 
-extern const APRSFrequencyRegion_t APRS_FREQUENCY_MAP[];
+extern const APRSFrequencyRegion_t APRS_WORLD_MAP[];
+extern const uint8_t APRS_WORLD_MAP_LENGTH;
+
 extern const uint8_t NUM_APRS_PARAMS;
 extern const struct APRS_PARAM APRS_PARAMS[];
 extern volatile APRSModulationMode_t currentMode;

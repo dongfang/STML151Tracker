@@ -15,9 +15,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include "ax25.h"
+#include "AX25.h"
 #include "DAC.h"
-#include <stdint.h>
 
 // Module globals
 static uint16_t crc;
