@@ -29,7 +29,7 @@ typedef struct {
 } SelfCalibrationConfig_t;
 
 extern const SelfCalibrationConfig_t WSPR_MODULATION_SELF_CALIBRATION;
-extern const SelfCalibrationConfig_t HF_PACKET_SELF_CALIBRATION;
+extern const SelfCalibrationConfig_t HF_APRS_SELF_CALIBRATION;
 extern const SelfCalibrationConfig_t TRIM_SELF_CALIBRATION;
 
 /*

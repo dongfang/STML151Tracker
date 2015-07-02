@@ -32,20 +32,14 @@
 #define SPI_CLOCK_MASK 0x03  // SPR1 = bit 1, SPR0 = bit 0 on SPCR
 #define SPI_2XCLOCK_MASK 0x01  // SPI2X = bit 0 on SPSR
 
-void SPI_begin();
-void SPI_assertSS();
-inline uint8_t SPI_transfer(uint8_t _data);
-void SPI_releaseSS();
-void SPI_end();
+class SPI {
+protected:
+	void SPI_begin();
+	void SPI_assertSS();
+	void SPI_releaseSS();
+	uint8_t SPI_transfer(uint8_t _data);
+	void SPI_end();
+};
 
-uint8_t SPI_transfer(uint8_t _data) {
-	/*
-	 SPDR = _data;
-	 while (!(SPSR & _BV(SPIF)))
-	 ;
-	 return SPDR;
-	 */
-	return _data; // dummy implementation
-}
 
 #endif

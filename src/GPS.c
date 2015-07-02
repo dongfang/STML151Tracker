@@ -39,6 +39,8 @@ NMEA_CRS_SPD_Info_t GPSCourseSpeed;
 Position_t GPSPosition;
 NMEA_StatusInfo_t GPSStatus;
 
+uint16_t lastGPSFixTime;
+
 Position_t lastNonzeroGPSPosition __attribute__((section (".noinit")));
 
 uint8_t nmea_parse(char c);
@@ -67,14 +69,6 @@ void setupUSART1() {
 	// We use A9,10 for USART1
 	GPIO_PinAFConfig(GPIOA, GPIO_PinSource9, GPIO_AF_USART1);
 	GPIO_PinAFConfig(GPIOA, GPIO_PinSource10, GPIO_AF_USART1);
-
-	/* Configure GPS power pin */
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-	GPIO_Init(GPIOA, &GPIO_InitStructure);
 
 	/* Enable USART1 IRQ (on the NVIC, I think) */
 	NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
@@ -156,7 +150,7 @@ uint8_t GPS_waitForTimelock(uint32_t maxTime) {
 		debugGPSTime();
 		return 1;
 	} else {
-		trace_printf("FAIL\n");
+		trace_printf("GPS wait for timelock: FAIL\n");
 		return 0;
 	}
 }
@@ -175,16 +169,18 @@ boolean GPS_waitForPosition(uint32_t maxTime) {
 				(int) (GPSPosition.lon * 1.0E7),
 				(int) GPSPosition.alt);
 	} else {
-		trace_printf("FAIL: valid:%c, fixMode:%u numSats:%u\n",
+		trace_printf("GPS wait for position FAIL: valid:%c, fixMode:%u numSats:%u\n",
 				GPSPosition.valid, GPSStatus.fixMode,
 				GPSStatus.numberOfSatellites);
 	}
+	lastGPSFixTime = timer_timeSinceMark() / 1000;
 	return GPSPosition.valid == 'A';
 }
 
-uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) {
+boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 	timer_mark();
 	nmeaStatusInfo_unsafe.numberOfSatellites = 0;
+	boolean timeout;
 	do {
 		getGPSData();
 		// TODO: Low power sleep.
@@ -202,9 +198,14 @@ uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) {
 			||
 			nmeaStatusInfo_unsafe.numberOfSatellites < REQUIRE_HIGH_PRECISION_NUM_SATS
 			|| (REQUIRE_HIGH_PRECISION_ALTITUDE && GPSPosition.alt==0)
-			|| GPSStatus.fixMode < REQUIRE_HIGH_PRECISION_FIXLEVEL) && !timer_elapsed(maxTime));
+			|| GPSStatus.fixMode < REQUIRE_HIGH_PRECISION_FIXLEVEL) && !(timeout = timer_elapsed(maxTime)));
 
-	return GPSPosition.valid == 'A';
+	if (timeout) {
+		trace_printf("GPS wait for timelock: FAIL\n");
+	}
+
+	lastGPSFixTime = timer_timeSinceMark() / 1000;
+	return !timeout;
 }
 
 MessageState latestGPSState = CONSUMED;

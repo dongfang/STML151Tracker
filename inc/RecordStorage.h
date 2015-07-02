@@ -11,42 +11,66 @@
 #include "Types.h"
 
 typedef struct {
-	uint16_t initialVoltageValue;
+	float initialVoltageValue;
 	boolean wasGPSRunning;
-	boolean wasWSPRRunning;
-	boolean wasSi4463Running;
+	boolean wasHFTxRunning;
+	boolean wasVHFTxRunning;
 
 	// Not used for anything else than show / diags!
 	boolean wasGPSSuccessful;
-	boolean wasWSPRSuccessful;
-	boolean wasSi4463Successful;
+	boolean wasHFTxSuccessful;
+	boolean wasVHFTxSuccessful;
 
 	uint16_t checksum;
 } StartupRecord_t;
 
-// Should be 5*8 = 40 bytes
+// Should be 4*8 = 32 bytes
 typedef struct {
-	uint32_t checksum;
 	float lat;
 	float lon;
-	uint16_t timeMinutesOfWeek;
 	uint16_t alt;
-	uint8_t batteryVoltage;
-	uint8_t chargeVoltage;
-	uint8_t temperature;
-	uint8_t ttl;
-} StoredRecord_t;
+	uint16_t compressedTime;
 
-#define NUM_STORED_RECORDS 150
+	uint8_t compressedBatteryVoltage;
+	uint8_t compressedSolarVoltage;
+	uint8_t simpleTemperature;
+	uint8_t GPSAcqTime;
+
+	int16_t mainOscillatorError;
+} StoredPathRecord_t;
+
+// We can store, say, 1 per hour for 4 days
+#define NUM_STORED_RECORDS 100
 
 extern StartupRecord_t startupLog;
 
 // 6000 bytes or there about.
-extern StoredRecord_t storedRecords[NUM_STORED_RECORDS];
+extern StoredPathRecord_t storedRecords[NUM_STORED_RECORDS];
 
 uint16_t startupRecordChecksum();
 void setStartupRecordChecksum();
 boolean checkStartupRecordValid();
 void invalidateStartupLog();
+
+// Use "current" global values.
+void compressRecord(StoredPathRecord_t* record);
+
+boolean hasRecordOutForFirstTransmission();
+boolean hasRecordOutForLastTransmission();
+
+StoredPathRecord_t* nextRecordIn();
+StoredPathRecord_t* nextRecordOutForFirstTransmission();
+StoredPathRecord_t* nextRecordOutForLastTransmission();
+
+void storeToRecord(StoredPathRecord_t* record) ;
+
+//uint16_t compressDateHoursMinutes(uint8_t date, Time_t* time);
+// Uncompress and return date.
+uint8_t uncompressDateHoursMinutes(StoredPathRecord_t* record, Time_t* time);
+
+float uncompressBatteryVoltage(StoredPathRecord_t* record);
+float uncompressSolarVoltage(StoredPathRecord_t* record);
+// Not needed. Just use simpleTemperature.
+//float uncompressTemperature(StoredPathRecord_t* record);
 
 #endif /* INC_RECORDSTORAGE_H_ */

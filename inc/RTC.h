@@ -14,6 +14,8 @@ uint8_t RTC_init() ;
 
 void setRTC(Date_t* date, Time_t* time);
 
+void RTC_getDHM(uint8_t* date, uint8_t* hours24, uint8_t* minutes);
+
 void scheduleASAPAlarmInSlot(uint16_t minutes);
 
 void setWakeup(uint16_t periodSeconds);

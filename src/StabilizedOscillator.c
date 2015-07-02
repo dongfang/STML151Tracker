@@ -5,7 +5,13 @@
  *      Author: dongfang
  */
 
-#include "StabilizedOscillator.h"
+#include "../inc/StabilizedOscillator.h"
+
+#include "../inc/CDCE913.h"
+#include "../inc/diag/Trace.h"
+#include "../inc/ExperimentallyDerivedConstants.h"
+#include "../inc/Setup.h"
+#include "../inc/Types.h"
 
 const int8_t temperatureRanges[] = TEMPERATURE_RANGES;
 CalibrationRecord_t calibrationByTemperatureRanges[NUM_TEMPERATURE_RANGES];
@@ -92,7 +98,7 @@ void PLLSettingExperiment(const PLL_Setting_t* pllSettings, uint8_t numSettings,
 		// We want to improve trim distance from default even if error is not improved.
 		// We do NOT want to improve trim distance from default if error degrades.
 		if (u_remainingErrorPP10M <= smallestError) {
-			int8_t distanceDefault = settingTrim - PLL_PREFERRED_TRIM_VALUE;
+			int8_t distanceDefault = settingTrim - PLL_PREFERRED_TRIM;
 			if (distanceDefault < 0)
 				distanceDefault = -distanceDefault;
 			// If error improved or trim improved (whichever), relaxate.
@@ -130,7 +136,7 @@ void bestStoredPLLSetting(const PLL_Setting_t* pllSettings, uint8_t numSettings,
 		// We want to improve trim distance from default even if error is not improved.
 		// We do NOT want to improve trim distance from default if error degrades.
 		if (u_remainingErrorPP10M <= smallestError) {
-			int8_t distanceDefault = settingTrim - PLL_PREFERRED_TRIM_VALUE;
+			int8_t distanceDefault = settingTrim - PLL_PREFERRED_TRIM;
 			if (distanceDefault < 0)
 				distanceDefault = -distanceDefault;
 			// If error improved or trim improved (whichever), relaxate.

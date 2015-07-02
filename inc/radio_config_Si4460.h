@@ -31,13 +31,13 @@
 // Command:                  RF_POWER_UP
 // Description:              Command to power-up the device and select the operational mode and functionality.
 */
-#define RF_POWER_UP 0x02, 0x01, 0x00, 0x01, 0xC9, 0xC3, 0x80
+#define RF_POWER_UP 0x02, 0x01, 0x01, 0x01, 0x8C, 0xBA, 0x80
 
 /*
 // Command:                  RF_GPIO_PIN_CFG
 // Description:              Configures the GPIO pins.
 */
-#define RF_GPIO_PIN_CFG 0x13, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+#define RF_GPIO_PIN_CFG 0x13, 0x06, 11, 0x01, 0x02, 39, 11, 0x00
 
 /*
 // Set properties:           RF_GLOBAL_XO_TUNE_1
@@ -507,37 +507,37 @@
 #define RADIO_CONFIGURATION_DATA_ARRAY { \
         0x07, RF_POWER_UP, \
         0x08, RF_GPIO_PIN_CFG, \
-        0x05, RF_GLOBAL_XO_TUNE_1, \
-        0x05, RF_GLOBAL_CONFIG_1, \
-        0x06, RF_INT_CTL_ENABLE_2, \
-        0x08, RF_FRR_CTL_A_MODE_4, \
-        0x0D, RF_PREAMBLE_TX_LENGTH_9, \
-        0x09, RF_SYNC_CONFIG_5, \
-        0x05, RF_PKT_CRC_CONFIG_1, \
-        0x08, RF_PKT_WHT_SEED_15_8_4, \
-        0x10, RF_PKT_LEN_12, \
-        0x10, RF_PKT_FIELD_2_CRC_CONFIG_12, \
-        0x05, RF_PKT_FIELD_5_CRC_CONFIG_1, \
-        0x10, RF_MODEM_MOD_TYPE_12, \
-        0x05, RF_MODEM_FREQ_DEV_0_1, \
-        0x0C, RF_MODEM_TX_RAMP_DELAY_8, \
-        0x0D, RF_MODEM_BCR_OSR_1_9, \
-        0x0B, RF_MODEM_AFC_GEAR_7, \
-        0x05, RF_MODEM_AGC_CONTROL_1, \
-        0x0D, RF_MODEM_AGC_WINDOW_SIZE_9, \
-        0x0F, RF_MODEM_OOK_CNT1_11, \
-        0x05, RF_MODEM_RSSI_COMP_1, \
-        0x05, RF_MODEM_CLKGEN_BAND_1, \
-        0x10, RF_MODEM_CHFLT_RX1_CHFLT_COE13_7_0_12, \
-        0x10, RF_MODEM_CHFLT_RX1_CHFLT_COE1_7_0_12, \
-        0x10, RF_MODEM_CHFLT_RX2_CHFLT_COE7_7_0_12, \
-        0x08, RF_PA_MODE_4, \
-        0x0B, RF_SYNTH_PFDCP_CPFF_7, \
-        0x10, RF_MATCH_VALUE_1_12, \
-        0x0C, RF_FREQ_CONTROL_INTE_8, \
         0x00 \
  }
 #else
+        //0x05, RF_GLOBAL_XO_TUNE_1, \
+        //0x05, RF_GLOBAL_CONFIG_1, \
+        //0x06, RF_INT_CTL_ENABLE_2, \
+        //0x08, RF_FRR_CTL_A_MODE_4, \
+        //0x0D, RF_PREAMBLE_TX_LENGTH_9, \
+        //0x09, RF_SYNC_CONFIG_5, \
+        //0x05, RF_PKT_CRC_CONFIG_1, \
+        //0x08, RF_PKT_WHT_SEED_15_8_4, \
+        //0x10, RF_PKT_LEN_12, \
+        //0x10, RF_PKT_FIELD_2_CRC_CONFIG_12, \
+        //0x05, RF_PKT_FIELD_5_CRC_CONFIG_1, \
+        //0x10, RF_MODEM_MOD_TYPE_12, \
+        //0x05, RF_MODEM_FREQ_DEV_0_1, \
+        //0x0C, RF_MODEM_TX_RAMP_DELAY_8, \
+        //0x0D, RF_MODEM_BCR_OSR_1_9, \
+        //0x0B, RF_MODEM_AFC_GEAR_7, \
+        //0x05, RF_MODEM_AGC_CONTROL_1, \
+        //0x0D, RF_MODEM_AGC_WINDOW_SIZE_9, \
+        //0x0F, RF_MODEM_OOK_CNT1_11, \
+        //0x05, RF_MODEM_RSSI_COMP_1, \
+        //0x05, RF_MODEM_CLKGEN_BAND_1, \
+        //0x10, RF_MODEM_CHFLT_RX1_CHFLT_COE13_7_0_12, \
+        //0x10, RF_MODEM_CHFLT_RX1_CHFLT_COE1_7_0_12, \
+        //0x10, RF_MODEM_CHFLT_RX2_CHFLT_COE7_7_0_12, \
+        //0x08, RF_PA_MODE_4, \
+        //0x0B, RF_SYNTH_PFDCP_CPFF_7, \
+        //0x10, RF_MATCH_VALUE_1_12, \
+        //0x0C, RF_FREQ_CONTROL_INTE_8, \
 #define RADIO_CONFIGURATION_DATA_ARRAY { 0 }
 #endif
 

@@ -1,8 +1,6 @@
 #ifndef CDCE913_XTAL_H_
 #define CDCE913_XTAL_H_
 
-#define CDCE913_XTAL_FREQUENCY 26000000
-
 // all this crap calculated with a Java program.
 #define CDCE913_PLL_SETTINGS_30m_WSPR {\
 		{0.38996763754045305,723,2,18,28,8},\

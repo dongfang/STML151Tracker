@@ -65,6 +65,8 @@ void debugRTCTime() {
 			rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
 }
 
+// TODO: Redo below crap and update lastWSPRWindowWaitTime also.
+uint16_t lastWSPRWindowWaitTime;
 void RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds) {
 	uint8_t minutes;
 	uint8_t _seconds;
@@ -97,6 +99,17 @@ void setRTC(Date_t* date, Time_t* time) {
 
 	// how to shift the clock. Well might not be supported on this Category 1 bucket.
 	// RTC_SynchroShiftConfig(RTC_ShiftAdd1S_Reset, 0);
+}
+
+void RTC_getDHM(uint8_t* date, uint8_t* hours24, uint8_t* minutes) {
+	RTC_DateTypeDef rtcDate;
+	RTC_GetDate(RTC_Format_BIN, &rtcDate);
+	*date = rtcDate.RTC_Date;
+
+	RTC_TimeTypeDef rtcTime;
+	RTC_GetTime(RTC_Format_BIN, &rtcTime);
+	*hours24 = rtcTime.RTC_Hours;
+	*minutes = rtcTime.RTC_Minutes;
 }
 
 void init_RTC_ALARMA_NVIC() {
@@ -319,11 +332,11 @@ void RTC_setCalibration(int16_t correction_PP10M) {
 			ivalue = 63;
 		sign = RTC_CalibSign_Negative;
 	}
-	ErrorStatus result = RTC_CoarseCalibConfig(sign, ivalue);
+	RTC_CoarseCalibConfig(sign, ivalue);
 	/*
-	trace_printf("Using sign %s and ivalue %d. Success: %s\n",
-			sign == RTC_CalibSign_Positive ? "pos" : "neg", ivalue,
-			result == SUCCESS ? "ok" : "fail");
-	*/
+	 trace_printf("Using sign %s and ivalue %d. Success: %s\n",
+	 sign == RTC_CalibSign_Positive ? "pos" : "neg", ivalue,
+	 result == SUCCESS ? "ok" : "fail");
+	 */
 }
 

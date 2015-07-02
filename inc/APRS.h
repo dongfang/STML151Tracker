@@ -19,6 +19,7 @@
 #define __APRS_H__
 
 #include "GPS.h"
+#include "RecordStorage.h"
 
 struct APRS_PARAM {
 	char name[8];
@@ -28,6 +29,7 @@ struct APRS_PARAM {
 
 typedef enum {
 	COMPRESSED_POSITION_MESSAGE,
+	STORED_POSITION_MESSAGE,
 	STATUS_MESSAGE
 } APRS_MessageType_t;
 
@@ -55,9 +57,9 @@ typedef struct {
 	const float modulationAmplitude; 			// Amplitude of sine wave for FM
 	// const uint8_t hardwareChannel;			// Interpretation is up to the transmitter HW implementation used.
 	// Function that sets up the radio for transmission, transmits and shuts down
-	void (*initTransmitter) (uint32_t frequency);
+	void (*initTransmitter) (uint32_t frequency, uint32_t referenceFrequency);
 	void (*shutdownTransmitter) ();
-} APRS_Mode_t;
+} APRSTransmission_t;
 
 extern const APRSFrequencyRegion_t APRS_WORLD_MAP[];
 extern const uint8_t APRS_WORLD_MAP_LENGTH;
@@ -68,16 +70,23 @@ extern volatile APRSModulationMode_t currentMode;
 extern volatile uint16_t packet_cnt;
 extern volatile uint8_t packetTransmissionComplete;
 
-void aprs_compressedMessage();
-void aprs_statusMessage();
-
-void APRS_frequencyFromPosition(
-		Position_t* position,
+void APRS_frequenciesFromPosition(
+		const Position_t* position,
 		boolean* frequencyVector,
 		boolean* coreVector);
 void APRS_debugFrequency(boolean* result) ;
 void APRS_debugWorldMap();
 
+void APRS_transmitRandomMessage(
+		const APRSTransmission_t* mode,
+		APRS_MessageType_t messageType,
+		uint32_t frequency,
+		uint32_t referenceFrequency);
 
-void APRS_transmitMessage(const APRS_Mode_t* mode);
+void APRS_transmitStoredMessage(const APRSTransmission_t* mode,
+		StoredPathRecord_t* storedMessage, uint32_t frequency,
+		uint32_t referenceFrequency);
+
+extern const APRSTransmission_t APRS_TRANSMISSIONS[];
+
 #endif

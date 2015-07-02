@@ -46,6 +46,8 @@ typedef struct {
 	uint32_t estimatedFrequency;
 } TransmitterTuning_t;
 
+extern const CalibrationRecord_t defaultCalibration;
+
 const CalibrationRecord_t* getCalibration(int8_t temperature, boolean doAttemptCalibrate);
 
 void bestStoredPLLSetting(const PLL_Setting_t* pllSettings, uint8_t numSettings, double desiredMultiplication,

@@ -22,6 +22,7 @@
 #define RH_RF24_h
 
 #include "Types.h"
+#include "SPI.h"
 
 // The shutdown is on PA8.
 #define RF24_SDN_BIT 8
@@ -636,7 +637,7 @@
 /// \endcode
 /// Caution: the actual radiated power output will depend heavily on the power supply voltage and the antenna.
 
-class RH_RF24 {
+class RH_RF24 : SPI {
 public:
     /// \brief Defines different operating modes for the transport hardware
     ///
@@ -787,7 +788,7 @@ EXPERIMENTAL_CW = 0
     /// - Attaches an interrupt handler
     /// \return  true if everything was successful
     // bool        init();
-    boolean        initCold();
+    // boolean        initCold();
     boolean        initWarm();
 
     /// - Configures the RF24 module
@@ -904,9 +905,11 @@ EXPERIMENTAL_CW = 0
     /// changing mode it idle, transmit or receive (eg by calling send(), recv(), available() etc)
     /// Caution: there is a time penalty as the radio takes a finte time to wake from sleep mode.
     /// \return true if sleep mode was successfully entered.
-    virtual bool    sleep();
+    bool    sleep();
 
-    virtual bool    shutdown();
+    void    init_HW();
+
+    void    shutdown_HW();
 
 protected:
     /// This is a low level function to handle the interrupts for one instance of RF24.
@@ -939,9 +942,6 @@ protected:
     /// If it contans a valid message addressed to this node
     /// sets _rxBufValid.
     void           validateRxBuf();
-
-    /// Cycles the Shutdown pin to force the radio chip to reset
-    void           power_on_reset();
 
     /// Sets registers, commands and properties
     /// in the ratio according to the data in the commands array

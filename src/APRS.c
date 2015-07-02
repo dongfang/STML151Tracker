@@ -22,12 +22,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../inc/ax25.h"
-#include "../inc/APRSWorldMap.h"
-#include "../inc/Callsigns.h"
-#include "../inc/diag/Trace.h"
-#include "../inc/DAC.h"
-#include "../inc/Types.h"
+#include "AX25.h"
+#include "APRSWorldMap.h"
+#include "Callsigns.h"
+#include "diag/Trace.h"
+#include "DAC.h"
+#include "Types.h"
+#include "PLL.h"
+#include "Globals.h"
 
 static const APRSPolygonVertex_t boundary144390[] = BOUNDARY_144390;
 static const APRSPolygonVertex_t boundary144620[] = BOUNDARY_144620;
@@ -134,6 +136,9 @@ void base91encode2char(uint16_t val, char* out) {
 	out[1] = val % 91 + 33;
 }
 
+/*
+ * See http://he.fi/doc/aprs-base91-comment-telemetry.txt for specification of this.
+ */
 uint8_t compressTelemetry(uint16_t seq, uint8_t nval, uint16_t* vals, char* out) {
 	out[0] = '|';
 	base91encode2char(seq, out + 1);
@@ -196,15 +201,14 @@ uint8_t compressPosition(float lat, float lon, float alt, char* out) {
 	out[9] = 'O'; // this should be ????? really... ah o for balloon.
 
 	alt = meters_to_feet(alt);
-
-#ifdef DEBUG
-	printf_P(PSTR("Alt ft. %u\r\n"), (uint16_t)alt);
-#endif
-
 	alt = log(alt) / log(1.002);
 	base91encode2char(alt, out + 10);
 	out[12] = 0b110101 + 33;
 	return 13;
+}
+
+uint8_t compressedTimestamp(uint8_t date, Time_t* time, char* out) {
+	return sprintf(out, "%02d%02d%02dz", date, time->hours, time->minutes);
 }
 
 void aprs_send_header(const AX25_Address_t* destination) {
@@ -333,9 +337,12 @@ void aprs_coefficientsMessage(char* out) {
  */
 
 // Exported functions
-void aprs_statusMessage() {
+void APRS_marshallStatusMessage(
+		uint32_t txFrequency,
+		uint32_t referenceFrequency
+		// Something about uptime, brownout resets, ...
+	) {
 	static uint16_t sequence;
-	float temperature = 10.0f; // dummy
 
 	char temp[12];                   // T{emperature (int/ext)
 	aprs_send_header(&APRS_DEST);
@@ -343,15 +350,14 @@ void aprs_statusMessage() {
 	ax25_send_byte('?');
 
 	sprintf(temp, "%u", sequence);
-	ax25_send_string(temp);             // speed (knots)
-	sprintf(temp, ",%d", (int) GPSPosition.alt);
-	ax25_send_string(temp);             // speed (knots)
-	sprintf(temp, ",%d", (int) /*climb*/0);
 	ax25_send_string(temp);
-	sprintf(temp, ",%u", 100); //vbatt_unloaded.getValue());
+
+	sprintf(temp, ",%u", 100);
 	ax25_send_string(temp);
-	sprintf(temp, ",%u", 80); // vbatt_loaded.getValue());
+
+	sprintf(temp, ",%u", 80);
 	ax25_send_string(temp);
+
 	int i_temperarureTenths = (int) (temperature * 10);
 	int i_temperatureWhole = (int) (temperature);
 	int i_temperature_decimal = i_temperarureTenths % 10;
@@ -362,76 +368,101 @@ void aprs_statusMessage() {
 	ax25_send_footer();
 }
 
-void aprs_compressedMessage() {
-	static int seq;
+static uint16_t telemetrySequence;
 
-	uint16_t vals[] = { 1, //(uint16_t)climb,
-			2, //(uint16_t)(temperature*10),
-			3, //vbatt_unloaded.getValue(),
-			4 //vbatt_loaded.getValue()
+uint16_t combineVoltages(float batteryVoltage, float solarVoltage) {
+	// the 1000's digit is solar voltage * 4 * 1000 truncated to 1000s and the rest is batt * 100
+	// Example: Solar = 1.23 and battery = 3.92:
+	// result = 4000 + 392
+	uint32_t result = solarVoltage * 4000;
+	result = result - result%4000;
+	result += batteryVoltage*100;
+	return result;
+}
+
+void APRS_marshallPositionMessage() {
+
+	// We offset temp. by 100 degrees so it is never negative.
+	// Reportable range is thus: -100C to 728C with 1 decimal.
+	int _temperature = temperature + 100;
+	if (_temperature < 0)
+		_temperature = 0;
+
+	uint16_t GPSFixTime = lastGPSFixTime;
+	if (GPSFixTime > 8280 / (120/5)) {	// max value we have space for is 8280 minus the space for max. WSPR wait time = 120 s / compacting factor 5
+		GPSFixTime = 8280 / (120/5);	// that's 345 seconds.
+	}
+	uint16_t WSPRWindowWaitTime = lastWSPRWindowWaitTime / 5;
+	if (WSPRWindowWaitTime > 120/5) {
+		WSPRWindowWaitTime = 120/5; // Should normally not happen. Why wait more than 120 s max?
+	}
+
+	int32_t mainOscillatorError =
+			PLL_oscillatorError(currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim) - 8280/2;
+	if (mainOscillatorError > 8120) mainOscillatorError = 8120;
+	else if (mainOscillatorError < 0) mainOscillatorError = 0;
+
+	uint16_t telemetryValues[] = {
+			combineVoltages(batteryVoltage, solarVoltage),
+			temperature*10,			// Will require an offset of 100
+			mainOscillatorError,
+			GPSFixTime*(120/5) + WSPRWindowWaitTime
 			};
 
-	char temp[30];                   // Temperature (int/ext)
-
 	aprs_send_header(&APRS_APSTM1_DEST);
+	char temp[40];                   // Temperature (int/ext)
 	ax25_send_byte('!'); // Report w/o timestamp, no APRS messaging.
 	uint8_t end = 0;
-	end = compressPosition(GPSPosition.lat, GPSPosition.lon,
-			GPSPosition.alt, temp);
-	end += compressTelemetry(seq, 4, vals, temp + end);
-	seq++;
-	if (seq > 8280) {
-		seq = 0;
+	end = compressPosition(
+			GPSPosition.lat,
+			GPSPosition.lon,
+			GPSPosition.alt,
+			temp);
+	end += compressTelemetry(telemetrySequence, 4, telemetryValues, temp + end);
+	telemetrySequence++;
+	if (telemetrySequence > 8280) {
+		telemetrySequence = 0;
 	}
+
 	temp[end] = 0;
+	trace_printf("Sending an APRS message of %d bytes\n", end);
 
 	ax25_send_string(temp);
 	ax25_send_footer();
 }
 
-void APRS_message(APRS_Mode_t* mode, APRS_MessageType_t messageType,
-		uint32_t frequency) {
-	switch (messageType) {
-	case COMPRESSED_POSITION_MESSAGE:
-		break;
-	case STATUS_MESSAGE:
-		break;
+void APRS_marshallStoredPositionMessage(StoredPathRecord_t* record) {
+	aprs_send_header(&APRS_APSTM1_DEST);
+	char temp[40];
+	ax25_send_byte('/'); // Report w timestamp, no APRS messaging.
+	uint8_t end = 0;
+
+	Time_t uncompressedTime;
+	uint8_t date = uncompressDateHoursMinutes(record, &uncompressedTime);
+	end = compressedTimestamp(date, &uncompressedTime, temp);
+	end += compressPosition(record->lat, record->lon, record->alt, temp + end);
+
+	int16_t mainOscillatorError = record->mainOscillatorError;
+		if (mainOscillatorError > 8120) mainOscillatorError = 8120;
+		else if (mainOscillatorError < 0) mainOscillatorError = 0;
+
+	uint16_t telemetryValues[] = {
+			combineVoltages(uncompressBatteryVoltage(record), uncompressSolarVoltage(record)),
+			record->simpleTemperature*10+100,			// Will require an offset of 100
+			mainOscillatorError,
+			record->GPSAcqTime*(120/5)
+			};
+
+	end += compressTelemetry(telemetrySequence, 4, telemetryValues, temp + end);
+
+	telemetrySequence++;
+	if (telemetrySequence > 8280) {
+		telemetrySequence = 0;
 	}
 
-	/* Avoid firing a transmission prematurely */
-	packetTransmissionComplete = true;
-
-	// Set up MPU hardware (DAC, timers, ...)
-	switch (mode->modulationMode) {
-	case GFSK:
-		GFSK_init(mode->modulationAmplitude);
-		break;
-	case AFSK:
-		AFSK_init(mode->modulationAmplitude);
-		break;
-	}
-
-	packet_cnt = 0;
-	mode->initTransmitter(frequency);
-
-	// Go now.
-	packetTransmissionComplete = false;
-
-	// TODO: Sleepy-wait.
-	while (!packetTransmissionComplete)
-		;
-
-	// We are now done transmitting.
-	mode->shutdownTransmitter();
-
-	switch (mode->modulationMode) {
-	case GFSK:
-		GFSK_init(mode->modulationAmplitude);
-		break;
-	case AFSK:
-		AFSK_init(mode->modulationAmplitude);
-		break;
-	}
+	temp[end] = 0;
+	ax25_send_string(temp);
+	ax25_send_footer();
 }
 
 static boolean checkWithinPolygon(int16_t lat, int16_t lon,
@@ -497,11 +528,18 @@ void APRS_frequencies(int16_t lat, int16_t lon, boolean* frequenciesVector, bool
 	}
 }
 
-void APRS_frequenciesFromPosition(Position_t* position, boolean* frequenciesVector, boolean* isCoreVector) {
+void APRS_frequenciesFromPosition(
+		const Position_t* position,
+		boolean* frequenciesVector,
+		boolean* isCoreVector) {
 	APRS_frequencies((int16_t)(position->lat + 0.5),
 			(int16_t)(position->lon + 0.5), frequenciesVector, isCoreVector);
 }
 
+
+/**
+ * All debugging stuff below!
+ */
 void checkWorldMap_Orientation_Polygon(const APRSPolygonVertex_t* boundaryList,
 		uint16_t* index) {
 	int16_t initialLat = boundaryList[*index].lat;

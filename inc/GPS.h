@@ -40,14 +40,9 @@ typedef struct {
 void GPS_init(void);
 void GPS_shutdown(void);
 void debugGPSTime(void);
+
 uint8_t GPS_waitForTimelock(uint32_t maxTime);
 uint8_t GPS_waitForPosition(uint32_t maxTime);
 uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) ;
-
-extern NMEA_TimeInfo_t GPSTime;
-extern NMEA_CRS_SPD_Info_t GPSCourseSpeed;
-extern Position_t GPSPosition;
-extern NMEA_StatusInfo_t GPSStatus;
-extern Position_t lastNonzeroGPSPosition;
 
 #endif // _NMEA_H_

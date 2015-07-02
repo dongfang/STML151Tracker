@@ -7,6 +7,7 @@
 #include "GPS.h"
 #include "PLL.h"
 #include "Callsigns.h"
+#include "Globals.h"
 
 static uint8_t losslessCompressedBuf[11];
 uint8_t convolutionalBuf[21];
@@ -379,14 +380,25 @@ void prepareType1Transmission(uint8_t power) {
   completeMessage();
 }
 
+static uint8_t ilog2(uint16_t N) {
+	uint8_t result = 0;
+	N >>= 1; // 0->0, 1->0, which both will correctly return 0
+	while (N) {
+		N >>= 1;
+		result++;
+	}
+	return result;
+}
+
 void prepareType3Transmission(uint8_t power, enum WSPR_FAKE_EXTENDED_LOCATION fake) {
   char maidenhead6_fake[7];
   maidenhead6_fake[6] = 0;
   
   // dummy tm
-  float batt_volt = 3.7;
-  uint8_t gpsFixTime = 2; // say between 0 and 3
-  uint8_t gpsFixMode = 1; // say between 0 and 2
+  // uint8_t gpsFixMode = GPSStatus.fixMode; // between 0 and 2
+  // gpsAcqTime is allowed to be in the range [0..5]
+  uint8_t gpsAcqTime = ilog2(lastGPSFixTime/2);
+  uint8_t gpsNumSats = GPSStatus.numberOfSatellites;
 
   switch(fake) {
   case  REAL_EXTENDED_LOCATION:
@@ -404,7 +416,7 @@ void prepareType3Transmission(uint8_t power, enum WSPR_FAKE_EXTENDED_LOCATION fa
   case ALTITUDE:
     currentPositionAs4DigitMaidenhead(maidenhead6_fake);
     // add data here
-    int16_t ialt = (int16_t)(GPSPosition.alt / 100);
+    int16_t ialt = (int16_t)(lastNonzeroGPSPosition.alt / 100);
     if (ialt < 0) ialt = 0;
     // 144 units of 100m each
     maidenhead6_fake[4] = 'a' + (ialt / 12)*2;
@@ -415,12 +427,15 @@ void prepareType3Transmission(uint8_t power, enum WSPR_FAKE_EXTENDED_LOCATION fa
 
   case TELEMETRY: 
     currentPositionAs4DigitMaidenhead(maidenhead6_fake);
-    // add data here
-    if (batt_volt < 3) batt_volt = 3; else if (batt_volt > 3+11.0/6) batt_volt = 3+11.0/6;
-    uint8_t ibatt_volt = (uint8_t)((batt_volt-3) * 6 + 0.499);
-    uint8_t iGPSFix = gpsFixTime + gpsFixMode*4; // 0 to 11
-    maidenhead6_fake[4] = 'a' + ibatt_volt*2;
-    maidenhead6_fake[5] = 'a' + iGPSFix*2;
+    // gpsNumSats is translated:
+    // 0-->0, 1-->0, 2-->0, 3-->1, 4-->2, 5-->3, 6-->4, 7 and more: 5
+    uint8_t trNumSats;
+    if (gpsNumSats < 3) trNumSats = 0;
+    else trNumSats = gpsNumSats - 2;
+    if (trNumSats > 7) trNumSats = 7;
+    if (gpsAcqTime > 5) gpsAcqTime = 5;
+    maidenhead6_fake[4] = 'a' + ((trNumSats&4)/4 + gpsAcqTime*2)*2;
+    maidenhead6_fake[5] = 'a' + ((trNumSats&3) + GPSStatus.fixMode*4)*2;
     if (!(maidenhead6_fake[4] & 1)) maidenhead6_fake[4]--;
     if (!(maidenhead6_fake[5] & 1)) maidenhead6_fake[5]--;
     break;
@@ -442,32 +457,15 @@ uint8_t getWSPRSymbol(uint8_t i) {
 }
 
 uint8_t fake_dBm(float voltage) {
+	// All others cause failure to report position or something, in WSPR program.
 	static const uint8_t nonweirdPowerLevels[] =
-	{0, 3, 7};
-	/*
-	voltage = voltage * 3 / (4 * sqrt(2));
-	float power_mW = voltage*voltage*1000/72.0;// Z is 72 Ohms
-	float dB = log10(power_mW) * 10;
-	return dB;
-	*/
-
-	static int8_t power = -1;
-	power++;
-	if (power > 37) power = 0;
-
-	trace_printf("Fake-O-Power: %d at ", power);
-	debugRTCTime();
-
-	return power;
-
-
-
-	// 3.0 -> 10mW (10 dBm)
-	// 4.5 -> 100mW (20 dBm)
-	// y = 10 (x-3) + 10
-	int8_t result = (voltage - 3) * 10 + 10;
-	if (result < 10) result = 10;
-	// return result - result%3;
+	{0, 3, 7, 10, 13, 17, 20, 23, 27, 30, 33, 37};
+	// 10 = 3 .. 3.33
+	// 13 = 3.33 .. 3.66
+	// 17 = 3.66 .. 4
+	// 20 = 4 ..
+	int8_t index = (voltage - 3) * 3.33333333 + 3;
+	return nonweirdPowerLevels[index];
 }
 
 void prepareWSPRMessage(uint8_t type, enum WSPR_FAKE_EXTENDED_LOCATION fake, float voltage) {

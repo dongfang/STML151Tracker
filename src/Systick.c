@@ -35,9 +35,14 @@ void timer_mark() {
 	timerMark = systemTimeMillis;
 }
 
-uint8_t timer_elapsed(int32_t millis) {
+boolean timer_elapsed(int32_t millis) {
 	// TODO: Does this work when overflowing?
 	return systemTimeMillis >= timerMark + millis;
+}
+
+uint32_t timer_timeSinceMark() {
+	// TODO: Does this work when overflowing?
+	return systemTimeMillis - timerMark;
 }
 
 

@@ -57,6 +57,7 @@ static void send_byte(uint8_t a_byte) {
 		packet_size++;
 		ones_in_a_row = 0;
 	}
+	// trace_printf("char %c, packetsize %d\n", a_byte, packet_size);
 }
 
 // Exported functions

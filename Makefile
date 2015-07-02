@@ -1,9 +1,9 @@
 # put your *.o targets here, make should handle the rest!
-SRCS = main.c system_stm32l1xx.c Trace.c trace_impl.c _sbrk.c CDCE913.c Si4463_SPI.c Systick.c WSPR.c ADC.c StabilizedOscillator.c WSPRTransmitter.c GPS.c SelfCalibration.c RTC.c DAC.c nhash.c Callsigns.c APRS.c AX25.c APRSTransmitter.c Power.c RecordStorage.c
-SRCS += RH_RF24.cpp radio_rf24.cpp SPI.c
+SRCS = main.c system_stm32l1xx.c Trace.c trace_impl.c _sbrk.c CDCE913.c Systick.c WSPR.c ADC.c StabilizedOscillator.c WSPRTransmitter.c GPS.c SelfCalibration.c RTC.c DAC.c nhash.c Callsigns.c APRS.c AX25.c APRSTransmitter.c Power.c RecordStorage.c
+SRCS += RH_RF24.cpp RF24Wrapper.cpp SPI.cpp
 
 # all the files will be generated with this name (main.elf, main.bin, main.hex, etc)
-PROJ_NAME=wspr
+PROJ_NAME=trk
 
 # Location of the Libraries folder from the STM32F0xx Standard Peripheral Library
 STD_PERIPH_LIB=Libraries
@@ -27,7 +27,7 @@ OBJCOPY=arm-none-eabi-objcopy
 OBJDUMP=arm-none-eabi-objdump
 SIZE=arm-none-eabi-size
 
-CFLAGS  = -Wall -g -std=c99 -Os  
+CFLAGS  = -Wall -g -std=c99 -Os --specs=rdimon.specs
 #CFLAGS += -mlittle-endian -mthumb -mcpu=cortex-m0 -march=armv6s-m
 CFLAGS += -mlittle-endian -mcpu=cortex-m0  -march=armv6-m -mthumb
 CFLAGS += -ffunction-sections -fdata-sections

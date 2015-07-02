@@ -26,11 +26,11 @@ volatile uint16_t ADCUnloadedValues[NUM_ADC_VALUES];
 volatile uint16_t ADCLoadedValues[NUM_ADC_VALUES];
 
 volatile boolean ADC_DMA_Complete;
-
+/*
 uint16_t ADC_cheaplyMeasureBatteryVoltage() {
 	RCC_HSICmd(ENABLE);
 
-	/* Enable GPIOA clock (is that really needed?? Apparently NOT.) */
+	/ * Enable GPIOA clock (is that really needed?? Apparently NOT.) * /
 	// RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, DISABLE);
 	GPIO_InitTypeDef GPIO_InitStructure;
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1 | GPIO_Pin_2;
@@ -38,7 +38,7 @@ uint16_t ADC_cheaplyMeasureBatteryVoltage() {
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
 
-	/* ADC1 configuration */
+	/ * ADC1 configuration * /
 	ADC_InitTypeDef ADC_InitStructure;
 	ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b; // #@$##!! Damn
 	ADC_InitStructure.ADC_ScanConvMode = DISABLE;
@@ -47,19 +47,19 @@ uint16_t ADC_cheaplyMeasureBatteryVoltage() {
 	ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
 	ADC_InitStructure.ADC_NbrOfConversion = 1;
 
-	/* Enable ADC1 clock */
+	/ * Enable ADC1 clock * /
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
 
-	/* Check that HSI oscillator is ready */
+	/ * Check that HSI oscillator is ready * /
 	while (RCC_GetFlagStatus(RCC_FLAG_HSIRDY) == RESET)
 		;
 
-	/* Enable ADC1 */
+	/ * Enable ADC1 * /
 	ADC_Cmd(ADC1, DISABLE);
 	ADC_Init(ADC1, &ADC_InitStructure);
 	ADC_Cmd(ADC1, ENABLE);
 
-	/* Wait until the ADC1 is ready */
+	/ * Wait until the ADC1 is ready * /
 	while (ADC_GetFlagStatus(ADC1, ADC_FLAG_ADONS) == RESET) {
 	}
 
@@ -75,7 +75,7 @@ uint16_t ADC_cheaplyMeasureBatteryVoltage() {
 	// Get the conversion value
 	uint16_t result = ADC_GetConversionValue(ADC1);
 
-		/* Enable ADC1 */
+	/ * Enable ADC1 * /
 	ADC_Cmd(ADC1, DISABLE);
 
 	RCC_HSICmd(DISABLE);
@@ -83,7 +83,7 @@ uint16_t ADC_cheaplyMeasureBatteryVoltage() {
 	// Simulate 8 from 12.
 	return 210;
 }
-
+*/
 /*
  void ADC_DMA_start(volatile uint16_t* conversionTargetArray) {
  ADC_DMA_Complete = false;
@@ -246,25 +246,28 @@ void ADC_DMA_shutdown() {
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, DISABLE);
 }
 
-float temperature(uint16_t ADCvalue) {
-	float vTemp_mV = ADCvalue * ADC_FACTOR * 1000.0f;
+float ADC_temperature() {
+	float vTemp_mV = ADCUnloadedValues[2] * ADC_FACTOR * 1000.0f;
 	float rootexp = 5.506 * 5.506 + 4 * 0.00176 * (870.6 - vTemp_mV);//30.43
 	float temp = (5.506 - sqrt(rootexp)) / (2 * -0.00176) + 30.0;
 	return temp;
 }
 
-int8_t ADC_simpleTemperature() {
-	float t = temperature(ADCUnloadedValues[2] & 0xfff);
-	if (t>30) t = 30; else if (t<-65) t = -65;
-	return (int8_t)t;
+int8_t ADC_simpleTemperature(float t_f) {
+	if (t_f>30) t_f = 30; else if (t_f<-65) t_f = -65;
+	return (int8_t)t_f;
 }
 
-float batteryVoltage(uint16_t ADCvalue12) {
-	return ADCvalue12 * BATT_ADC_FACTOR;
+float ADC_batteryUnloadedVoltage() {
+	return ADCUnloadedValues[0] * BATT_ADC_FACTOR;
 }
 
-float solarVoltage(uint16_t ADCvalue12) {
-	return ADCvalue12 * SOLAR_ADC_FACTOR;
+float ADC_batteryloadedVoltage() {
+	return ADCLoadedValues[0] * BATT_ADC_FACTOR;
+}
+
+float ADC_solarVoltage() {
+	return ADCUnloadedValues[1] * SOLAR_ADC_FACTOR;
 }
 
 void DMA1_Channel1_IRQHandler(void) {

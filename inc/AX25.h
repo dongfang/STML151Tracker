@@ -21,7 +21,7 @@
 #include "Types.h"
 #include "Callsigns.h"
 
-#define TX_DELAY 75
+#define TX_DELAY 100
 
 void ax25_send_header(const AX25_Address_t *addresses[], int num_addresses);
 void ax25_send_byte(uint8_t byte);

@@ -9,38 +9,38 @@
 #include "Power.h"
 
 // Safe if : Never turned on, if turned back off by program, or if voltage is better now than last time.
-boolean isSafeToUseGPS(uint8_t startupVoltage) {
+boolean isSafeToUseGPS(float startupVoltage) {
 	return !checkStartupRecordValid() || (!startupLog.wasGPSRunning ||
 			startupVoltage > startupLog.initialVoltageValue);
 }
 
-boolean isSafeToUseWSPR(uint8_t startupVoltage) {
-	return !checkStartupRecordValid() || (!startupLog.wasWSPRRunning ||
+boolean isSafeToUseHFTx(float startupVoltage) {
+	return !checkStartupRecordValid() || (!startupLog.wasHFTxRunning ||
 			startupVoltage > startupLog.initialVoltageValue);
 }
 
-boolean isSafeToUseSi4463(uint8_t startupVoltage) {
-	return !checkStartupRecordValid() || (!startupLog.wasSi4463Running ||
+boolean isSafeToUseVHFTx(float startupVoltage) {
+	return !checkStartupRecordValid() || (!startupLog.wasVHFTxRunning ||
 			startupVoltage > startupLog.initialVoltageValue);
 }
 
-void startGPS(uint8_t startupVoltage) {
+void startGPS(float startupVoltage) {
 	startupLog.wasGPSRunning = true;
 	startupLog.wasGPSSuccessful = false;
 	startupLog.initialVoltageValue = startupVoltage;
 	setStartupRecordChecksum();
 }
 
-void startWSPR(uint8_t startupVoltage) {
-	startupLog.wasWSPRRunning = true;
-	startupLog.wasWSPRSuccessful = false;
+void startHFTx(float startupVoltage) {
+	startupLog.wasHFTxRunning = true;
+	startupLog.wasHFTxSuccessful = false;
 	startupLog.initialVoltageValue = startupVoltage;
 	setStartupRecordChecksum();
 }
 
-void startSi4463(uint8_t startupVoltage) {
-	startupLog.wasSi4463Running = true;
-	startupLog.wasSi4463Successful = false;
+void startVHFTx(float startupVoltage) {
+	startupLog.wasVHFTxRunning = true;
+	startupLog.wasVHFTxSuccessful = false;
 	startupLog.initialVoltageValue = startupVoltage;
 	setStartupRecordChecksum();
 }
@@ -51,15 +51,15 @@ void stopGPS() {
 	setStartupRecordChecksum();
 }
 
-void stopWSPR() {
-	startupLog.wasWSPRRunning = false;
-	startupLog.wasWSPRSuccessful = true;
+void stopHFTx() {
+	startupLog.wasHFTxRunning = false;
+	startupLog.wasHFTxSuccessful = true;
 	setStartupRecordChecksum();
 }
 
-void stopSi4463() {
-	startupLog.wasSi4463Running = false;
-	startupLog.wasSi4463Successful = true;
+void stopVHFTx() {
+	startupLog.wasVHFTxRunning = false;
+	startupLog.wasVHFTxSuccessful = true;
 	setStartupRecordChecksum();
 }
 

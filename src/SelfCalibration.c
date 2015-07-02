@@ -18,9 +18,9 @@ const SelfCalibrationConfig_t WSPR_MODULATION_SELF_CALIBRATION = { .maxTimeMilli
 		.numRounds = 3 };
 
 // Not so fine, that is not needed.
-const SelfCalibrationConfig_t HF_PACKET_SELF_CALIBRATION = { .maxTimeMillis =
-		5000, .DACChannel = DAC1, .modulation_PP = 100, .numCyclesPerRound =
-		1000, .numRounds = 3 };
+const SelfCalibrationConfig_t HF_APRS_SELF_CALIBRATION = { .maxTimeMillis =
+		5000, .DACChannel = DAC2, .modulation_PP = 3660, .numCyclesPerRound =
+		2000, .numRounds = 3 };
 
 // For measuring effects of xtal capacitor trimming. No modulation.
 const SelfCalibrationConfig_t TRIM_SELF_CALIBRATION = { .maxTimeMillis = 5000,
@@ -265,7 +265,7 @@ void TIM10_IRQHandler(void) {
 		TIM_ClearITPendingBit(TIM10, TIM_IT_CC1);
 		RTC_ClearITPendingBit(RTC_IT_WUT);
 
-		trace_printf("TIM10Cap\n");
+//		trace_printf("TIM10Cap\n");
 		if (TIM10CaptureCount < GPS_TIMEPULSE_WASTED_PULSES) {
 			// waste the first n pulses.
 			TIM10CaptureCount++;
@@ -385,7 +385,7 @@ boolean selfCalibrateTrimming(double* relIncreaseFromInitialTrim,
 	uint32_t frequencyMeasured2;
 
 	selfCalibrateModulation(16E6, &TRIM_SELF_CALIBRATION,
-	PLL_PREFERRED_TRIM_VALUE, &deviationMeasuredGarbage, &frequencyMeasured1);
+	PLL_PREFERRED_TRIM, &deviationMeasuredGarbage, &frequencyMeasured1);
 
 	selfCalibrateModulation(16E6, &TRIM_SELF_CALIBRATION, trim_pF,
 			&deviationMeasuredGarbage, &frequencyMeasured2);
@@ -418,7 +418,7 @@ boolean HSECalibration(uint32_t maxTime, uint32_t* result) {
 
 	timer_mark();
 
-	trace_printf("Waiting for TIM10 captures\n");
+	// ttrace_printf("Waiting for TIM10 captures\n");
 
 	while ((!timer_elapsed(maxTime))
 			&& (TIM10CaptureCount != GPS_TIMEPULSE_WASTED_PULSES + 2))
@@ -492,12 +492,12 @@ boolean selfCalibrate(CalibrationRecord_t* target) {
 	result &= RTCCalibration(10000, &RTCPeriod);
 
 	result &= selfCalibrateModulation(hseFrequency, &TRIM_SELF_CALIBRATION,
-	PLL_PREFERRED_TRIM_VALUE, &deviationThrowAway, &pllFrequency);
+	PLL_PREFERRED_TRIM, &deviationThrowAway, &pllFrequency);
 
 	target->transmitterOscillatorFrequencyAtDefaultTrim = pllFrequency;
 
-	if (pllFrequency > PLL_XTAL_FREQUENCY * 1.002
-			|| pllFrequency < PLL_XTAL_FREQUENCY * 0.998) {
+	if (pllFrequency > PLL_XTAL_NOMINAL_FREQUENCY * 1.002
+			|| pllFrequency < PLL_XTAL_NOMINAL_FREQUENCY * 0.998) {
 		trace_printf("Unrealistic PLL freq measured: %u\n", pllFrequency);
 		result = false;
 	} else {

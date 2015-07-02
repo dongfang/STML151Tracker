@@ -70,15 +70,6 @@ void PWMTest2(void) {
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
 
 	/*--------------------------------- GPIO Configuration -------------------------*/
-	/* GPIOA Configuration: Pin 6 and 7 */
-	//GPIO_InitStructure.GPIO_Pin =  GPIO_Pin_6|GPIO_Pin_7;
-	//GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-	//GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	//GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_UP;
-	//GPIO_InitStructure.GPIO_Speed = GPIO_Speed_40MHz;
-	//GPIO_Init(GPIOA, &GPIO_InitStructure);
-	//GPIO_PinAFConfig(GPIOA, GPIO_PinSource6, GPIO_AF_TIM3);
-	//GPIO_PinAFConfig(GPIOA, GPIO_PinSource7, GPIO_AF_TIM3);
 	/* GPIOB Configuration: Pin 0 and 1 */
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;

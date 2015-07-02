@@ -3,6 +3,7 @@
 #include <math.h>
 #include "APRS.h"
 #include "DAC.h"
+#include <diag/trace.h>
 
 extern volatile uint8_t packet[];
 extern volatile uint16_t packet_size;
@@ -212,7 +213,7 @@ void GFSK_DAC_Config() {
 	// Setup DAC-out port and DAC's clock
 	GPIO_InitTypeDef GPIO_InitStructure;
 	/* Configure PA.04 (DAC_OUT1), PA.05 (DAC_OUT2) as analog */
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
@@ -225,17 +226,19 @@ void GFSK_DAC_Config() {
 	DAC_InitStructure.DAC_Trigger = DAC_Trigger_Software;
 	DAC_InitStructure.DAC_WaveGeneration = DAC_WaveGeneration_None;
 	DAC_InitStructure.DAC_OutputBuffer = DAC_OutputBuffer_Enable;
-	DAC_Init(DAC_Channel_1, &DAC_InitStructure);
+	DAC_Init(DAC_Channel_2, &DAC_InitStructure);
 
-	DAC_Cmd(DAC_Channel_1, ENABLE);
+	DAC_Cmd(DAC_Channel_2, ENABLE);
 }
 
 void setSymbol(uint8_t _symbol) {
+//	static uint8_t cnt;
 	symbol = _symbol;
 	if (currentMode == AFSK) {
 		TIM2->ARR = AFSK_DIVIDERS[symbol];
 	} else {
-		setDAC(DAC1, simpleGFSKLevels[symbol]);
+		setDAC(DAC2, simpleGFSKLevels[symbol]);
+		// setDAC(DAC2, simpleGFSKLevels[(cnt++) & 1]);
 	}
 }
 
@@ -274,6 +277,7 @@ void AFSK_init(float modulationAmplitude) {
 		uint16_t v = (uint16_t)(a + 2048);
 		//v = ((double)Idx / NUM_AFSK_SAMPLES) * 200 + 1024;
 		singleSine12bit[Idx] = v; //+ (v << 16);
+		// trace_printf("Num: %d\n", singleSine12bit[Idx]);
 	}
 
 	/* Avoid firing a transmission prematurely */
@@ -291,7 +295,7 @@ void AFSK_init(float modulationAmplitude) {
 	setSymbol(0);
 }
 
-void AFSK_shutdown() {
+void FSK_shutdown() {
 	/* TIM2 configuration ------------------------------------------------------*/
 	AFSK_TIM_deinit();
 
@@ -308,6 +312,7 @@ void AFSK_shutdown() {
  * Or, simplified: Just set DAC directly 300 times a second, using an interrupt.
  */
 void GFSK_init(float modulationAmplitude) {
+	trace_printf("GFSK, modulation %d\n", (int)modulationAmplitude);
 	currentMode = GFSK;
 
 	simpleGFSKLevels[0] = 2048 - modulationAmplitude / 2;
@@ -320,16 +325,12 @@ void GFSK_init(float modulationAmplitude) {
 	setSymbol(0);
 }
 
-void GFSK_shutdown() {
-
-}
-
 // For WSPR (no DMA)
 void DAC2_initHW() {
 	// Setup DAC-out port and DAC's clock
 	GPIO_InitTypeDef GPIO_InitStructure;
 	/* Configure PA.04 (DAC_OUT1), PA.05 (DAC_OUT2) as analog */
-	GPIO_InitStructure.GPIO_Pin = /* GPIO_Pin_4 | */GPIO_Pin_5;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);

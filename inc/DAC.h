@@ -19,7 +19,7 @@ void setDAC(DACChannel_t channel, uint16_t value);
 void AFSK_init(float modulationAmplitude);
 void AFSK_shutdown();
 void GFSK_init(float modurationAmplitude);
-void GFSK_shutdown();
+void FSK_shutdown();
 
 void AFSK_startTransmission();
 

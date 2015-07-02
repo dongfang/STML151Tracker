@@ -10,7 +10,7 @@
 #include "StabilizedOscillator.h"
 #include "Bands.h"
 #include <diag/Trace.h>
-#include "../inc/CDCE913.h"
+#include "../inc/PLL.h"
 
 static volatile float symbolModulation;
 static volatile uint8_t symbolNumber;
@@ -54,8 +54,7 @@ static void WSPR_shutdownHW() {
 	DAC_Cmd(DAC_Channel_2, DISABLE);
 	TIM_ITConfig(TIM2, TIM_IT_Update, DISABLE);
 	TIM_Cmd(TIM2, DISABLE);
-	CDCE913_shutdown();
-	GPIOB->ODR &= ~(1 << 6);
+	PLL_shutdown();
 }
 
 static void WSPR_initHW(
@@ -66,7 +65,7 @@ static void WSPR_initHW(
 	symbolNumber = 0;
 	symbolModulation = _symbolModulation;
 
-	CDCE913_setPLL((CDCE913_OutputMode_t)3, setting, setting->trim);
+	setPLL((CDCE913_OutputMode_t)HF_30m_HARDWARE_OUTPUT, setting);
 	trace_printf("PLL running\n");
 
 	/* Periph clocks enable */
@@ -106,11 +105,16 @@ void WSPR_Transmit(
 			setting,
 			stepModulation);
 
+	GPIOB->ODR |= (1<<1);			// Turn on arm feature.
+
 	while (!WSPREnded()) {
 		if (WSPRDidUpdate()) {
-			GPIOB->ODR ^= (1 << 6);
+			GPIOB->ODR ^= (1 << 6); // Flash LED
 		}
 	}
+
+	GPIOB->ODR &= ~(1 << 6);		// Turn off LED
+	GPIOB->ODR &= ~(1 << 1); 		// Turn off arm feature.
 
 	WSPR_shutdownHW();
 }

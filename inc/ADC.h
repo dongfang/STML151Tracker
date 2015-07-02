@@ -43,15 +43,16 @@ extern volatile uint16_t ADCLoadedValues[NUM_ADC_VALUES];
 
 extern volatile boolean ADC_DMA_Complete;
 
-uint16_t ADC_cheaplyMeasureBatteryVoltage() ;
+// uint16_t ADC_cheaplyMeasureBatteryVoltage() ;
 
 void ADC_DMA_init(volatile uint16_t* conversionTargetArray);
 // void ADC_DMA_start(volatile uint16_t* conversionTargetArray);
 void ADC_DMA_shutdown();
 
-float batteryVoltage(uint16_t ADCvalue12);
-float solarVoltage(uint16_t ADCvalue12);
-float temperature(uint16_t ADCvalue12);
-int8_t ADC_simpleTemperature();
+float ADC_batteryUnloadedVoltage();
+float ADC_batteryLoadedVoltage();
+float ADC_solarVoltage();
+float ADC_temperature();
+int8_t ADC_simpleTemperature(float temp);
 
 #endif /* ADC_H_ */
