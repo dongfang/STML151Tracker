@@ -1,5 +1,5 @@
 # put your *.o targets here, make should handle the rest!
-SRCS = main.c system_stm32l1xx.c Trace.c trace_impl.c _sbrk.c CDCE913.c Systick.c WSPR.c ADC.c StabilizedOscillator.c WSPRTransmitter.c GPS.c SelfCalibration.c RTC.c DAC.c nhash.c Callsigns.c APRS.c AX25.c APRSTransmitter.c Power.c RecordStorage.c
+SRCS = system_stm32l1xx.c main.c Trace.c trace_impl.c _sbrk.c CDCE913.c Systick.c WSPR.c ADC.c StabilizedOscillator.c WSPRTransmitter.c GPS.c SelfCalibration.c RTC.c DAC.c nhash.c Callsigns.c APRS.c AX25.c APRSTransmitter.c Power.c RecordStorage.c
 SRCS += RH_RF24.cpp RF24Wrapper.cpp SPI.cpp
 
 # all the files will be generated with this name (main.elf, main.bin, main.hex, etc)

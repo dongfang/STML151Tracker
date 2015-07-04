@@ -12,17 +12,17 @@
 
 uint8_t RTC_init() ;
 
-void setRTC(Date_t* date, Time_t* time);
+boolean RTC_setRTC(Date_t* date, Time_t* time);
 
 void RTC_getDHM(uint8_t* date, uint8_t* hours24, uint8_t* minutes);
 
-void scheduleASAPAlarmInSlot(uint16_t minutes);
+void RTC_scheduleASAPAlarmInSlot(uint16_t minutes);
 
-void setWakeup(uint16_t periodSeconds);
+void RTC_setWakeup(uint32_t periodSeconds);
 
 void RTC_setCalibration(int16_t correction_PP10M);
 
-void debugRTCTime();
+void RTC_debugRTCTime();
 
 void RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds);
 

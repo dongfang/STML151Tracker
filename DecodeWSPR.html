@@ -85,20 +85,24 @@ type = 3;
 }
 
 var formatted;
+var prefix;
 
 if (type == 1) {
 formatted = "lat:" + result[0].toFixed(4) + ", lon:" + result[1].toFixed(4);
+prefix = "SuperFine";
 } else {
 formatted = "lat:" + result[0].toFixed(2) + ", lon:" + result[1].toFixed(2);
-}
-
+prefix = "RealSubgrid";
 if (type == 2) {
 formatted += ", alt:" + result[2];
+prefix = "Altitude";
 } else if (type == 3) {
 formatted += ", volt:" + result[2].toFixed(1) + ", fixMode:" + result[3] + ", fixTime:" + result[4];
+prefix = "Telemetry";
+}
 }
 
-alert(formatted);
+alert(prefix + ":" + formatted);
 }
 </script>
 </head>

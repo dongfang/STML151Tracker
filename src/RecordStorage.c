@@ -77,7 +77,7 @@ StoredPathRecord_t* nextRecordOutForLastTransmission() {
 boolean hasRecordOutForFirstTransmission() {
 	checkOrResetIndices();
 	if (storedRecordIndexIn == storedRecordIndexOutHead) {
-		trace_printf("No more records for 2\n");
+		trace_printf("No more records for 1\n");
 		return false;
 	}
 	return true;
@@ -162,18 +162,18 @@ uint8_t uncompressDateHoursMinutes(StoredPathRecord_t* record, Time_t* time) {
 
 // Use "current" global values.
 void storeToRecord(StoredPathRecord_t* record) {
-	int32_t mainOscillatorError = PLL_oscillatorError(currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim) - 8280/2;
+	int32_t mainOscillatorError = PLL_oscillatorError(currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim) + 8280/2;
 	if (mainOscillatorError > 32767) mainOscillatorError = 32767;
-	else if (mainOscillatorError < -32768) mainOscillatorError = 32768;
+	else if (mainOscillatorError < -32768) mainOscillatorError = -32768;
 
 	record->compressedBatteryVoltage = batteryVoltage * 50; // 5.12V->256
 	record->compressedSolarVoltage = solarVoltage * 50;
 	record->GPSAcqTime = lastGPSFixTime;
 	record->mainOscillatorError = mainOscillatorError;
 
-	record->lat = GPSPosition.lat;
-	record->lon = GPSPosition.lon;
-	record->alt = GPSPosition.alt;
+	record->lat = lastNonzeroPosition.lat;
+	record->lon = lastNonzeroPosition.lon;
+	record->alt = lastNonzero3DPosition.alt;
 
 	record->simpleTemperature = simpleTemperature;
 	record->compressedTime = compressRTCTime(); //compressTime(&GPSTime);

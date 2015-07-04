@@ -50,10 +50,16 @@ typedef enum {
 	AFSK, GFSK
 } APRSModulationMode_t;
 
+typedef enum {
+	VHF,
+	HF
+} APRS_Band_t;
+
 // APRS
 typedef struct {
 	// const DACChannel_t DACChannel;
 	const APRSModulationMode_t modulationMode;	// FSK or AFSK
+	const uint16_t txDelay;
 	const float modulationAmplitude; 			// Amplitude of sine wave for FM
 	// const uint8_t hardwareChannel;			// Interpretation is up to the transmitter HW implementation used.
 	// Function that sets up the radio for transmission, transmits and shuts down
@@ -78,13 +84,15 @@ void APRS_debugFrequency(boolean* result) ;
 void APRS_debugWorldMap();
 
 void APRS_transmitRandomMessage(
-		const APRSTransmission_t* mode,
+		APRS_Band_t band,
 		APRS_MessageType_t messageType,
 		uint32_t frequency,
 		uint32_t referenceFrequency);
 
-void APRS_transmitStoredMessage(const APRSTransmission_t* mode,
-		StoredPathRecord_t* storedMessage, uint32_t frequency,
+void APRS_transmitStoredMessage(
+		APRS_Band_t band,
+		StoredPathRecord_t* storedMessage,
+		uint32_t frequency,
 		uint32_t referenceFrequency);
 
 extern const APRSTransmission_t APRS_TRANSMISSIONS[];

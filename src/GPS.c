@@ -4,6 +4,8 @@
 #include "GPS.h"
 #include "systick.h"
 #include "Setup.h"
+#include "Globals.h"
+#include "Power.h"
 #include <diag/Trace.h>
 #include "stm32l1xx_conf.h"
 
@@ -41,7 +43,8 @@ NMEA_StatusInfo_t GPSStatus;
 
 uint16_t lastGPSFixTime;
 
-Position_t lastNonzeroGPSPosition __attribute__((section (".noinit")));
+Position_t lastNonzeroPosition __attribute__((section (".noinit")));
+Position_t lastNonzero3DPosition __attribute__((section (".noinit")));
 
 uint8_t nmea_parse(char c);
 
@@ -107,8 +110,11 @@ void USART1_IRQHandler(void) {
 			{
 		uint16_t rxd = USART_ReceiveData(USART1);
 		if (DEBUG_GPS_DATA)
-			trace_putchar(rxd);
+			trace_putchar('.');
 		nmea_parse(rxd);
+		if (interruptAlarm) {
+			trace_printf("USART\n");
+		}
 	}
 }
 
@@ -121,7 +127,10 @@ void getGPSData() {
 	GPSCourseSpeed = nmeaCRSSPDInfo_unsafe;
 	GPSPosition = nmeaPositionInfo_unsafe;
 	if (GPSPosition.lat != 0 && GPSPosition.lon != 0) {
-		lastNonzeroGPSPosition = GPSPosition;
+		lastNonzeroPosition = GPSPosition;
+		if (GPSPosition.alt != 0) {
+			lastNonzero3DPosition = GPSPosition;
+		}
 	}
 	GPSStatus = nmeaStatusInfo_unsafe;
 
@@ -183,7 +192,7 @@ boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 	boolean timeout;
 	do {
 		getGPSData();
-		// TODO: Low power sleep.
+
 		trace_printf("GPS pos: lat %d, lon %d, alt %d, valid %c, fix %d, sat %d\n",
 			(int)(GPSPosition.lat*1000),
 			(int)(GPSPosition.lon*1000),
@@ -192,16 +201,20 @@ boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 			GPSStatus.fixMode,
 			GPSStatus.numberOfSatellites
 		);
-		timer_sleep(1000);
+
+		timer_sleep(1000); // this should come and go with printing.
+
 	} while ((
 			GPSPosition.valid != 'A'
 			||
 			nmeaStatusInfo_unsafe.numberOfSatellites < REQUIRE_HIGH_PRECISION_NUM_SATS
 			|| (REQUIRE_HIGH_PRECISION_ALTITUDE && GPSPosition.alt==0)
-			|| GPSStatus.fixMode < REQUIRE_HIGH_PRECISION_FIXLEVEL) && !(timeout = timer_elapsed(maxTime)));
+			|| GPSStatus.fixMode < REQUIRE_HIGH_PRECISION_FIXLEVEL)
+			&& !(timeout = timer_elapsed(maxTime))
+			&& timer_sleep(100));
 
 	if (timeout) {
-		trace_printf("GPS wait for timelock: FAIL\n");
+		trace_printf("GPS wait for precision pos: FAIL\n");
 	}
 
 	lastGPSFixTime = timer_timeSinceMark() / 1000;
@@ -599,16 +612,23 @@ uint8_t char2hexdigit(uint8_t c) {
 	return c - '0';
 }
 
-void GPS_init(void) {
+boolean GPS_isGPSRunning() {
+	uint32_t result = GPIOA->ODR & GPIO_Pin_0;
+	return !result;
+}
+
+void GPS_start() {
 // GPS on
+	if (!GPS_isGPSRunning()) {
+		// Only record this start if not already started.
+		PWR_startGPS(batteryVoltage);
+	}
 	setupUSART1();
 	GPIOA->ODR &= ~ GPIO_Pin_0;
 	state = STATE_IDLE;
 }
 
-void GPS_shutdown(void) {
-// GPS off
-	GPIOA->ODR |= GPIO_Pin_0;
+void GPS_stopUART() {
 	USART_Cmd(USART1, DISABLE);
 
 	/* Disable USART1 IRQ (on the USART hw) */
@@ -616,6 +636,13 @@ void GPS_shutdown(void) {
 	USART_ITConfig(USART1, USART_IT_RXNE, DISABLE);
 
 	latestGPSState = CONSUMED;
+}
+
+void GPS_kill() {
+// GPS off
+	GPS_stopUART();
+	GPIOA->ODR |= GPIO_Pin_0;
+	PWR_stopGPS();
 }
 
 static char id[5];

@@ -49,17 +49,20 @@ const CalibrationRecord_t* getCalibration(int8_t temperature, boolean doAttemptC
 			return &defaultCalibration;	// damn, we had nothing!
 		}
 
+		CalibrationRecord_t tempRecord;
+
 		trace_printf("Calibrating...\n");
-		if (!selfCalibrate(calibrationByTemperatureRanges + index)) {
+		if (!selfCalibrate(&tempRecord)) {
 			return  &defaultCalibration;	// damn, we failed!
 		}
 
-		calibrationByTemperatureRanges[index].checksum = checksum(calibrationByTemperatureRanges + index);
+		// Commit the new calibration.
+		tempRecord.checksum = checksum(&tempRecord);
+		calibrationByTemperatureRanges[index] = tempRecord;
 	}
 
 	return calibrationByTemperatureRanges + index;
 }
-
 
 int8_t getBestTrimIndex(int16_t desiredPP10M) {
 	int16_t bestError = 30000;
@@ -115,6 +118,7 @@ void PLLSettingExperiment(const PLL_Setting_t* pllSettings, uint8_t numSettings,
 	}
 }
 
+/*
 void bestStoredPLLSetting(const PLL_Setting_t* pllSettings, uint8_t numSettings, double desiredMultiplication,
 		uint8_t* bestIndex, uint8_t* bestTrim) {
 	uint8_t i;
@@ -149,3 +153,4 @@ void bestStoredPLLSetting(const PLL_Setting_t* pllSettings, uint8_t numSettings,
 		}
 	}
 }
+*/

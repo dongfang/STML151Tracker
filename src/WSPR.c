@@ -15,6 +15,8 @@ uint8_t interleavedbuf[21];
 uint8_t symbolList[162 / 4 + 1];
 
 const uint32_t WSPR_FREQUENCIES[] = {10140200, 28126100};
+const uint8_t WSPR_SCHEDULE[] = WSPR_SCHEDULE_DEF;
+const uint8_t WSPR_SCHEDULE_LENGTH = sizeof(WSPR_SCHEDULE)/sizeof(uint8_t);
 
 extern uint16_t hash(const char* call, uint16_t length);
 
@@ -111,6 +113,7 @@ static void encodeType1Message(const char* maidenhead4, uint8_t power) {
 }
 
 static const int8_t powerSomething[] = { 0, -1, 1, 0, -1, 2, 1, 0, -1, 1 };
+
 static void encodeType3Message(const char* maidenhead6, int8_t power) {
 
   	char rotatedMaidenhead[7];
@@ -234,6 +237,7 @@ static void convolutionalEncoding() {
 	}
 }
 
+/*
 static uint8_t bitReverse(uint8_t v) {
 	uint8_t result = 0;
 	uint8_t maskin = 1;
@@ -247,6 +251,7 @@ static uint8_t bitReverse(uint8_t v) {
 	}
 	return result;
 }
+*/
 
 static uint8_t fasterBitReverse(uint8_t v) {
   uint8_t r = v; // r will be reversed bits of v; first get LSB of v
@@ -264,12 +269,12 @@ static uint8_t fasterBitReverse(uint8_t v) {
 static void interleave() {
   uint8_t p = 0;
   for (uint16_t i = 0; i < 256; i++) {
-    uint8_t j = bitReverse(i);
+   //  uint8_t j = bitReverse(i);
       uint8_t k = fasterBitReverse(i);
-      if (j != k) trace_printf("Bitreverse lort! %d %d\n", j, k);
-    if (j < 162) {
+  //    if (j != k) trace_printf("Bitreverse lort! %d %d\n", j, k);
+    if (k < 162) {
       uint8_t value = getBit(convolutionalBuf, p);
-      setBit(interleavedbuf, j, value);
+      setBit(interleavedbuf, k, value);
       p++;
     }
   }
@@ -309,16 +314,6 @@ void completeMessage() {
 	makeSymbolList();
 }
 
-/*
-uint8_t voltageToDbm(float voltage) {
-  float power = voltage*voltage / (72 * 8); // the 8 are (2 sqrt 2)^2, the conversion from p-p to RMS squared.
-  power = power*1000; // to milliwatts.
-  power = 10 * log10(power);
-  if (power < 0) power = 0; else if (power > 37) power = 37;
-  return (uint8_t) power;
-}
-*/
-
 void positionAs4DigitMaidenhead(double lat, double lon, char* target) {
 	lon = lon + 180;
 	lat = lat + 90;
@@ -345,7 +340,7 @@ void positionAs6DigitMaidenhead(double lat, double lon, char* target) {
 }
 
 void currentPositionAs6DigitMaidenhead(char* target) {
-  positionAs6DigitMaidenhead(GPSPosition.lat, GPSPosition.lon, target);
+  positionAs6DigitMaidenhead(lastNonzeroPosition.lat, lastNonzeroPosition.lon, target);
   target[6] = 0;
 }
 
@@ -369,7 +364,7 @@ void positionAsMaidenheadSuperfine(double lat, double lon, char* target) {
 }
 
 void currentPositionAsMaidenheadSuperfine(char* target) {
-  positionAsMaidenheadSuperfine(GPSPosition.lat, GPSPosition.lon, target);
+  positionAsMaidenheadSuperfine(lastNonzeroPosition.lat, lastNonzeroPosition.lon, target);
 }
 
 
@@ -390,7 +385,7 @@ static uint8_t ilog2(uint16_t N) {
 	return result;
 }
 
-void prepareType3Transmission(uint8_t power, enum WSPR_FAKE_EXTENDED_LOCATION fake) {
+void prepareType3Transmission(uint8_t power, enum WSPR_MESSAGE_TYPE fake) {
   char maidenhead6_fake[7];
   maidenhead6_fake[6] = 0;
   
@@ -416,7 +411,7 @@ void prepareType3Transmission(uint8_t power, enum WSPR_FAKE_EXTENDED_LOCATION fa
   case ALTITUDE:
     currentPositionAs4DigitMaidenhead(maidenhead6_fake);
     // add data here
-    int16_t ialt = (int16_t)(lastNonzeroGPSPosition.alt / 100);
+    int16_t ialt = (int16_t)(lastNonzero3DPosition.alt / 100);
     if (ialt < 0) ialt = 0;
     // 144 units of 100m each
     maidenhead6_fake[4] = 'a' + (ialt / 12)*2;
@@ -468,17 +463,14 @@ uint8_t fake_dBm(float voltage) {
 	return nonweirdPowerLevels[index];
 }
 
-void prepareWSPRMessage(uint8_t type, enum WSPR_FAKE_EXTENDED_LOCATION fake, float voltage) {
-    uint8_t power = //voltageToDbm(txVoltageLevel);
-    		fake_dBm(voltage);
-  switch (type) {
-  case 1:
+void prepareWSPRMessage(enum WSPR_MESSAGE_TYPE messageType, float voltage) {
+    uint8_t power = fake_dBm(voltage);
+  switch (messageType) {
+  case TYPE1:
     prepareType1Transmission(power);
     break;
-  case 3:
-    prepareType3Transmission(power, fake);
-    break;
   default:
-    trace_printf("Rrrrright. WSPR Type %u. WTF!?\n", type);
+    prepareType3Transmission(power, messageType);
+    break;
   }
 }

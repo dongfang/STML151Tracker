@@ -14,14 +14,19 @@
 
 extern float temperature;
 extern int8_t simpleTemperature;
+extern float internalTemperature;
 extern float batteryVoltage;
 extern float solarVoltage;
+extern uint8_t numRestarts;
+
+#define interruptAlarm 0
 
 extern NMEA_TimeInfo_t GPSTime;
 extern NMEA_CRS_SPD_Info_t GPSCourseSpeed;
 extern Position_t GPSPosition;
 extern NMEA_StatusInfo_t GPSStatus;
-extern Position_t lastNonzeroGPSPosition;
+extern Position_t lastNonzeroPosition;
+extern Position_t lastNonzero3DPosition;
 extern uint16_t lastGPSFixTime;
 extern uint16_t lastWSPRWindowWaitTime;
 extern boolean latestAPRSRegions[12]; 	 // 12 is sufficently large for the world map...

@@ -394,7 +394,7 @@ void RH_RF24::shutdown_HW() {
 	SPI_end();
 }
 
-extern "C" void timer_sleep(uint32_t);
+extern "C" boolean timer_sleep(uint32_t);
 
 void RH_RF24::init_HW() {
 	// Sigh: its necessary to control the SDN pin to reset this chip.

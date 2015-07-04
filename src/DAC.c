@@ -3,6 +3,7 @@
 #include <math.h>
 #include "APRS.h"
 #include "DAC.h"
+#include "Globals.h"
 #include <diag/trace.h>
 
 extern volatile uint8_t packet[];
@@ -91,6 +92,7 @@ void AFSK_DAC_Config(void) {
 	// RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
 	GPIO_InitTypeDef GPIO_InitStructure;
 	/* Configure PA.04 (DAC_OUT1), PA.05 (DAC_OUT2) as analog */
+	GPIO_StructInit(&GPIO_InitStructure);
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
@@ -137,8 +139,13 @@ void AFSK_DAC_deinit(void) {
 	/* DAC Periph clock enable */
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC, DISABLE);
 
-	/* Dubious - disable GPIOA Periph clock --------------------------------------*/
-	//RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+	/* Return pin to input, if that makes a difference */
+	GPIO_InitTypeDef GPIO_InitStructure;
+	/* Configure PA.04 (DAC_OUT1), PA.05 (DAC_OUT2) as analog */
+	GPIO_StructInit(&GPIO_InitStructure);
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
 }
 
 /**
@@ -264,6 +271,9 @@ void TIM3_IRQHandler(void) {
 				packetTransmissionComplete = true;
 			}
 		}
+		if (interruptAlarm) {
+			trace_printf("DACTim3\n");
+		}
 	}
 }
 
@@ -312,7 +322,7 @@ void FSK_shutdown() {
  * Or, simplified: Just set DAC directly 300 times a second, using an interrupt.
  */
 void GFSK_init(float modulationAmplitude) {
-	trace_printf("GFSK, modulation %d\n", (int)modulationAmplitude);
+	trace_printf("GFSK, modulation %d\n", (int) modulationAmplitude);
 	currentMode = GFSK;
 
 	simpleGFSKLevels[0] = 2048 - modulationAmplitude / 2;

@@ -14,23 +14,27 @@
 extern const uint32_t WSPR_FREQUENCIES[];
 
 // The fake subsubgrid message types for WSPR
-enum WSPR_FAKE_EXTENDED_LOCATION {
-  REAL_EXTENDED_LOCATION,
-  SUPERFINE_EXTENDED_LOCATION,
-  ALTITUDE,
-  TELEMETRY
+enum WSPR_MESSAGE_TYPE {
+	TYPE1,
+	REAL_EXTENDED_LOCATION,
+	SUPERFINE_EXTENDED_LOCATION,
+	ALTITUDE,
+	TELEMETRY
 };
+
+#define WSPR_SCHEDULE_DEF {TYPE1, ALTITUDE, REAL_EXTENDED_LOCATION, ALTITUDE, TELEMETRY,ALTITUDE,\
+					  TYPE1, ALTITUDE, REAL_EXTENDED_LOCATION,SUPERFINE_EXTENDED_LOCATION, ALTITUDE, TELEMETRY\
+}
 
 typedef enum {
 	THIRTY_M,
 	TEN_M
 } WSPRBand_t;
 
-//uint8_t WSPRDidUpdate();
-//uint8_t WSPREnded();
-//void WSPR_shutdownHW();
+extern const uint8_t WSPR_SCHEDULE[];
+extern const uint8_t WSPR_SCHEDULE_LENGTH;
 
-void prepareWSPRMessage(uint8_t type, enum WSPR_FAKE_EXTENDED_LOCATION extendedFake, float txVoltage);
+void prepareWSPRMessage(enum WSPR_MESSAGE_TYPE messageType, float txVoltage);
 void WSPR_Transmit(
 		uint8_t band,
 		const PLL_Setting_t* setting,

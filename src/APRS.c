@@ -211,7 +211,9 @@ uint8_t compressedTimestamp(uint8_t date, Time_t* time, char* out) {
 	return sprintf(out, "%02d%02d%02dz", date, time->hours, time->minutes);
 }
 
-void aprs_send_header(const AX25_Address_t* destination) {
+void aprs_send_header(const AX25_Address_t* destination, uint16_t txDelay) {
+	ax25_begin(txDelay);
+
 	uint8_t numAddresses = 0;
 	const AX25_Address_t* addresses[4];
 
@@ -336,36 +338,54 @@ void aprs_coefficientsMessage(char* out) {
  }
  */
 
+uint8_t sillyOneDecimalValue(char memo, float in, char* out) {
+	int i_Tenths = (int) (in * 10);
+	int i_Whole = (int) (in);
+	int i_decimal = i_Tenths % 10;
+	if (i_decimal < 0)
+		i_decimal = -i_decimal;
+	return sprintf(out, ",%c%d.%d", memo, i_Whole, i_decimal);
+}
+
+static uint16_t StatusMessageSequence __attribute__((section (".noinit")));
+
 // Exported functions
 void APRS_marshallStatusMessage(
 		uint32_t txFrequency,
-		uint32_t referenceFrequency
+		uint32_t referenceFrequency,
+		uint16_t txDelay
 		// Something about uptime, brownout resets, ...
 	) {
-	static uint16_t sequence;
 
-	char temp[12];                   // T{emperature (int/ext)
-	aprs_send_header(&APRS_DEST);
+	char temp[12];
+	aprs_send_header(&APRS_DEST, txDelay);
 	ax25_send_byte('>');
 	ax25_send_byte('?');
 
-	sprintf(temp, "%u", sequence);
+	sprintf(temp, "r%u", numRestarts);
 	ax25_send_string(temp);
 
-	sprintf(temp, ",%u", 100);
+	sprintf(temp, ",s%u", StatusMessageSequence);
 	ax25_send_string(temp);
 
-	sprintf(temp, ",%u", 80);
+	sprintf(temp, ",f%lu", txFrequency/100);
 	ax25_send_string(temp);
 
-	int i_temperarureTenths = (int) (temperature * 10);
-	int i_temperatureWhole = (int) (temperature);
-	int i_temperature_decimal = i_temperarureTenths % 10;
-	if (i_temperature_decimal < 0)
-		i_temperature_decimal = -i_temperature_decimal;
-	sprintf(temp, ",%d.%d", i_temperatureWhole, i_temperature_decimal);
+	sillyOneDecimalValue('b',batteryVoltage, temp);
 	ax25_send_string(temp);
-	ax25_send_footer();
+
+	sillyOneDecimalValue('t',temperature, temp);
+	ax25_send_string(temp);
+
+	sillyOneDecimalValue('i',internalTemperature, temp);
+	ax25_send_string(temp);
+
+	sprintf(temp, ",o%u", PLL_oscillatorError(referenceFrequency));
+	ax25_send_string(temp);
+
+	ax25_end();
+
+	StatusMessageSequence++;
 }
 
 static uint16_t telemetrySequence;
@@ -380,7 +400,7 @@ uint16_t combineVoltages(float batteryVoltage, float solarVoltage) {
 	return result;
 }
 
-void APRS_marshallPositionMessage() {
+void APRS_marshallPositionMessage(uint16_t txDelay) {
 
 	// We offset temp. by 100 degrees so it is never negative.
 	// Reportable range is thus: -100C to 728C with 1 decimal.
@@ -392,13 +412,14 @@ void APRS_marshallPositionMessage() {
 	if (GPSFixTime > 8280 / (120/5)) {	// max value we have space for is 8280 minus the space for max. WSPR wait time = 120 s / compacting factor 5
 		GPSFixTime = 8280 / (120/5);	// that's 345 seconds.
 	}
+
 	uint16_t WSPRWindowWaitTime = lastWSPRWindowWaitTime / 5;
 	if (WSPRWindowWaitTime > 120/5) {
 		WSPRWindowWaitTime = 120/5; // Should normally not happen. Why wait more than 120 s max?
 	}
 
 	int32_t mainOscillatorError =
-			PLL_oscillatorError(currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim) - 8280/2;
+			PLL_oscillatorError(currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim) + 8280/2;
 	if (mainOscillatorError > 8120) mainOscillatorError = 8120;
 	else if (mainOscillatorError < 0) mainOscillatorError = 0;
 
@@ -409,7 +430,7 @@ void APRS_marshallPositionMessage() {
 			GPSFixTime*(120/5) + WSPRWindowWaitTime
 			};
 
-	aprs_send_header(&APRS_APSTM1_DEST);
+	aprs_send_header(&APRS_APSTM1_DEST, txDelay);
 	char temp[40];                   // Temperature (int/ext)
 	ax25_send_byte('!'); // Report w/o timestamp, no APRS messaging.
 	uint8_t end = 0;
@@ -425,14 +446,14 @@ void APRS_marshallPositionMessage() {
 	}
 
 	temp[end] = 0;
-	trace_printf("Sending an APRS message of %d bytes\n", end);
+	// trace_printf("Sending an APRS message of %d bytes\n", end);
 
 	ax25_send_string(temp);
-	ax25_send_footer();
+	ax25_end();
 }
 
-void APRS_marshallStoredPositionMessage(StoredPathRecord_t* record) {
-	aprs_send_header(&APRS_APSTM1_DEST);
+void APRS_marshallStoredPositionMessage(StoredPathRecord_t* record, uint16_t txDelay) {
+	aprs_send_header(&APRS_APSTM1_DEST, txDelay);
 	char temp[40];
 	ax25_send_byte('/'); // Report w timestamp, no APRS messaging.
 	uint8_t end = 0;
@@ -462,7 +483,7 @@ void APRS_marshallStoredPositionMessage(StoredPathRecord_t* record) {
 
 	temp[end] = 0;
 	ax25_send_string(temp);
-	ax25_send_footer();
+	ax25_end();
 }
 
 static boolean checkWithinPolygon(int16_t lat, int16_t lon,

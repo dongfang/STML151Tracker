@@ -7,6 +7,9 @@
 
 // ----------------------------------------------------------------------------
 #include "Types.h"
+#include "Globals.h"
+#include "stm32l1xx.h"
+#include <diag/trace.h>
 
 volatile uint32_t timer_delayCount;
 volatile uint32_t timerMark;
@@ -18,17 +21,24 @@ volatile uint32_t systemTimeMillis;
 
 extern uint32_t SystemCoreClock;
 
-void timer_start(void) {
+void systick_start() {
 	// Use SysTick as reference for the delay loops.
 	SysTick_Config(SystemCoreClock / TIMER_FREQUENCY_HZ);
 }
 
-void timer_sleep(uint32_t ticks) {
+void systick_end() {
+	SysTick->CTRL = 0;
+}
+
+boolean timer_sleep(uint32_t ticks) {
 	timer_delayCount = ticks;
 
 	// Busy wait until the SysTick decrements the counter to zero.
-	while (timer_delayCount != 0u)
-		;
+	while (timer_delayCount != 0u) {
+		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
+	}
+
+	return true;
 }
 
 void timer_mark() {
@@ -53,5 +63,8 @@ void SysTick_Handler(void) {
 	// Decrement to zero the counter used by the delay routine.
 	if (timer_delayCount != 0u) {
 		--timer_delayCount;
+	}
+	if (interruptAlarm) {
+		trace_printf("Systick\n");
 	}
 }

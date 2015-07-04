@@ -7,57 +7,72 @@
 
 #include "RecordStorage.h"
 #include "Power.h"
+#include "Setup.h"
+#include "Globals.h"
 
 // Safe if : Never turned on, if turned back off by program, or if voltage is better now than last time.
-boolean isSafeToUseGPS(float startupVoltage) {
-	return !checkStartupRecordValid() || (!startupLog.wasGPSRunning ||
-			startupVoltage > startupLog.initialVoltageValue);
+boolean isSafeToUseEquipment(boolean previouslyCrashed) {
+	// No history means no objections.
+	if (!checkStartupRecordValid()) return true;
+
+	if (batteryVoltage >= BATTERY_FAILSAFE_ALWAYS_SAFE_VOLTAGE
+			&& simpleTemperature >= BATTERY_FAILSAFE_ALWAYS_SAFE_TEMPERATURE)
+		return true;
+
+	// Might have crashed, but now voltage is significantly better.
+	if (batteryVoltage >= startupLog.initialVoltageValue)
+		return true;
+
+	return !previouslyCrashed;
 }
 
-boolean isSafeToUseHFTx(float startupVoltage) {
-	return !checkStartupRecordValid() || (!startupLog.wasHFTxRunning ||
-			startupVoltage > startupLog.initialVoltageValue);
+// Safe if : Never turned on, if turned back off by program, or if voltage is better now than last time.
+boolean PWR_isSafeToUseGPS() {
+	return isSafeToUseEquipment(startupLog.wasGPSRunning);
 }
 
-boolean isSafeToUseVHFTx(float startupVoltage) {
-	return !checkStartupRecordValid() || (!startupLog.wasVHFTxRunning ||
-			startupVoltage > startupLog.initialVoltageValue);
+boolean PWR_isSafeToUseHFTx() {
+	return isSafeToUseEquipment(startupLog.wasHFTxRunning);
 }
 
-void startGPS(float startupVoltage) {
+boolean PWR_isSafeToUseVHFTx() {
+	return isSafeToUseEquipment(startupLog.wasVHFTxRunning);
+}
+
+void PWR_startGPS() {
 	startupLog.wasGPSRunning = true;
 	startupLog.wasGPSSuccessful = false;
-	startupLog.initialVoltageValue = startupVoltage;
+	startupLog.initialVoltageValue = batteryVoltage;
 	setStartupRecordChecksum();
 }
 
-void startHFTx(float startupVoltage) {
+void PWR_startHFTx() {
 	startupLog.wasHFTxRunning = true;
 	startupLog.wasHFTxSuccessful = false;
-	startupLog.initialVoltageValue = startupVoltage;
+	startupLog.initialVoltageValue = batteryVoltage;
 	setStartupRecordChecksum();
 }
 
-void startVHFTx(float startupVoltage) {
+void PWR_startVHFTx() {
 	startupLog.wasVHFTxRunning = true;
 	startupLog.wasVHFTxSuccessful = false;
-	startupLog.initialVoltageValue = startupVoltage;
+	startupLog.initialVoltageValue = batteryVoltage;
 	setStartupRecordChecksum();
 }
 
-void stopGPS() {
+void PWR_stopGPS() {
 	startupLog.wasGPSRunning = false;
 	startupLog.wasGPSSuccessful = true;
 	setStartupRecordChecksum();
 }
 
-void stopHFTx() {
+void PWR_stopHFTx() {
 	startupLog.wasHFTxRunning = false;
 	startupLog.wasHFTxSuccessful = true;
 	setStartupRecordChecksum();
 }
 
-void stopVHFTx() {
+void PWR_stopVHFTx() {
 	startupLog.wasVHFTxRunning = false;
 	startupLog.wasVHFTxSuccessful = true;
 	setStartupRecordChecksum();

@@ -11,16 +11,16 @@
 #include "Setup.h"
 
 // Safe if : Never turned on, if turned back off by program, or if voltage is better now than last time.
-boolean isSafeToUseGPS(float startupVoltage);
-boolean isSafeToUseHFTx(float startupVoltage);
-boolean isSafeToUseVHFTx(float startupVoltage);
+boolean PWR_isSafeToUseGPS();
+boolean PWR_isSafeToUseHFTx();
+boolean PWR_isSafeToUseVHFTx();
 
-void startGPS(float startupVoltage);
-void startHFTx(float startupVoltage);
-void startVHFTx(float startupVoltage);
+void PWR_startGPS();
+void PWR_startHFTx();
+void PWR_startVHFTx();
 
-void stopGPS();
-void stopHFTx();
-void stopVHFTx();
+void PWR_stopGPS();
+void PWR_stopHFTx();
+void PWR_stopVHFTx();
 
 #endif /* INC_POWER_H_ */

@@ -10,17 +10,19 @@
 #include "PLL.h"
 #include "DAC.h"
 #include "GPS.h"
+#include "Power.h"
+#include "Globals.h"
 #include "SelfCalibration.h"
 
 // Slow and fine.
-const SelfCalibrationConfig_t WSPR_MODULATION_SELF_CALIBRATION = { .maxTimeMillis = 20000,
-		.DACChannel = DAC2, .modulation_PP = 1000, .numCyclesPerRound = 5000,
-		.numRounds = 3 };
+const SelfCalibrationConfig_t WSPR_MODULATION_SELF_CALIBRATION = {
+		.maxTimeMillis = 20000, .DACChannel = DAC2, .modulation_PP = 1000,
+		.numCyclesPerRound = 5000, .numRounds = 3 };
 
 // Not so fine, that is not needed.
-const SelfCalibrationConfig_t HF_APRS_SELF_CALIBRATION = { .maxTimeMillis =
-		5000, .DACChannel = DAC2, .modulation_PP = 3660, .numCyclesPerRound =
-		2000, .numRounds = 3 };
+const SelfCalibrationConfig_t HF_APRS_SELF_CALIBRATION = {
+		.maxTimeMillis = 5000, .DACChannel = DAC2, .modulation_PP = 3660,
+		.numCyclesPerRound = 2000, .numRounds = 3 };
 
 // For measuring effects of xtal capacitor trimming. No modulation.
 const SelfCalibrationConfig_t TRIM_SELF_CALIBRATION = { .maxTimeMillis = 5000,
@@ -98,7 +100,7 @@ static void modulationCalibration_shutdownHW() {
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, DISABLE);
 }
 
-void HSECalibration_initHW() {
+void TIM10Calibration_initHW() {
 	TIM_ICInitTypeDef TIM_ICInitStructure;
 	GPIO_InitTypeDef GPIO_InitStructure;
 	NVIC_InitTypeDef NVIC_InitStructure;
@@ -111,6 +113,7 @@ void HSECalibration_initHW() {
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_10MHz; // More was not better. really? Not better resolution?
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
 
+	// Is source of TIM10
 	GPIO_PinAFConfig(GPIOB, GPIO_PinSource12, GPIO_AF_TIM10);
 
 	/* TIM10 configuration: Input Capture mode ---------------------
@@ -133,15 +136,12 @@ void HSECalibration_initHW() {
 	timerInitStructure.TIM_ClockDivision = TIM_CKD_DIV1;
 	TIM_TimeBaseInit(TIM10, &timerInitStructure);
 
-	/* TIM enable counter */
-	TIM_Cmd(TIM10, ENABLE);
+	TIM_ClearITPendingBit(TIM10, TIM_IT_CC1);
+	TIM_ClearITPendingBit(TIM10, TIM_IT_Update);
 
 	/* Enable the CC1 Interrupt Request */
 	TIM_ITConfig(TIM10, TIM_IT_CC1, ENABLE);
 	TIM_ITConfig(TIM10, TIM_IT_Update, ENABLE);
-
-	TIM_ClearITPendingBit(TIM10, TIM_IT_CC1);
-	TIM_ClearITPendingBit(TIM10, TIM_IT_Update);
 
 	/* Enable the TIM10 global Interrupt */
 	NVIC_InitStructure.NVIC_IRQChannel = TIM10_IRQn;
@@ -149,6 +149,9 @@ void HSECalibration_initHW() {
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVIC_InitStructure);
+
+	/* TIM enable counter */
+	TIM_Cmd(TIM10, ENABLE);
 }
 
 void RTCCalibration_init() {
@@ -166,7 +169,8 @@ void RTCCalibration_init() {
 	RTC_SetWakeUpCounter(0); // 1 second is enough.
 	RTC_WakeUpCmd(ENABLE);
 
-	// Dunno if needed. It IS!.
+	// Dunno if needed. It really is..
+	// OTOH we can just drop this RTC cal crap.
 	RTC_ITConfig(RTC_IT_WUT, ENABLE);
 	TIM_RemapConfig(TIM10, TIM10_RTC);
 
@@ -212,7 +216,8 @@ static void TIM10Calibration_shutdownHW() {
 	NVIC_Init(&NVIC_InitStructure);
 
 	/* Disable the CC2 Interrupt Request (timer end) */
-	TIM_ITConfig(TIM10, TIM_IT_CC2, DISABLE);
+	TIM_ITConfig(TIM10, TIM_IT_Update, DISABLE);
+	TIM_ITConfig(TIM10, TIM_IT_CC1, DISABLE);
 
 	/* TIM10 disable counter */
 	TIM_Cmd(TIM10, DISABLE);
@@ -239,6 +244,7 @@ __IO uint32_t TIM10CaptureValue32 = 0;
  */
 void TIM4_IRQHandler(void) {
 	if (TIM_GetITStatus(TIM4, TIM_IT_CC2) != RESET) {
+		// trace_printf("Tim4Cap\n");
 		/* Clear TIM4 Capture compare interrupt pending bit */
 		TIM_ClearITPendingBit(TIM4, TIM_IT_CC2);
 		if (TIM4CaptureCount == 0) {
@@ -255,6 +261,9 @@ void TIM4_IRQHandler(void) {
 		} else {
 			// do nothing more.
 		}
+		if (interruptAlarm) {
+			trace_printf("Tim4\n");
+		}
 	}
 }
 
@@ -264,8 +273,7 @@ void TIM10_IRQHandler(void) {
 	if (TIM_GetITStatus(TIM10, TIM_IT_CC1) != RESET) {
 		TIM_ClearITPendingBit(TIM10, TIM_IT_CC1);
 		RTC_ClearITPendingBit(RTC_IT_WUT);
-
-//		trace_printf("TIM10Cap\n");
+		trace_printf("Tim10Cap\n");
 		if (TIM10CaptureCount < GPS_TIMEPULSE_WASTED_PULSES) {
 			// waste the first n pulses.
 			TIM10CaptureCount++;
@@ -277,13 +285,18 @@ void TIM10_IRQHandler(void) {
 			TIM10CaptureValue32 += TIM_GetCapture1(TIM10);
 			TIM10CaptureCount++;
 		}
-		// trace_printf("TIM10 capture2 fired! %d %d\r\n", TIM10CaptureCount, TIM_GetCapture1(TIM10));
+		if (interruptAlarm) {
+			trace_printf("Tim10 CC1\n");
+		}
 	}
 	if (TIM_GetITStatus(TIM10, TIM_IT_Update) != RESET) {
 		// Normal overflow, compensate for that by adding to extended counter.
 		TIM_ClearITPendingBit(TIM10, TIM_IT_Update);
 		if (TIM10CaptureCount == GPS_TIMEPULSE_WASTED_PULSES + 1)
 			TIM10CaptureValue32 += 60000;
+		if (interruptAlarm) {
+			trace_printf("Tim4 Upd\n");
+		}
 	}
 }
 
@@ -310,15 +323,12 @@ static void TIM10Calibration_reset() {
  * Self calibrate : Set the deviation measured, and the measured frequency
  * (assuming a very stable SystemCoreClock).
  */
-boolean selfCalibrateModulation(
-		uint32_t hseFrequency,
-		const SelfCalibrationConfig_t* settings,
-		uint8_t trim,
-		double* deviationMeasured,
-		uint32_t* oscillatorFrequencyMeasured) {
+boolean selfCalibrateModulation(uint32_t hseFrequency,
+		const SelfCalibrationConfig_t* settings, uint8_t trim,
+		double* deviationMeasured, uint32_t* oscillatorFrequencyMeasured) {
 
 	TIM4CaptureStop = settings->numCyclesPerRound;
-	CDCE913_setDirectModeWithDivision(trim,CDCE913_SELFCALIBRATION_DIVISION);
+	CDCE913_setDirectModeWithDivision(trim, CDCE913_SELFCALIBRATION_DIVISION);
 	DAC2_initHW();
 	modulationCalibration_initHW();
 
@@ -351,7 +361,7 @@ boolean selfCalibrateModulation(
 			modulationCalibration_reset();
 			i++;
 		} else {
-			timer_sleep(10); // TODO low power sleep.
+			PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
 		}
 	}
 
@@ -413,7 +423,7 @@ void buildTrimmingCalibrationTable() {
 }
 
 boolean HSECalibration(uint32_t maxTime, uint32_t* result) {
-	HSECalibration_initHW();
+	TIM10Calibration_initHW();
 	TIM10Calibration_reset();
 
 	timer_mark();
@@ -421,9 +431,9 @@ boolean HSECalibration(uint32_t maxTime, uint32_t* result) {
 	// ttrace_printf("Waiting for TIM10 captures\n");
 
 	while ((!timer_elapsed(maxTime))
-			&& (TIM10CaptureCount != GPS_TIMEPULSE_WASTED_PULSES + 2))
-		;
-	// TODO low power sleep
+			&& (TIM10CaptureCount != GPS_TIMEPULSE_WASTED_PULSES + 2)) {
+		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
+	}
 
 	TIM10Calibration_shutdownHW();
 
@@ -465,15 +475,19 @@ boolean selfCalibrate(CalibrationRecord_t* target) {
 	uint32_t pllFrequency;
 	double deviationThrowAway;
 
+	// We need GPS now. If it is not safe to power up and not already running, quit.
+	if (!PWR_isSafeToUseGPS() && !GPS_isGPSRunning())
+		return false;
+
+	GPS_start();
 	boolean result = true;
-	GPS_init();
 
 	trace_printf("HSE cal\n");
-	result &= HSECalibration(120000, &hseFrequency);
+	result = HSECalibration(120000, &hseFrequency);
 	target->HSEFrequency = hseFrequency;
 
 	if (!result) {
-		trace_printf("HSE ca failed\n");
+		trace_printf("HSE cal failed\n");
 	}
 
 	if (result) {
@@ -485,30 +499,31 @@ boolean selfCalibrate(CalibrationRecord_t* target) {
 		}
 	}
 
-	// Sadly, we have to stop the GPS in the middle of calibration.
-	// For the above, it was needed but for transmitter, it makes too much supply noise.
-	GPS_shutdown();
+	if (result) {
+		// Sadly, we have to stop the GPS in the middle of calibration.
+		GPS_kill();
 
-	result &= RTCCalibration(10000, &RTCPeriod);
+		// RTCCalibration(3000, &RTCPeriod);
 
-	result &= selfCalibrateModulation(hseFrequency, &TRIM_SELF_CALIBRATION,
-	PLL_PREFERRED_TRIM, &deviationThrowAway, &pllFrequency);
+		result &= selfCalibrateModulation(hseFrequency, &TRIM_SELF_CALIBRATION,
+		PLL_PREFERRED_TRIM, &deviationThrowAway, &pllFrequency);
 
-	target->transmitterOscillatorFrequencyAtDefaultTrim = pllFrequency;
+		target->transmitterOscillatorFrequencyAtDefaultTrim = pllFrequency;
 
-	if (pllFrequency > PLL_XTAL_NOMINAL_FREQUENCY * 1.002
-			|| pllFrequency < PLL_XTAL_NOMINAL_FREQUENCY * 0.998) {
-		trace_printf("Unrealistic PLL freq measured: %u\n", pllFrequency);
-		result = false;
-	} else {
-		trace_printf("PLL freq measured: %u\n", pllFrequency);
+		if (pllFrequency > PLL_XTAL_NOMINAL_FREQUENCY * 1.002
+				|| pllFrequency < PLL_XTAL_NOMINAL_FREQUENCY * 0.998) {
+			trace_printf("Unrealistic PLL freq measured: %u\n", pllFrequency);
+			result = false;
+		} else {
+			trace_printf("PLL freq measured: %u\n", pllFrequency);
+		}
+
+		// double RTCError = (double) RTCPeriod / (double) hseFrequency;
+		target->RTCNeededCorrectionPP10M = -800; // (RTCError - 1) * 1E7;
+
+		// trace_printf("RTC period was %d, correction needed PP10M: %d\n",
+		// 		RTCPeriod, target->RTCNeededCorrectionPP10M);
 	}
-
-	double RTCError = (double) RTCPeriod / (double) hseFrequency;
-	target->RTCNeededCorrectionPP10M = (RTCError - 1) * 1E7;
-
-	trace_printf("RTC period was %d, correction needed PP10M: %d\n",
-			RTCPeriod, target->RTCNeededCorrectionPP10M);
 
 	return result;
 }

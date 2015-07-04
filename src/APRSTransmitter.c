@@ -11,22 +11,13 @@
 #include "Bands.h"
 #include "PLL.h"
 #include "RF24Wrapper.h"
+#include "Power.h"
 #include "Setup.h"
 #include <diag/trace.h>
 
 volatile APRSModulationMode_t currentMode;
 volatile uint16_t packet_cnt;
 volatile uint8_t packetTransmissionComplete;
-
-/*
- const PLL_Setting_t* transmitterSetting2M_DirectlyFromPLL(uint32_t frequency) {
- for (uint8_t i=0; i<NUM_VHF_PLL_BAND_DEFS; i++) {
- if (frequency == VHF_PLL_BAND_DEFS[i].frequency)
- return &VHF_PLL_BAND_DEFS[i].PLLSetting;
- }
- return 0;
- }
- */
 
 static void APRS_makeDirectTransmissionFrequency(uint32_t frequency,
 		uint32_t referenceFrequency, uint8_t output) {
@@ -70,34 +61,47 @@ void APRS_initSi4463Transmission(uint32_t frequency,
 }
 
 const APRSTransmission_t APRS_TRANSMISSIONS[] = { { .modulationMode = AFSK,
-		.modulationAmplitude = 350, .initTransmitter =
+		.modulationAmplitude = 350, .txDelay = 15, .initTransmitter =
 				APRS_initDirectVHFTransmission, .shutdownTransmitter =
 				APRS_endDirectTransmission }, { .modulationMode = GFSK,
-		.modulationAmplitude = 3660, .initTransmitter =
+		.modulationAmplitude = 3660, .txDelay = 5, .initTransmitter =
 				APRS_initDirectHFTransmission, .shutdownTransmitter =
 				APRS_endDirectTransmission } };
 
-extern void APRS_marshallStoredPositionMessage(StoredPathRecord_t* record);
-extern void APRS_marshallPositionMessage();
+extern void APRS_marshallPositionMessage(uint16_t txDelay);
+extern void APRS_marshallStoredPositionMessage(StoredPathRecord_t* record,
+		uint16_t txDelay);
+extern void APRS_marshallStatusMessage(uint32_t frequency,
+		uint32_t referenceFrequency, uint16_t txDelay);
 // extern volatile uint16_t packet_size;
 
-void APRS_transmitMessage(const APRSTransmission_t* mode,
-		APRS_MessageType_t messageType, StoredPathRecord_t* storedMessage,
-		uint32_t frequency, uint32_t referenceFrequency) {
+void APRS_transmitMessage(APRS_Band_t band, APRS_MessageType_t messageType,
+		StoredPathRecord_t* storedMessage, uint32_t frequency,
+		uint32_t referenceFrequency) {
 
-	switch (messageType) {
-	case COMPRESSED_POSITION_MESSAGE:
-		APRS_marshallPositionMessage();
+	switch (band) {
+	case VHF:
+		PWR_startVHFTx();
 		break;
-	case STORED_POSITION_MESSAGE:
-		APRS_marshallStoredPositionMessage(storedMessage);
-		break;
-	case STATUS_MESSAGE:
-		APRS_marshallStatusMessage(frequency, referenceFrequency);
+	case HF:
+		PWR_startHFTx();
 		break;
 	}
 
-	// trace_printf("Internal length %d\n", packet_size);
+	const APRSTransmission_t* mode = &APRS_TRANSMISSIONS[band];
+
+	switch (messageType) {
+	case COMPRESSED_POSITION_MESSAGE:
+		APRS_marshallPositionMessage(mode->txDelay);
+		break;
+	case STORED_POSITION_MESSAGE:
+		APRS_marshallStoredPositionMessage(storedMessage, mode->txDelay);
+		break;
+	case STATUS_MESSAGE:
+		APRS_marshallStatusMessage(frequency, referenceFrequency,
+				mode->txDelay);
+		break;
+	}
 
 	/* Avoid firing a transmission prematurely */
 	packetTransmissionComplete = true;
@@ -112,32 +116,44 @@ void APRS_transmitMessage(const APRSTransmission_t* mode,
 		break;
 	}
 
+	GPIOB->ODR |= GPIO_Pin_6; // LED
+
 	packet_cnt = 0;
 	mode->initTransmitter(frequency, referenceFrequency);
 
 	// Go now.
 	packetTransmissionComplete = false;
 
-	// TODO: Sleepy-wait.
-	while (!packetTransmissionComplete)
-		;
-
-	trace_printf("APRS done\n");
+	while (!packetTransmissionComplete) {
+		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
+	}
 
 	// We are now done transmitting.
 	mode->shutdownTransmitter();
+
+	GPIOB->ODR &= ~GPIO_Pin_6; // LED
+
+	switch (band) {
+	case VHF:
+		PWR_stopVHFTx();
+		break;
+	case HF:
+		PWR_stopHFTx();
+		break;
+	}
+
 }
 
-void APRS_transmitRandomMessage(const APRSTransmission_t* mode,
+void APRS_transmitRandomMessage(APRS_Band_t band,
 		APRS_MessageType_t messageType, uint32_t frequency,
 		uint32_t referenceFrequency) {
-	APRS_transmitMessage(mode, messageType, (StoredPathRecord_t*) 0, frequency,
+	APRS_transmitMessage(band, messageType, (StoredPathRecord_t*) 0, frequency,
 			referenceFrequency);
 }
 
-void APRS_transmitStoredMessage(const APRSTransmission_t* mode,
+void APRS_transmitStoredMessage(APRS_Band_t band,
 		StoredPathRecord_t* storedMessage, uint32_t frequency,
 		uint32_t referenceFrequency) {
-	APRS_transmitMessage(mode, STORED_POSITION_MESSAGE, (StoredPathRecord_t*) 0,
+	APRS_transmitMessage(band, STORED_POSITION_MESSAGE, (StoredPathRecord_t*) 0,
 			frequency, referenceFrequency);
 }

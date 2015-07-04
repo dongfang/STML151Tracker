@@ -14,13 +14,15 @@ extern "C" {
 extern volatile uint32_t timer_delayCount;
 extern volatile uint32_t systemTimeMillis;
 
-extern void timer_start (void);
-extern void timer_sleep (uint32_t ticks);
+void systick_start();
+void systick_end();
 
-extern void timer_mark();
-extern boolean timer_elapsed(int32_t millis);
+boolean timer_sleep (uint32_t ticks);
 
-extern uint32_t timer_timeSinceMark();
+void timer_mark();
+boolean timer_elapsed(int32_t millis);
+
+uint32_t timer_timeSinceMark();
 
 #ifdef __cplusplus
 }

@@ -11,6 +11,9 @@
 #include "Types.h"
 
 typedef struct {
+	// We don't bother to store or check the startup time temperature, as an improvement
+	// in temperature will cause an improvement in voltage anyway.
+
 	float initialVoltageValue;
 	boolean wasGPSRunning;
 	boolean wasHFTxRunning;
@@ -26,17 +29,17 @@ typedef struct {
 
 // Should be 4*8 = 32 bytes
 typedef struct {
-	float lat;
-	float lon;
-	uint16_t alt;
-	uint16_t compressedTime;
+	float lat __attribute__ ((packed));
+	float lon __attribute__ ((packed));;
+	uint16_t alt __attribute__ ((packed));
+	uint16_t compressedTime __attribute__ ((packed));
 
 	uint8_t compressedBatteryVoltage;
 	uint8_t compressedSolarVoltage;
 	uint8_t simpleTemperature;
 	uint8_t GPSAcqTime;
 
-	int16_t mainOscillatorError;
+	int16_t mainOscillatorError __attribute__ ((packed));
 } StoredPathRecord_t;
 
 // We can store, say, 1 per hour for 4 days

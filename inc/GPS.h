@@ -37,9 +37,12 @@ typedef struct {
 #define BAUDRATE 9600
 #define DEBUG_GPS_DATA 0
 
-void GPS_init(void);
-void GPS_shutdown(void);
-void debugGPSTime(void);
+boolean GPS_isGPSRunning();
+// It is assumed that PWR_isSafeToUseGPS() was checked already.
+void GPS_start();
+void GPS_kill();
+void GPS_stopUART();
+void debugGPSTime();
 
 uint8_t GPS_waitForTimelock(uint32_t maxTime);
 uint8_t GPS_waitForPosition(uint32_t maxTime);

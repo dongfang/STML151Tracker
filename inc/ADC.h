@@ -36,7 +36,7 @@
 #define COARSE(x) ((x)*16)
 #define REV_COARSE(x) ((x)/16)
 
-#define NUM_ADC_VALUES 3
+#define NUM_ADC_VALUES 4
 
 extern volatile uint16_t ADCUnloadedValues[NUM_ADC_VALUES];
 extern volatile uint16_t ADCLoadedValues[NUM_ADC_VALUES];
@@ -53,6 +53,7 @@ float ADC_batteryUnloadedVoltage();
 float ADC_batteryLoadedVoltage();
 float ADC_solarVoltage();
 float ADC_temperature();
+float ADC_internalTemperature();
 int8_t ADC_simpleTemperature(float temp);
 
 #endif /* ADC_H_ */

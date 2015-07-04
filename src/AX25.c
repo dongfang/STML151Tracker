@@ -84,7 +84,7 @@ void ax25_diddle(int numBytes) {
 	for (i = 0; i < numBytes; i++) {
 		packet[i] = 0;
 	}
-	packet_size = i*8;
+	packet_size = i * 8;
 }
 
 void ax25_send_string(const char *string) {
@@ -94,15 +94,17 @@ void ax25_send_string(const char *string) {
 	}
 }
 
-void ax25_send_header(const AX25_Address_t *addresses[], int num_addresses) {
-	int i, j;
+void ax25_begin(uint16_t txDelay) {
 	packet_size = 0;
 	ones_in_a_row = 0;
 	crc = 0xffff;
-
 	// Send flags during TX_DELAY milliseconds (8 bit-flag = 8000/1200 ms)
-	ax25_diddle(TX_DELAY*3/20);
+	ax25_diddle(txDelay);
 	ax25_send_flag();
+}
+
+void ax25_send_header(const AX25_Address_t *addresses[], int num_addresses) {
+	int i, j;
 
 	for (i = 0; i < num_addresses; i++) {
 		// Transmit callsign
@@ -125,7 +127,7 @@ void ax25_send_header(const AX25_Address_t *addresses[], int num_addresses) {
 	send_byte(0xf0);
 }
 
-void ax25_send_footer() {
+void ax25_end() {
 	// Save the crc so that it can be treated it atomically
 	uint16_t final_crc = crc;
 
