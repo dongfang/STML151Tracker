@@ -469,7 +469,7 @@ boolean PLL_bestPLLSetting(uint32_t oscillatorFrequency, uint32_t desiredFrequen
 
 int16_t PLL_oscillatorError(uint32_t measuredFrequency) {
 	int32_t result = (int32_t)measuredFrequency - (int32_t)PLL_XTAL_NOMINAL_FREQUENCY;
-	trace_printf("Osc error: %d\n", result);
+	// trace_printf("Osc error: %d\n", result);
 	if (result > 32767) result = 32767;
 	else if (result < -32768) result = -32768;
 	return result;

@@ -24,6 +24,6 @@ void RTC_setCalibration(int16_t correction_PP10M);
 
 void RTC_debugRTCTime();
 
-void RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds);
+int RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds);
 
 #endif /* RTC_H_ */

@@ -66,16 +66,29 @@ void RTC_debugRTCTime() {
 			rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
 }
 
-void RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds) {
+int timeDiff_s(RTC_TimeTypeDef* t1, RTC_TimeTypeDef* t2) {
+	int result = t1->RTC_Seconds - t2->RTC_Seconds;
+	result += (t1->RTC_Minutes - t2->RTC_Minutes) * 60;
+	result += (t1->RTC_Hours - t2->RTC_Hours) * 3600;
+	return result;
+}
+
+int RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds) {
 	uint8_t minutes;
 	uint8_t _seconds;
-	RTC_WaitForSynchro() ;
+	RTC_WaitForSynchro();
+	RTC_TimeTypeDef rtcFirstTime;
+	RTC_GetTime(RTC_Format_BIN, &rtcFirstTime);
+	RTC_TimeTypeDef rtcTime;
+
 	do {
-		RTC_TimeTypeDef rtcTime;
 		RTC_GetTime(RTC_Format_BIN, &rtcTime);
 		minutes = rtcTime.RTC_Minutes;
 		_seconds = rtcTime.RTC_Seconds;
-	} while ((seconds != _seconds || (minutes % modulo) != 0) && timer_sleep(100));
+	} while ((seconds != _seconds || (minutes % modulo) != 0)
+			&& timer_sleep(100));
+
+	return timeDiff_s(&rtcTime, &rtcFirstTime);
 }
 
 boolean RTC_setRTC(Date_t* date, Time_t* time) {
@@ -121,16 +134,16 @@ void RTC_getDHM(uint8_t* date, uint8_t* hours24, uint8_t* minutes) {
 
 void RTC_init_RTC_ALARMA_NVIC() {
 	/* Configure one bit for preemption priority */
-		NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
 
-		NVIC_InitTypeDef NVIC_InitStructure;
+	NVIC_InitTypeDef NVIC_InitStructure;
 
-		/* Enable the RTC Interrupt */
-		NVIC_InitStructure.NVIC_IRQChannel = RTC_Alarm_IRQn;
-		NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
-		NVIC_InitStructure.NVIC_IRQChannelSubPriority = 3;
-		NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-		NVIC_Init(&NVIC_InitStructure);
+	/* Enable the RTC Interrupt */
+	NVIC_InitStructure.NVIC_IRQChannel = RTC_Alarm_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 3;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
 
 	EXTI_InitTypeDef exti; /// [12] According to manual RTC Alarm interrupt works
 	EXTI_ClearITPendingBit(EXTI_Line17); ///      in pair with external interrupt controller line 17.
@@ -163,24 +176,26 @@ void RTC_init_RTC_WKUP_NVIC() {
 	EXTI_Init(&exti);
 }
 
-void RTCAlarm_IRQHandler(void) {
-	if (RTC_GetITStatus(RTC_IT_ALRA) != RESET) {
-		/* Clear EXTI line17 pending bit */
-		EXTI_ClearITPendingBit(EXTI_Line17);
+/*
+ void RTCAlarm_IRQHandler(void) {
+ if (RTC_GetITStatus(RTC_IT_ALRA) != RESET) {
+ / * Clear EXTI line17 pending bit * /
+ EXTI_ClearITPendingBit(EXTI_Line17);
 
-		/* Check if the Wake-Up flag is set */
-		if (PWR_GetFlagStatus(PWR_FLAG_WU) != RESET) {
-			/* Clear Wake Up flag */
-			PWR_ClearFlag(PWR_FLAG_WU);
-		}
+ / * Check if the Wake-Up flag is set * /
+ if (PWR_GetFlagStatus(PWR_FLAG_WU) != RESET) {
+ / * Clear Wake Up flag * /
+ PWR_ClearFlag(PWR_FLAG_WU);
+ }
 
-		/* Wait until last write operation on RTC registers has finished */
-		RTC_WaitForSynchro();
+ / * Wait until last write operation on RTC registers has finished * /
+ RTC_WaitForSynchro();
 
-		/* Clear RTC Alarm interrupt pending bit */
-		RTC_ClearITPendingBit(RTC_IT_ALRA);
-	}
-}
+ / * Clear RTC Alarm interrupt pending bit * /
+ RTC_ClearITPendingBit(RTC_IT_ALRA);
+ }
+ }
+ */
 
 /**
  * @brief  This function handles RTC global interrupt request.
@@ -221,14 +236,26 @@ void RTC_Alarm_IRQHandler(void) {
 }
 
 void RTC_WKUP_IRQHandler(void) {
-	EXTI_ClearFlag(EXTI_Line20);
+	/*
+	 if (RTC_GetITStatus(RTC_IT_WUT) != RESET) {
+	 EXTI_ClearFlag(EXTI_Line20);
+	 RTC_ClearITPendingBit(RTC_IT_WUT);
+	 trace_printf("WKUP IRQ II @ ");
+	 RTC_debugRTCTime();
+	 if (interruptAlarm) {
+	 trace_printf("WUT2\n");
+	 }
+	 }*/
 	if (RTC_GetITStatus(RTC_IT_WUT) != RESET) {
+		EXTI_ClearITPendingBit(EXTI_Line20); //OK
+		PWR_RTCAccessCmd(ENABLE);
+
+		// These 2 seem to do the same!!
 		RTC_ClearITPendingBit(RTC_IT_WUT);
-		trace_printf("WKUP IRQ II @ ");
-		RTC_debugRTCTime();
-		if (interruptAlarm) {
-			trace_printf("WUT2\n");
-		}
+		// RTC_ClearFlag(RTC_FLAG_WUTF);
+
+		// PWR_RTCAccessCmd(DISABLE);
+		// GPIO_ToggleBits( GPIOB, GPIO_Pin_6);
 	}
 }
 
@@ -245,7 +272,7 @@ void EXTI_IRQHandler(void) {
 // Schedule an alarm event in the nearest possible future where the minutes mod slotMinutes = 0
 void RTC_scheduleASAPAlarmInSlot(uint16_t slotMinutes) {
 	PWR_RTCAccessCmd(ENABLE);
-	RTC_WaitForSynchro() ;
+	RTC_WaitForSynchro();
 	RTC_init_RTC_ALARMA_NVIC();
 
 	RTC_TimeTypeDef alarmTime;
@@ -288,7 +315,7 @@ void RTC_scheduleASAPAlarmInSlot(uint16_t slotMinutes) {
  3. Configure the RTC to generate the RTC wakeup timer event.
  */
 void RTC_setWakeup(uint32_t periodSeconds) {
-	trace_printf("Setting the WUT setup\n");
+	//trace_printf("Setting the WUT setup\n");
 	RTC_init_RTC_WKUP_NVIC();
 
 	RTC_WakeUpCmd(DISABLE);
@@ -298,7 +325,7 @@ void RTC_setWakeup(uint32_t periodSeconds) {
 
 	RTC_ITConfig(RTC_IT_WUT, ENABLE);
 
-	trace_printf("Survived the WUT setup\n");
+	//trace_printf("Survived the WUT setup\n");
 }
 
 /*

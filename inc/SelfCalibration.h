@@ -76,9 +76,10 @@ typedef struct {
 	uint8_t temperature;
 } CalibrationRecord_t;
 
+// Values measured at 4 degrees C
 #define DEFAULT_CALIBRATION { \
-	.HSEFrequency = 16000166,	\
-	.transmitterOscillatorFrequencyAtDefaultTrim = 26000435,\
+	.HSEFrequency = 16000180,	\
+	.transmitterOscillatorFrequencyAtDefaultTrim = 26000540,\
 	.RTCNeededCorrectionPP10M = -1066, /* This xtal is VERY bad */ \
 	.temperature = 25, \
 	.checksum = 0 \

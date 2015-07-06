@@ -2623,6 +2623,8 @@ void RTC_ClearITPendingBit(uint32_t RTC_IT)
   tmpreg = (uint32_t)(RTC_IT >> 4);
 
   /* Clear the interrupt pending bits in the RTC_ISR register */
+  /* 0x80 and the given bit are cleared, all other lower bits set, all other higher bits set */
+  /* 0x80 is again set if it was before. */
   RTC->ISR = (uint32_t)((uint32_t)(~((tmpreg | RTC_ISR_INIT)& 0x0000FFFF) | (uint32_t)(RTC->ISR & RTC_ISR_INIT))); 
 }
 

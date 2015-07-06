@@ -88,18 +88,28 @@ static void WSPR_initHW(uint8_t band, const PLL_Setting_t* setting,
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVIC_InitStructure);
 
+	// We have some funny problem with a slow discharge somewhere in the modulator
+	// which causes a ramping drift of a few Hz in WSPR.
+	// Tie GPIO4 to ground, just to get rid of it.
+	GPIO_InitTypeDef GPIO_InitStructure;
+	/* Configure PA.04 (DAC_OUT1), PA.05 (DAC_OUT2) as analog */
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIOA->ODR &= ~(GPIO_Pin_4);
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
+
 	DAC2_initHW();
 
 	TIM_Cmd(TIM2, ENABLE);
 }
 
-void WSPR_Transmit(uint8_t band, const PLL_Setting_t* setting,
-		float stepModulation) {
+void WSPR_Transmit(uint8_t band, const PLL_Setting_t* setting, float stepModulation) {
 
 	// Just to be sure.. The GPS makes too much supply noise for WSPR
 	GPS_kill();
 
-	GPIOB->ODR |= (1 << 1);			// Turn on arm feature.
+	GPIOB->ODR |= GPIO_Pin_1;			// Turn on arm feature.
 
 	WSPR_initHW(band, setting, stepModulation);
 
@@ -110,7 +120,7 @@ void WSPR_Transmit(uint8_t band, const PLL_Setting_t* setting,
 		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
 	}
 
-	GPIOB->ODR &= ~((1 << 6) | (1 << 1));	// Turn off LED and arm feature.
+	GPIOB->ODR &= ~(GPIO_Pin_1 | GPIO_Pin_6);	// Turn off LED and arm feature.
 //	GPIOB->ODR &= ~(1 << 1); 		// Turn off arm feature.
 
 	WSPR_shutdownHW();

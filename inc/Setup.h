@@ -26,11 +26,20 @@
 #define REQUIRE_HIGH_PRECISION_ALTITUDE true
 #define REQUIRE_HIGH_PRECISION_MAX_TIME_S 360
 
-#define LOWALT_SCHEDULE_TIME (2*60),2,2
-#define DAY_SCHEDULE_TIME (5*60),2,12
-#define NIGHT_SCHEDULE_TIME (10*60),3,12
-#define LOWBATT_SCHEDULE_TIME (30*60),2,12
-#define CRISIS_SCHEDULE_TIME (180*60),2,12
+// VHF each 2 min, WSPR each 10, HF APRS each 30
+#define LOWALT_SCHEDULE_TIME (2*60),1,5,15
+
+// VHF each 5 min, WSPR each 10, HF APRS each 30
+#define DAY_SCHEDULE_TIME (5*60),1,2,12
+
+// Wakeup each 10, VHF each 20, WSPR each 40, HF APRS each 1h
+#define NIGHT_SCHEDULE_TIME (10*60),2,4,6
+
+// Wakeup each 20, VHF each 60, WSPR each 120, HF APRS almost never
+#define LOWBATT_SCHEDULE_TIME (20*60),3,6,255
+
+// Wakeup each 20, VHF each 120, WSPR each 120, HF APRS almost never
+#define CRISIS_SCHEDULE_TIME (20*60),6,2,255
 
 #define HF_30m_HARDWARE_OUTPUT 3
 #define DIRECT_2m_HARDWARE_OUTPUT 2
@@ -38,7 +47,7 @@
 // When battery and temperature are both at least this good,
 // ignore old records of CPU fail while running equipment.
 #define BATTERY_FAILSAFE_ALWAYS_SAFE_VOLTAGE 3.8
-#define BATTERY_FAILSAFE_ALWAYS_SAFE_TEMPERATURE 0
+#define BATTERY_FAILSAFE_ALWAYS_SAFE_TEMPERATURE -3
 
 // When CPU failed runing some equipment, don't try again until
 // battery voltage is this much better than at the crashing run.

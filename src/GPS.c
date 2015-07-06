@@ -143,18 +143,37 @@ void debugGPSTime() {
 			GPSTime.time.minutes, GPSTime.time.seconds);
 }
 
+void flashNumSatellites(uint8_t numSatellites) {
+	static uint8_t cnt;
+
+	boolean odd = (cnt & 1) != 0;
+
+	if (odd) {
+		GPIOB->ODR &= ~GPIO_Pin_6;
+	} else {
+		if (cnt <= numSatellites*2) {
+			GPIOB->ODR |= GPIO_Pin_6;
+		}
+	}
+
+	cnt++;
+	if (cnt >= 20) cnt = 0;
+}
+
 uint8_t GPS_waitForTimelock(uint32_t maxTime) {
 	timer_mark();
 	nmeaTimeInfo_unsafe.time.valid = 0;
 	trace_printf("Waiting for GPS time\n");
 	do {
 		getGPSData();
-		timer_sleep(100);
+		flashNumSatellites(GPSStatus.numberOfSatellites);
+		timer_sleep(200);
 	} while ((!nmeaTimeInfo_unsafe.time.valid
 			|| (GPSTime.time.hours == 0 && GPSTime.time.minutes == 0
-					&& GPSTime.time.seconds == 0))
-			&& !timer_elapsed(maxTime));
+					&& GPSTime.time.seconds == 0)) && !timer_elapsed(maxTime));
 	getGPSData();
+	GPIOB->ODR &= ~GPIO_Pin_6;
+
 	if (GPSTime.time.valid) {
 		debugGPSTime();
 		return 1;
@@ -169,55 +188,65 @@ boolean GPS_waitForPosition(uint32_t maxTime) {
 	nmeaPositionInfo_unsafe.valid = 'V';
 	do {
 		getGPSData();
-		timer_sleep(100);
+		flashNumSatellites(GPSStatus.numberOfSatellites);
+		timer_sleep(200);
 	} while (nmeaPositionInfo_unsafe.valid != 'A' && !timer_elapsed(maxTime));
 	getGPSData();
 	if (GPSPosition.valid == 'A') {
 		trace_printf("Got GPS position: %d, %d, %d\n",
 				(int) (GPSPosition.lat * 1.0E7),
-				(int) (GPSPosition.lon * 1.0E7),
-				(int) GPSPosition.alt);
+				(int) (GPSPosition.lon * 1.0E7), (int) GPSPosition.alt);
 	} else {
-		trace_printf("GPS wait for position FAIL: valid:%c, fixMode:%u numSats:%u\n",
+		trace_printf(
+				"GPS wait for position FAIL: valid:%c, fixMode:%u numSats:%u\n",
 				GPSPosition.valid, GPSStatus.fixMode,
 				GPSStatus.numberOfSatellites);
 	}
 	lastGPSFixTime = timer_timeSinceMark() / 1000;
+	GPIOB->ODR &= ~GPIO_Pin_6;
 	return GPSPosition.valid == 'A';
+}
+
+static void GPS_debugGPSPosition() {
+	trace_printf(
+			"GPS pos: lat %d, lon %d, alt %d, valid %c, fix %d, sat %d\n",
+			(int) (GPSPosition.lat * 1000),
+			(int) (GPSPosition.lon * 1000), (int) (GPSPosition.alt),
+			GPSPosition.valid, GPSStatus.fixMode,
+			GPSStatus.numberOfSatellites);
 }
 
 boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 	timer_mark();
 	nmeaStatusInfo_unsafe.numberOfSatellites = 0;
 	boolean timeout;
+	uint8_t debugPrintCnt = 0;
 	do {
 		getGPSData();
+		flashNumSatellites(GPSStatus.numberOfSatellites);
 
-		trace_printf("GPS pos: lat %d, lon %d, alt %d, valid %c, fix %d, sat %d\n",
-			(int)(GPSPosition.lat*1000),
-			(int)(GPSPosition.lon*1000),
-			(int)(GPSPosition.alt),
-			GPSPosition.valid,
-			GPSStatus.fixMode,
-			GPSStatus.numberOfSatellites
-		);
-
-		timer_sleep(1000); // this should come and go with printing.
-
-	} while ((
-			GPSPosition.valid != 'A'
-			||
-			nmeaStatusInfo_unsafe.numberOfSatellites < REQUIRE_HIGH_PRECISION_NUM_SATS
-			|| (REQUIRE_HIGH_PRECISION_ALTITUDE && GPSPosition.alt==0)
+		debugPrintCnt++;
+		if (debugPrintCnt == 10) {
+			debugPrintCnt = 0;
+			GPS_debugGPSPosition();
+		}
+	} while ((GPSPosition.valid != 'A'
+			|| nmeaStatusInfo_unsafe.numberOfSatellites
+					< REQUIRE_HIGH_PRECISION_NUM_SATS
+			|| (REQUIRE_HIGH_PRECISION_ALTITUDE && GPSPosition.alt == 0)
 			|| GPSStatus.fixMode < REQUIRE_HIGH_PRECISION_FIXLEVEL)
-			&& !(timeout = timer_elapsed(maxTime))
-			&& timer_sleep(100));
+			&& !(timeout = timer_elapsed(maxTime)) && timer_sleep(200));
+
+	GPS_debugGPSPosition();
 
 	if (timeout) {
 		trace_printf("GPS wait for precision pos: FAIL\n");
 	}
 
 	lastGPSFixTime = timer_timeSinceMark() / 1000;
+
+	GPIOB->ODR &= ~GPIO_Pin_6;
+
 	return !timeout;
 }
 
@@ -336,7 +365,8 @@ static void parseDegrees(char c, uint8_t* state, double* value) {
 	}
 
 	if (debugParseDegrees) {
-		trace_printf("in %c, state %d, value %d\n", c, *state, (int)(*value * 1000));
+		trace_printf("in %c, state %d, value %d\n", c, *state,
+				(int) (*value * 1000));
 	}
 }
 

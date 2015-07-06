@@ -126,7 +126,7 @@ void ADC_DMA_init(volatile uint16_t* conversionTargetArray) {
 	/* Enable the HSI oscillator. ADC runs on that (only). */
 	RCC_HSICmd(ENABLE);
 
-	ADC_TempSensorVrefintCmd(ENABLE);
+//	ADC_TempSensorVrefintCmd(ENABLE);
 
 	/* Enable GPIOA clock (is that really needed?? Apparently NOT.) */
 	// RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, DISABLE);
@@ -205,7 +205,7 @@ void ADC_DMA_init(volatile uint16_t* conversionTargetArray) {
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_96Cycles); // Batt
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 2, ADC_SampleTime_96Cycles); // Main solar
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_21, 3, ADC_SampleTime_96Cycles); // Temperature
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_TempSensor, 4, ADC_SampleTime_192Cycles); // Internal T
+	// ADC_RegularChannelConfig(ADC1, ADC_Channel_TempSensor, 4, ADC_SampleTime_192Cycles); // Internal T
 
 	/* Enable ADC1 */
 	ADC_Cmd(ADC1, ENABLE);
@@ -260,7 +260,7 @@ float ADC_batteryUnloadedVoltage() {
 	return ADCUnloadedValues[0] * BATT_ADC_FACTOR;
 }
 
-float ADC_batteryloadedVoltage() {
+float ADC_batteryLoadedVoltage() {
 	return ADCLoadedValues[0] * BATT_ADC_FACTOR;
 }
 
@@ -268,6 +268,7 @@ float ADC_solarVoltage() {
 	return ADCUnloadedValues[1] * SOLAR_ADC_FACTOR;
 }
 
+/*
 float ADC_internalTemperature() {
 	uint16_t* cal30Ptr = (uint16_t*)0x1FF8007A;
 	uint16_t* cal110Ptr = (uint16_t*)0x1FF8007E;
@@ -275,6 +276,7 @@ float ADC_internalTemperature() {
 	float temperature = 30 + 80.0 / (*cal110Ptr - *cal30Ptr) * (ADCUnloadedValues[3] - *cal30Ptr);
 	return temperature;
 }
+*/
 
 void DMA1_Channel1_IRQHandler(void) {
 	/* Test on DMA Transfer Complete interrupt */

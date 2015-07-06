@@ -54,24 +54,27 @@ int8_t simpleTemperature;
 uint8_t numRestarts __attribute__((section (".noinit")));
 float batteryVoltage;
 float solarVoltage;
-float internalTemperature;
+//float internalTemperature;
 uint8_t nextWSPRMessageType;
 uint16_t lastWSPRWindowWaitTime;
 
-static int alreadyScheduledSeconds = -1;
+int scheduleSeconds = -1;
 
-static uint8_t WSPRPeriod;
-static uint8_t WSPRCnt;
+uint8_t mainPeriod;
+uint8_t mainPeriodCnt;
 
-static uint8_t HFAPRSPeriod;
-static uint8_t HFAPRSCnt;
+uint8_t WSPRPeriod;
+uint8_t WSPRCnt;
 
-//boolean interruptAlarm;
+uint8_t HFAPRSPeriod;
+uint8_t HFAPRSCnt;
 
 boolean latestAPRSRegions[12]; 	 // 12 is sufficently large for the world map...
 boolean latestAPRSCores[12];	 // 12 is sufficently large for the world map...
 
 const CalibrationRecord_t* currentCalibration = &defaultCalibration;
+
+boolean interruptAlarm;
 
 void diagsWhyReset() {
 	uint8_t whyReset = (RCC->CSR >> 24);
@@ -133,20 +136,13 @@ void performPrecisionADC() {
 		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
 	}
 
-	trace_printf("ADCValue0: %d\t", ADCUnloadedValues[0]);
-	trace_printf("ADCValue1: %d\t", ADCUnloadedValues[1]);
-	trace_printf("ADCValue2: %d\t", ADCUnloadedValues[2]);
-	trace_printf("ADCValue3: %d\n", ADCUnloadedValues[3]);
-
 	ADC_DMA_shutdown();
 
 	batteryVoltage = ADC_batteryUnloadedVoltage();
-	trace_printf("Precision batt voltage: %d\n", (int) (1000 * batteryVoltage));
-
+	solarVoltage = ADC_solarVoltage();
 	temperature = ADC_temperature();
 	simpleTemperature = ADC_simpleTemperature(temperature);
-	internalTemperature = ADC_internalTemperature();
-	trace_printf("Temperature mC: %d\n", (int) (1000 * temperature));
+	// internalTemperature = ADC_internalTemperature();
 }
 
 /*
@@ -164,13 +160,9 @@ boolean GPSCycle() {
 		GPS_start();
 
 		if (GPS_waitForTimelock(300000)) {
-			boolean success = RTC_setRTC(&GPSTime.date, &GPSTime.time);
-			trace_printf("Set RTC to %02d:%02d: %d\n", GPSTime.time.hours,
-					GPSTime.time.minutes, success);
-			if (!success) {
-				// red LED clock set failed.
-//				GPIOB->ODR &= ~GPIO_Pin_6;
-			}
+			RTC_setRTC(&GPSTime.date, &GPSTime.time);
+			// trace_printf("Set RTC to %02d:%02d: %d\n", GPSTime.time.hours,
+			//		GPSTime.time.minutes, success);
 		}
 
 		if (REQUIRE_HIGH_PRECISION_POSITIONS && batteryVoltage >= 3.3) {
@@ -243,7 +235,7 @@ void WSPRCycle() {
 						pllSetting.N, pllSetting.M, pllSetting.trim);
 
 				trace_printf("Waiting for WSPR window\n");
-				RTC_waitTillModuloMinutes(2, 1);
+				lastWSPRWindowWaitTime = RTC_waitTillModuloMinutes(2, 1);
 
 				prepareWSPRMessage(WSPR_SCHEDULE[nextWSPRMessageType],
 						batteryVoltage);
@@ -266,17 +258,20 @@ void WSPRCycle() {
 }
 
 void HF_APRSCycle() {
-	if (!PWR_isSafeToUseHFTx())
+	if (!PWR_isSafeToUseHFTx()) {
+		trace_printf("Unsafe to HF tx\n");
 		return;
+	}
 
-	APRS_transmitRandomMessage(HF,
-			COMPRESSED_POSITION_MESSAGE, 10149300,
+	APRS_transmitRandomMessage(HF, COMPRESSED_POSITION_MESSAGE, 10149300,
 			currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim);
 }
 
 void VHF_APRSCycle() {
-	if (!PWR_isSafeToUseVHFTx())
+	if (!PWR_isSafeToUseVHFTx()) {
+		trace_printf("Unsafe to VHF tx\n");
 		return;
+	}
 
 	boolean isOutsideAPRS = true;
 	boolean isOutsideCore = true;
@@ -287,8 +282,7 @@ void VHF_APRSCycle() {
 			isOutsideAPRS = false;
 			trace_printf("Sending a COMPRESSED_POSITION_MESSAGE on %d\n",
 					APRS_WORLD_MAP[i].frequency * 1000);
-			APRS_transmitRandomMessage(VHF,
-					COMPRESSED_POSITION_MESSAGE,
+			APRS_transmitRandomMessage(VHF, COMPRESSED_POSITION_MESSAGE,
 					APRS_WORLD_MAP[i].frequency * 1000,
 					currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim);
 
@@ -305,8 +299,8 @@ void VHF_APRSCycle() {
 			if (latestAPRSRegions[i]) {
 				trace_printf("Sending a STATUS_MESSAGE on %d\n",
 						APRS_WORLD_MAP[i].frequency * 1000);
-				APRS_transmitRandomMessage(VHF,
-						STATUS_MESSAGE, APRS_WORLD_MAP[i].frequency * 1000,
+				APRS_transmitRandomMessage(VHF, STATUS_MESSAGE,
+						APRS_WORLD_MAP[i].frequency * 1000,
 						currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim);
 
 			}
@@ -319,7 +313,6 @@ void VHF_APRSCycle() {
 			storeToRecord(recordToStore);
 
 		} else {
-			trace_printf("Sending some stored msgs\n");
 			// Get rid of some storage backlog, first take that scheduled for a 2nd transmission
 			int maxStored = 10;
 			StoredPathRecord_t* storedRecord;
@@ -328,8 +321,7 @@ void VHF_APRSCycle() {
 				storedRecord = nextRecordOutForLastTransmission();
 				for (uint8_t i = 0; i < APRS_WORLD_MAP_LENGTH; i++) {
 					if (latestAPRSCores[i])
-						APRS_transmitStoredMessage(VHF,
-								storedRecord,
+						APRS_transmitStoredMessage(VHF, storedRecord,
 								APRS_WORLD_MAP[i].frequency * 1000,
 								currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim);
 				}
@@ -343,8 +335,7 @@ void VHF_APRSCycle() {
 				storedRecord = nextRecordOutForFirstTransmission();
 				for (uint8_t i = 0; i < APRS_WORLD_MAP_LENGTH; i++) {
 					if (latestAPRSCores[i])
-						APRS_transmitStoredMessage(VHF,
-								storedRecord,
+						APRS_transmitStoredMessage(VHF, storedRecord,
 								APRS_WORLD_MAP[i].frequency * 1000,
 								currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim);
 				}
@@ -361,6 +352,7 @@ void APRSCycle() {
 	// Just do VHF in any case.
 	VHF_APRSCycle();
 
+///	trace_printf("HF period %d cnt %d\n", HFAPRSCnt,HFAPRSPeriod);
 	HFAPRSCnt++;
 	if (HFAPRSCnt >= HFAPRSPeriod) {
 		HFAPRSCnt = 0;
@@ -368,58 +360,41 @@ void APRSCycle() {
 	}
 }
 
-void reschedule(int seconds, uint8_t _WSPRPeriod, uint8_t _HFAPRSPeriod) {
+void reschedule(int seconds, uint8_t _mainPeriod, uint8_t _WSPRPeriod, uint8_t _HFAPRSPeriod) {
+	// Apparently we often miss wakeups if not doing this over again all the time... rubbish.
+	// Need fixing.
+	RTC_setWakeup(seconds);
 
-	trace_printf("Rescheduling : %d seconds\n", seconds);
-	// RTC_scheduleASAPAlarmInSlot(minutes);
-
-	if (seconds != alreadyScheduledSeconds) {
-		RTC_setWakeup(seconds);
-		alreadyScheduledSeconds = seconds;
+	if (seconds != scheduleSeconds ||
+			mainPeriod != _mainPeriod ||
+			WSPRPeriod != _WSPRPeriod ||
+			HFAPRSPeriod != _HFAPRSPeriod) {
+		trace_printf("Rescheduling : %d seconds\n", seconds);
+		mainPeriodCnt = 0;
+		WSPRCnt = 0;
+		HFAPRSCnt = 0;
 	}
 
-	if (_WSPRPeriod != WSPRPeriod) {
-		WSPRPeriod = _WSPRPeriod;
-		WSPRCnt %= WSPRPeriod;
-	}
-
-	if (_HFAPRSPeriod != HFAPRSPeriod) {
-		HFAPRSPeriod = _HFAPRSPeriod;
-		HFAPRSCnt %= HFAPRSPeriod;
-	}
+	scheduleSeconds = seconds;
+	mainPeriod = _mainPeriod;
+	WSPRPeriod = _WSPRPeriod;
+	HFAPRSPeriod = _HFAPRSPeriod;
 }
 
 extern void SetSysClock(void);
 
-void wakeupCycle() {
-	performPrecisionADC();
-	if (batteryVoltage >= 3) {
-//trace_printf("Setting sysclk\n");
-	SetSysClock();
-//trace_printf("Done setting sysclk\n");
-	}
+void mainCycle() {
 	if (batteryVoltage
 			>= 3.7&& simpleTemperature >= NORMAL_SCHEDULE_MIN_TEMPERATURE) {
-		trace_printf("Good batt\n");
 		boolean GPSStarted = GPSCycle();
 
-// Experiment: Reschedule early.
-		if (lastNonzero3DPosition.alt < 7500) {
-			reschedule(LOWALT_SCHEDULE_TIME);
-		} else {
-			reschedule(DAY_SCHEDULE_TIME);
-		}
-
 		calibrationCycle();
-		VHF_APRSCycle();
 
-// maybe not ALL the time.
+		APRSCycle();
 		WSPRCycle();
-
 		if (GPS_isGPSRunning()) {
 			GPS_lastChance();
 		}
-
 // This should ensure that GPS get some long run times in the day
 // but OTOH does not drain the battery.
 		if (GPSStarted && batteryVoltage >= 4.1) {
@@ -430,30 +405,61 @@ void wakeupCycle() {
 		}
 	} else if (batteryVoltage >= 3.3) {
 // This should not happen in daytime anyway...
-		trace_printf("OK batt\n");
-
-		reschedule(NIGHT_SCHEDULE_TIME);
-
 		GPSCycle();
 		calibrationCycle();
-		GPS_kill();
-		VHF_APRSCycle();
+		GPS_kill(); // if calibration did not use and kill GPS, do it now.
+		APRSCycle();
 		WSPRCycle();
-		if (GPS_isGPSRunning()) {
-			GPS_lastChance();
-			GPS_kill();
-		}
-	} else if (batteryVoltage >= 3) {
-		trace_printf("Low batt\n");
-		reschedule(LOWBATT_SCHEDULE_TIME);
-		GPS_kill();
-		VHF_APRSCycle();
 	} else {
-		trace_printf("VERY low batt %d, gng back to sleep.\n",
-				(int) (batteryVoltage * 100));
+		APRSCycle(); // uses almost no power anyway
+	}
+}
+
+void wakeupCycle() {
+	performPrecisionADC();
+
+	// Are we alive at all?
+	if (batteryVoltage >= 3.0) {
+		// yes, ok start the real HSE clock.
+		SetSysClock();
+
+		trace_printf("ADCValue0: %d\t", ADCUnloadedValues[0]);
+		trace_printf("ADCValue1: %d\t", ADCUnloadedValues[1]);
+		trace_printf("ADCValue2: %d\n", ADCUnloadedValues[2]);
+		trace_printf("Precision batt voltage: %d\n",
+				(int) (1000 * batteryVoltage));
+		trace_printf("Temperature mC: %d\n", (int) (1000 * temperature));
+
+		// Time to do main cycle? (the variables should have been set somewhere above, all of them)
+		mainPeriodCnt++;
+		if (mainPeriodCnt >= mainPeriod) {
+			mainPeriodCnt = 0;
+			mainCycle();
+		}
+
+		// Are we in a very good shape?
+		if (batteryVoltage
+				>= 3.7&& simpleTemperature >= NORMAL_SCHEDULE_MIN_TEMPERATURE) {
+			trace_printf("Good batt\n");
+			if (lastNonzero3DPosition.alt < 7500) {
+				reschedule(LOWALT_SCHEDULE_TIME);
+			} else {
+				reschedule(DAY_SCHEDULE_TIME);
+			}
+			// Just Oki Doki state?
+		} else if (batteryVoltage >= 3.3) {
+			// This should not happen in daytime anyway...
+			trace_printf("OK batt\n");
+			reschedule(NIGHT_SCHEDULE_TIME);
+			// Pretty bad?
+		} else {
+			trace_printf("Low batt\n");
+			reschedule(LOWBATT_SCHEDULE_TIME);
+		}
+
+	} else { // we are below 3.0
 		reschedule(CRISIS_SCHEDULE_TIME);
 		GPS_kill();
-// VHF_APRSCycle(); // It actually uses very little power.
 	}
 }
 
@@ -464,19 +470,45 @@ int main() {
 	 To reconfigure the default setting of SystemInit() function, refer to
 	 system_stm32l1xx.c file
 	 */
-
 	SetSysClock();
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+
 	numRestarts++;
 
 	// Fire up systick
 	systick_start();
-	RTC_init();
 
-	initGeneralIOPorts();
-//	GPIOB->ODR |= GPIO_Pin_6;
+	// for debug only.
+	timer_sleep(4000);
+
+	RTC_init();
 
 	if (DEFEAT_VOLTAGE_CHECKS) {
 		invalidateStartupLog();
+	}
+
+	while (1) {
+		initGeneralIOPorts();
+		// Various stuff was disabled, either by us or by the stop mode.
+		// Get it started again.
+		PWR_RTCAccessCmd(ENABLE);
+		systick_start();
+
+		wakeupCycle();
+
+		// Prepare sleep
+		systick_end();
+		GPS_stopUART(); // This will not cut power. Assume it was already done if desired.
+		RTC_debugRTCTime();
+		RTC_ClearITPendingBit(RTC_IT_WUT); // see what that does.
+		interruptAlarm = true;
+		trace_printf("Wakeup interval is %d seconds, ", scheduleSeconds);
+		trace_printf("Gng to sleep\n");
+
+		PWR_EnterSTOPMode(PWR_Regulator_ON, PWR_STOPEntry_WFI);
+
+		interruptAlarm = false;
 	}
 
 	/*
@@ -488,26 +520,6 @@ int main() {
 	 (int) (deviation * 1E9),
 	 WSPR_MODULATION_SELF_CALIBRATION.modulation_PP);
 	 */
-
-	while (1) {
-		wakeupCycle();
-		systick_end();
-		GPS_stopUART(); // This will not cut power. Assume it was already done if desired.
-		trace_printf("Wakeup interval is %d seconds, ", alreadyScheduledSeconds);
-		trace_printf("Gng to sleep\n");
-
-		// interruptAlarm = true;
-
-		PWR_EnterSTOPMode(PWR_Regulator_ON, PWR_STOPEntry_WFI);
-
-		// Various stuff was disabled, either by us or by the stop mode.
-		// Get it started again.
-		RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
-		RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
-		PWR_RTCAccessCmd(ENABLE);
-		systick_start();
-	}
-
 	/*
 	 while (1) {
 	 for (uint8_t i = 0; i < 21; i++) {

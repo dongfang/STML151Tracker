@@ -460,6 +460,8 @@ uint8_t fake_dBm(float voltage) {
 	// 17 = 3.66 .. 4
 	// 20 = 4 ..
 	int8_t index = (voltage - 3) * 3.33333333 + 3;
+	if (index < 0) return 0;
+	if (index >= sizeof(nonweirdPowerLevels)) return 37;
 	return nonweirdPowerLevels[index];
 }
 

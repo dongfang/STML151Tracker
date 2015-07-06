@@ -14,12 +14,12 @@
 
 extern float temperature;
 extern int8_t simpleTemperature;
-extern float internalTemperature;
+//extern float internalTemperature;
 extern float batteryVoltage;
 extern float solarVoltage;
 extern uint8_t numRestarts;
 
-#define interruptAlarm 0
+extern boolean interruptAlarm;
 
 extern NMEA_TimeInfo_t GPSTime;
 extern NMEA_CRS_SPD_Info_t GPSCourseSpeed;
@@ -32,5 +32,14 @@ extern uint16_t lastWSPRWindowWaitTime;
 extern boolean latestAPRSRegions[12]; 	 // 12 is sufficently large for the world map...
 extern boolean latestAPRSCores[12];	 // 12 is sufficently large for the world map...
 extern const CalibrationRecord_t* currentCalibration;
+
+extern int scheduleSeconds;
+
+extern uint8_t mainPeriod;
+extern uint8_t WSPRPeriod;
+extern uint8_t HFAPRSPeriod;
+
+extern uint8_t WSPRCnt;
+extern uint8_t HFAPRSCnt;
 
 #endif /* INC_GLOBALS_H_ */

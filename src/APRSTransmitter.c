@@ -13,6 +13,7 @@
 #include "RF24Wrapper.h"
 #include "Power.h"
 #include "Setup.h"
+#include "ADC.h"
 #include <diag/trace.h>
 
 volatile APRSModulationMode_t currentMode;
@@ -79,15 +80,6 @@ void APRS_transmitMessage(APRS_Band_t band, APRS_MessageType_t messageType,
 		StoredPathRecord_t* storedMessage, uint32_t frequency,
 		uint32_t referenceFrequency) {
 
-	switch (band) {
-	case VHF:
-		PWR_startVHFTx();
-		break;
-	case HF:
-		PWR_startHFTx();
-		break;
-	}
-
 	const APRSTransmission_t* mode = &APRS_TRANSMISSIONS[band];
 
 	switch (messageType) {
@@ -116,6 +108,16 @@ void APRS_transmitMessage(APRS_Band_t band, APRS_MessageType_t messageType,
 		break;
 	}
 
+	switch (band) {
+	case VHF:
+		PWR_startVHFTx();
+		break;
+	case HF:
+		PWR_startHFTx();
+		GPIOB->ODR |=  (1 << 1);		// arm HF
+		ADC_DMA_init(ADCLoadedValues); 	// Experiment: Loaded voltages measurement.
+		break;
+	}
 	GPIOB->ODR |= GPIO_Pin_6; // LED
 
 	packet_cnt = 0;
@@ -131,7 +133,7 @@ void APRS_transmitMessage(APRS_Band_t band, APRS_MessageType_t messageType,
 	// We are now done transmitting.
 	mode->shutdownTransmitter();
 
-	GPIOB->ODR &= ~GPIO_Pin_6; // LED
+	GPIOB->ODR &= ~(GPIO_Pin_6|GPIO_Pin_1); // LED and HF arm
 
 	switch (band) {
 	case VHF:
@@ -139,9 +141,9 @@ void APRS_transmitMessage(APRS_Band_t band, APRS_MessageType_t messageType,
 		break;
 	case HF:
 		PWR_stopHFTx();
+		ADC_DMA_shutdown(); // we just assume it will work, if not, no prob.
 		break;
 	}
-
 }
 
 void APRS_transmitRandomMessage(APRS_Band_t band,

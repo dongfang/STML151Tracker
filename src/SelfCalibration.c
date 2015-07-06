@@ -93,11 +93,6 @@ static void modulationCalibration_shutdownHW() {
 
 	/* TIM4 clock disable */
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, DISABLE);
-
-	/* GPIOB clock disable (we assume that next user will enable again?
-	 * Else we need to save old settings and re-apply. Slower clock probably.
-	 */
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, DISABLE);
 }
 
 void TIM10Calibration_initHW() {
@@ -471,7 +466,7 @@ boolean RTCCalibration(uint32_t maxTime, uint32_t* result) {
 // Beware, this kills GPS and WUT interrupt.
 boolean selfCalibrate(CalibrationRecord_t* target) {
 	uint32_t hseFrequency;
-	uint32_t RTCPeriod;
+	// uint32_t RTCPeriod;
 	uint32_t pllFrequency;
 	double deviationThrowAway;
 
