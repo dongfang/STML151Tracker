@@ -53,7 +53,7 @@
 
 // When CPU failed runing some equipment, don't try again until
 // battery voltage is this much better than at the crashing run.
-#define BATTERY_FAILSAFE_VOLTAGE_THRESHOLD 0.2
+#define BATTERY_FAILSAFE_VOLTAGE_THRESHOLD 0.1
 
 // When getting colder than this, schedule slower. It will happen
 // in the evening, and it will happen rapidly.

@@ -20,7 +20,7 @@ boolean isSafeToUseEquipment(boolean previouslyCrashed) {
 		return true;
 
 	// Might have crashed, but now voltage is significantly better.
-	if (batteryVoltage >= startupLog.initialVoltageValue)
+	if (batteryVoltage >= startupLog.initialVoltageValue + BATTERY_FAILSAFE_VOLTAGE_THRESHOLD)
 		return true;
 
 	return !previouslyCrashed;
