@@ -100,6 +100,7 @@ static void WSPR_initHW(uint8_t band, const PLL_Setting_t* setting,
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
 
 	DAC2_initHW();
+	setDAC(DAC2, 2048);
 
 	TIM_Cmd(TIM2, ENABLE);
 }

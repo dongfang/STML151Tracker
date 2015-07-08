@@ -19,89 +19,53 @@ function decodeRealSubgrid(locator) {
 var result = decodeMaidenhead4(locator);
 
 // lon was incremented maybe but never decremented.
-var lon = locator.charCodeAt(4) - "B".charCodeAt();
-// same.
-var lat = locator.charCodeAt(5) - "B".charCodeAt();
-result[0] += lat/24;
-result[1] += lon/12;
-return result;
-}
-
-function decodeSubSubgrid(contextLocator, locator) {
-var result = decodeRealSubgrid(contextLocator);
 var lon = locator.charCodeAt(4) - "A".charCodeAt();
-var lat = locator.charCodeAt(5) - "B".charCodeAt();
-result[1] += lon/12/24;
-result[0] += lat/24/24;
+// same.
+var lat = locator.charCodeAt(5) - "A".charCodeAt();
+result[0] += lat/24;
+result[1] += lon/24*2;
 return result;
 }
 
 function decodeAltitude(locator) {
+/*
+ maidenhead6_fake[4] = 'a' + (ialt / 12);	// Units of 50m*12m, max. 23*50*12=13800m
+    maidenhead6_fake[5] = 'a' + (ialt % 12)*2;	// Units of 50m, max. 11*50m, max. total 13800m + 50m*11 = 14350m
+    if (!(maidenhead6_fake[5] & 1)) maidenhead6_fake[5]--; // make odd
+ */
 var result = decodeMaidenhead4(locator);
-var alt0 = locator.charCodeAt(4) - "B".charCodeAt();
+var alt0 = locator.charCodeAt(4) - "A".charCodeAt();
 var alt1 = locator.charCodeAt(5) - "A".charCodeAt();
-var alt = (alt0*12+alt1)*50;
+var alt = (alt0*12+alt1/2)*50;
 result.push(alt);
-return result;
-}
-
-function decodeTelemetry(locator) {
-var result = decodeMaidenhead4(locator);
-var batt = locator.charCodeAt(4) - "A".charCodeAt();
-batt = 3 + batt/12 + 1/12;
-result.push(batt);
-var gpsFix = locator.charCodeAt(5) - "A".charCodeAt();
-gpsFix = gpsFix/2;
-var gpsFixMode = Math.floor(gpsFix / 4);
-var gpsFixTime = gpsFix % 4;
-result.push(gpsFixMode);
-result.push(gpsFixTime);
 return result;
 }
 
 function decode() {
 var subgrid = document.getElementById("locator").value;
 subgrid = subgrid.toUpperCase();
-var c5Even = subgrid.charCodeAt(4) % 2 == 0;
 var c6Even = subgrid.charCodeAt(5) % 2 == 0;
 var result;
 var type;
-if (c5Even && c6Even) {
+if (c6Even) {
 result = decodeRealSubgrid(subgrid);
 type = 0;
 }
-else if (!c5Even && c6Even) {
-result = decodeSubSubgrid(subgrid, subgrid);
-alert("SubSub not implemented");
-type = 1;
-}
-else if (c5Even && !c6Even) {
+else if (!c6Even) {
 result = decodeAltitude(subgrid);
-type = 2;
-}
-else {
-result = decodeTelemetry(subgrid);
-type = 3;
+type = 1;
 }
 
 var formatted;
 var prefix;
 
-if (type == 1) {
-formatted = "lat:" + result[0].toFixed(4) + ", lon:" + result[1].toFixed(4);
-prefix = "SuperFine";
-} else {
 formatted = "lat:" + result[0].toFixed(2) + ", lon:" + result[1].toFixed(2);
 prefix = "RealSubgrid";
-if (type == 2) {
+
+if (type == 1) {
 formatted += ", alt:" + result[2];
 prefix = "Altitude";
-} else if (type == 3) {
-formatted += ", volt:" + result[2].toFixed(1) + ", fixMode:" + result[3] + ", fixTime:" + result[4];
-prefix = "Telemetry";
 }
-}
-
 alert(prefix + ":" + formatted);
 }
 </script>

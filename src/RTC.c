@@ -253,9 +253,6 @@ void RTC_WKUP_IRQHandler(void) {
 		// These 2 seem to do the same!!
 		RTC_ClearITPendingBit(RTC_IT_WUT);
 		// RTC_ClearFlag(RTC_FLAG_WUTF);
-
-		// PWR_RTCAccessCmd(DISABLE);
-		// GPIO_ToggleBits( GPIOB, GPIO_Pin_6);
 	}
 }
 

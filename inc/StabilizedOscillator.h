@@ -16,15 +16,9 @@
  * this is about using those frequencies for estimating good oscillator settings.
  */
 
-#define NUM_TEMPERATURE_RANGES 8
-// -60 to -45
-// -45 to -30
-// -30 to -15
-// -15 to 0
-//  0 to 15
-// 15 or more
-// #define TEMPERATURE_RANGES {-60,-45,-30,-15,0,15};
-#define TEMPERATURE_RANGES {-54,-42,-30,-18,-6,6,18,30};
+#define NUM_TEMPERATURE_RANGES 11
+// #define TEMPERATURE_RANGES {-54,-42,-30,-18,-6,6,18,30};
+#define TEMPERATURE_RANGES {-60,-50,-40,-30,-20,-10,0,10,20,30,40}
 extern const int8_t temperatureRanges[NUM_TEMPERATURE_RANGES];
 extern CalibrationRecord_t calibrationByTemperatureRanges[NUM_TEMPERATURE_RANGES];
 

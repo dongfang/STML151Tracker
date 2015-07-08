@@ -55,7 +55,7 @@ uint8_t numRestarts __attribute__((section (".noinit")));
 float batteryVoltage;
 float solarVoltage;
 //float internalTemperature;
-uint8_t nextWSPRMessageType;
+uint8_t nextWSPRMessageTypeIndex;
 uint16_t lastWSPRWindowWaitTime;
 
 int scheduleSeconds = -1;
@@ -208,52 +208,73 @@ void GPS_lastChance() {
 void calibrationCycle() {
 	// This may (be warned) kill the GPS.
 	// Reason is that the GPS is so noisy on the supply that the PLL runs rough.
-	// WUT interrupt will also be disabled (check if that is really needed!).
+	// WUT interrupt will also be disabled if RTC is calibrated (currently disabled).
 	currentCalibration = getCalibration(simpleTemperature, true);
 
 	// As a side effect, fix the RTC.
 	RTC_setCalibration(currentCalibration->RTCNeededCorrectionPP10M);
 }
 
+void doWSPR() {
+	if (!PWR_isSafeToUseHFTx())
+		return;
+
+	currentCalibration = getCalibration(simpleTemperature, false);
+
+	PLL_Setting_t pllSetting;
+	double maxError = 10E-6;
+	while (maxError < 100E-6) {
+		if (PLL_bestPLLSetting(
+				currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim,
+				WSPR_FREQUENCIES[THIRTY_M], maxError, &pllSetting)) {
+
+			trace_printf("Using fOsc=%d, N=%d, M=%d, trim=%d\n",
+					currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim,
+					pllSetting.N, pllSetting.M, pllSetting.trim);
+
+			trace_printf("Waiting for WSPR window\n");
+			lastWSPRWindowWaitTime = RTC_waitTillModuloMinutes(2, 1);
+
+			uint8_t nextWSPRMessageType;
+
+			if (lastNonzero3DPosition.alt < LOWALT_THRESHOLD) {
+				if (nextWSPRMessageType >= WSPR_LOWALT_SCHEDULE_LENGTH) {
+					nextWSPRMessageType = 0;
+				}
+				nextWSPRMessageType = WSPR_LOWALT_SCHEDULE[nextWSPRMessageTypeIndex];
+			} else {
+				if (nextWSPRMessageType >= WSPR_SCHEDULE_LENGTH) {
+					nextWSPRMessageType = 0;
+				}
+				nextWSPRMessageType = WSPR_SCHEDULE[nextWSPRMessageTypeIndex];
+			}
+
+			prepareWSPRMessage(nextWSPRMessageType, batteryVoltage);
+			nextWSPRMessageTypeIndex++;
+
+			PWR_startHFTx(batteryVoltage);
+			WSPR_Transmit(THIRTY_M, &pllSetting, 26);
+			PWR_stopHFTx();
+
+			// Recurse, do it again if we sent the rather uninformative TYPE1.
+			if (nextWSPRMessageType == TYPE1) {
+				doWSPR();
+			}
+
+			break;
+		} else {
+			trace_printf(
+					"NO feasible PLL setting in range! Should not really happen. Anyway, we try again with more tolerance.\n");
+			maxError += 10E-6;
+		}
+	}
+}
+
 void WSPRCycle() {
 	WSPRCnt++;
 	if (WSPRCnt >= WSPRPeriod) {
-		if (!PWR_isSafeToUseHFTx())
-			return;
-
-		currentCalibration = getCalibration(simpleTemperature, false);
-
-		PLL_Setting_t pllSetting;
-		double maxError = 10E-6;
-		while (maxError < 100E-6) {
-			if (PLL_bestPLLSetting(
-					currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim,
-					WSPR_FREQUENCIES[THIRTY_M], maxError, &pllSetting)) {
-
-				trace_printf("Using fOsc=%d, N=%d, M=%d, trim=%d\n",
-						currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim,
-						pllSetting.N, pllSetting.M, pllSetting.trim);
-
-				trace_printf("Waiting for WSPR window\n");
-				lastWSPRWindowWaitTime = RTC_waitTillModuloMinutes(2, 1);
-
-				prepareWSPRMessage(WSPR_SCHEDULE[nextWSPRMessageType],
-						batteryVoltage);
-				if (++nextWSPRMessageType >= WSPR_SCHEDULE_LENGTH)
-					nextWSPRMessageType = 0;
-
-				PWR_startHFTx(batteryVoltage);
-				WSPR_Transmit(THIRTY_M, &pllSetting, 26);
-				PWR_stopHFTx(batteryVoltage);
-
-				break;
-			} else {
-				trace_printf(
-						"NO feasible PLL setting in range! Should not really happen. Anyway, we try again with more tolerance.\n");
-				maxError += 10E-6;
-			}
-		}
 		WSPRCnt = 0;
+		doWSPR();
 	}
 }
 
@@ -360,22 +381,22 @@ void APRSCycle() {
 	}
 }
 
-void reschedule(int seconds, uint8_t _mainPeriod, uint8_t _WSPRPeriod, uint8_t _HFAPRSPeriod) {
+void reschedule(int _scheduleSeconds, uint8_t _mainPeriod, uint8_t _WSPRPeriod, uint8_t _HFAPRSPeriod) {
 	// Apparently we often miss wakeups if not doing this over again all the time... rubbish.
 	// Need fixing.
-	RTC_setWakeup(seconds);
+	RTC_setWakeup(_scheduleSeconds);
 
-	if (seconds != scheduleSeconds ||
+	if (_scheduleSeconds != scheduleSeconds ||
 			mainPeriod != _mainPeriod ||
 			WSPRPeriod != _WSPRPeriod ||
 			HFAPRSPeriod != _HFAPRSPeriod) {
-		trace_printf("Rescheduling : %d seconds\n", seconds);
+		trace_printf("Rescheduling : %d seconds\n", _scheduleSeconds);
 		mainPeriodCnt = 0;
 		WSPRCnt = 0;
 		HFAPRSCnt = 0;
 	}
 
-	scheduleSeconds = seconds;
+	scheduleSeconds = _scheduleSeconds;
 	mainPeriod = _mainPeriod;
 	WSPRPeriod = _WSPRPeriod;
 	HFAPRSPeriod = _HFAPRSPeriod;
@@ -439,9 +460,9 @@ void wakeupCycle() {
 
 		// Are we in a very good shape?
 		if (batteryVoltage
-				>= 3.7&& simpleTemperature >= NORMAL_SCHEDULE_MIN_TEMPERATURE) {
+				>= 3.7 && simpleTemperature >= NORMAL_SCHEDULE_MIN_TEMPERATURE) {
 			trace_printf("Good batt\n");
-			if (lastNonzero3DPosition.alt < 7500) {
+			if (lastNonzero3DPosition.alt < LOWALT_THRESHOLD) {
 				reschedule(LOWALT_SCHEDULE_TIME);
 			} else {
 				reschedule(DAY_SCHEDULE_TIME);
@@ -480,7 +501,7 @@ int main() {
 	systick_start();
 
 	// for debug only.
-	timer_sleep(4000);
+	timer_sleep(1000);
 
 	RTC_init();
 

@@ -14,7 +14,7 @@
 #define RTC_WUT_WASTED_PULSES 0
 
 // Development only! Whether we want to defeat the Power.c checks so that we can reset...
-#define DEFEAT_VOLTAGE_CHECKS true
+#define DEFEAT_VOLTAGE_CHECKS false
 
 #define REUSE_CALIBRATION true
 
@@ -26,6 +26,8 @@
 #define REQUIRE_HIGH_PRECISION_ALTITUDE true
 #define REQUIRE_HIGH_PRECISION_MAX_TIME_S 360
 
+#define LOWALT_THRESHOLD 7500
+
 // VHF each 2 min, WSPR each 10, HF APRS each 30
 #define LOWALT_SCHEDULE_TIME (2*60),1,5,15
 
@@ -33,10 +35,10 @@
 #define DAY_SCHEDULE_TIME (5*60),1,2,12
 
 // Wakeup each 10, VHF each 20, WSPR each 40, HF APRS each 1h
-#define NIGHT_SCHEDULE_TIME (10*60),2,4,6
+#define NIGHT_SCHEDULE_TIME (10*60),2,2,3
 
 // Wakeup each 20, VHF each 60, WSPR each 120, HF APRS almost never
-#define LOWBATT_SCHEDULE_TIME (20*60),3,6,255
+#define LOWBATT_SCHEDULE_TIME (20*60),3,2,255
 
 // Wakeup each 20, VHF each 120, WSPR each 120, HF APRS almost never
 #define CRISIS_SCHEDULE_TIME (20*60),6,2,255

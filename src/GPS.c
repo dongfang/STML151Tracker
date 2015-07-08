@@ -10,7 +10,19 @@
 #include "stm32l1xx_conf.h"
 
 enum {
-	STATE_IDLE, STATE_READ_ID, STATE_DATA, STATE_CHECKSUM1, STATE_CHECKSUM2
+	STATE_IDLE,
+	STATE_READ_ID,
+	STATE_DATA,
+	STATE_CHECKSUM1,
+	STATE_CHECKSUM2,
+	STATE_READ_BINARY_UBX_SYNC_2,
+	STATE_READ_BINARY_UBX_CLASS_ID,
+	STATE_READ_BINARY_UBX_MSG_ID,
+	STATE_READ_BINARY_UBX_MSG_LEN1,
+	STATE_READ_BINARY_UBX_MSG_LEN2,
+	STATE_READ_BINARY_UBX_MSG_BODY,
+	STATE_READ_BINARY_UBX_MSG_CHECKA,
+	STATE_READ_BINARY_UBX_MSG_CHECKB,
 } NMEA_PARSER_STATES;
 
 enum {
@@ -26,6 +38,14 @@ static uint8_t dataindex;
 static uint8_t commaindex;
 static uint8_t state;
 static uint8_t commitCheck;
+
+static uint8_t _UBX_POLL_NAV5_MESSAGE[] = UBX_POLL_NAV5_MESSAGE;
+static uint8_t _UBX_INIT_NAV5_MESSAGE[] = UBX_INIT_NAV5_MESSAGE;
+
+static UBX_MESSAGE POLL_NAV_MESSAGE = { sizeof(_UBX_POLL_NAV5_MESSAGE),
+		_UBX_POLL_NAV5_MESSAGE };
+static UBX_MESSAGE INIT_NAV_MESSAGE = { sizeof(_UBX_INIT_NAV5_MESSAGE),
+		_UBX_INIT_NAV5_MESSAGE };
 
 // Unsafes are always valid (no parser construction site) but are written to from within
 // interrupt handler.
@@ -53,17 +73,73 @@ void debugTime(const char* text, Time_t* time) {
 			time->seconds);
 }
 
+static UBX_MESSAGE* currentSendingMessage;
+static int8_t currentSendingIndex;
+static uint8_t currentChecksumA;
+static uint8_t currentChecksumB;
+static boolean busySendingMessage;
+
+static uint8_t readClassId;
+static uint8_t readMessageId;
+static uint16_t readBodyLength;
+static uint16_t readBodyCnt;
+
+static uint8_t ackedClassId;
+static uint8_t ackedMessageId;
+
+static uint32_t lastSendConfigurationTime;
+
+static boolean navSettingsConfirmed;
+
+static void continueSendingUBXMessage() {
+	if (currentSendingIndex == -2) {
+		USART_SendData(USART1, 0xB5);
+		currentSendingIndex++;
+	} else if (currentSendingIndex == -1) {
+		USART_SendData(USART1, 0x62);
+		currentSendingIndex++;
+	} else if (currentSendingIndex < currentSendingMessage->length) {
+		uint8_t data = currentSendingMessage->message[currentSendingIndex];
+		USART_SendData(USART1, data);
+		currentChecksumA += data;
+		currentChecksumB += currentChecksumA;
+		currentSendingIndex++;
+	} else if (currentSendingIndex == currentSendingMessage->length) {
+		USART_SendData(USART1, currentChecksumA);
+		currentSendingIndex++;
+	} else if (currentSendingIndex == currentSendingMessage->length + 1) {
+		USART_SendData(USART1, currentChecksumB);
+		currentSendingIndex++;
+	} else if (currentSendingIndex == currentSendingMessage->length + 2) {
+		// we want to delay the clearing till the usart tx buffer is empty.. hence this extra case.
+		busySendingMessage = false;
+		USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
+	}
+}
+
+static void beginSendUBXMessage(UBX_MESSAGE* message) {
+	if (!busySendingMessage) {
+		currentSendingMessage = message;
+		currentSendingIndex = -2;
+		currentChecksumA = 0;
+		currentChecksumB = 0;
+		busySendingMessage = true;
+		continueSendingUBXMessage();
+	}
+	USART_ITConfig(USART1, USART_IT_TXE, ENABLE);
+}
+
 void setupUSART1() {
 	USART_InitTypeDef USART_InitStructure;
 	GPIO_InitTypeDef GPIO_InitStructure;
 	NVIC_InitTypeDef NVIC_InitStructure;
 
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+	// RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
 
 	/* Configure USART1 pins:  Rx and Tx ----------------------------*/
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9 | GPIO_Pin_10;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_10MHz;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF; 		// Alternate func
 	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
@@ -73,7 +149,7 @@ void setupUSART1() {
 	GPIO_PinAFConfig(GPIOA, GPIO_PinSource9, GPIO_AF_USART1);
 	GPIO_PinAFConfig(GPIOA, GPIO_PinSource10, GPIO_AF_USART1);
 
-	/* Enable USART1 IRQ (on the NVIC, I think) */
+	/* Enable USART1 IRQ (on the NVIC) */
 	NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
@@ -101,9 +177,7 @@ void setupUSART1() {
 void USART1_IRQHandler(void) {
 	if (USART_GetITStatus(USART1, USART_IT_TXE) != RESET) // Transmit the string in a loop
 			{
-		trace_printf("send irq");
-		// Huh, no irq flag reset??
-		//USART_SendData(USART1, StringLoop[tx_index++]);
+		continueSendingUBXMessage();
 	}
 
 	if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET) // Received characters modify string
@@ -151,13 +225,14 @@ void flashNumSatellites(uint8_t numSatellites) {
 	if (odd) {
 		GPIOB->ODR &= ~GPIO_Pin_6;
 	} else {
-		if (cnt <= numSatellites*2) {
+		if (cnt <= numSatellites * 2) {
 			GPIOB->ODR |= GPIO_Pin_6;
 		}
 	}
 
 	cnt++;
-	if (cnt >= 20) cnt = 0;
+	if (cnt >= 20)
+		cnt = 0;
 }
 
 uint8_t GPS_waitForTimelock(uint32_t maxTime) {
@@ -171,9 +246,8 @@ uint8_t GPS_waitForTimelock(uint32_t maxTime) {
 	} while ((!nmeaTimeInfo_unsafe.time.valid
 			|| (GPSTime.time.hours == 0 && GPSTime.time.minutes == 0
 					&& GPSTime.time.seconds == 0)) && !timer_elapsed(maxTime));
-	getGPSData();
 	GPIOB->ODR &= ~GPIO_Pin_6;
-
+	getGPSData();
 	if (GPSTime.time.valid) {
 		debugGPSTime();
 		return 1;
@@ -191,6 +265,7 @@ boolean GPS_waitForPosition(uint32_t maxTime) {
 		flashNumSatellites(GPSStatus.numberOfSatellites);
 		timer_sleep(200);
 	} while (nmeaPositionInfo_unsafe.valid != 'A' && !timer_elapsed(maxTime));
+	GPIOB->ODR &= ~GPIO_Pin_6;
 	getGPSData();
 	if (GPSPosition.valid == 'A') {
 		trace_printf("Got GPS position: %d, %d, %d\n",
@@ -203,16 +278,13 @@ boolean GPS_waitForPosition(uint32_t maxTime) {
 				GPSStatus.numberOfSatellites);
 	}
 	lastGPSFixTime = timer_timeSinceMark() / 1000;
-	GPIOB->ODR &= ~GPIO_Pin_6;
 	return GPSPosition.valid == 'A';
 }
 
 static void GPS_debugGPSPosition() {
-	trace_printf(
-			"GPS pos: lat %d, lon %d, alt %d, valid %c, fix %d, sat %d\n",
-			(int) (GPSPosition.lat * 1000),
-			(int) (GPSPosition.lon * 1000), (int) (GPSPosition.alt),
-			GPSPosition.valid, GPSStatus.fixMode,
+	trace_printf("GPS pos: lat %d, lon %d, alt %d, valid %c, fix %d, sat %d\n",
+			(int) (GPSPosition.lat * 1000), (int) (GPSPosition.lon * 1000),
+			(int) (GPSPosition.alt), GPSPosition.valid, GPSStatus.fixMode,
 			GPSStatus.numberOfSatellites);
 }
 
@@ -224,7 +296,6 @@ boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 	do {
 		getGPSData();
 		flashNumSatellites(GPSStatus.numberOfSatellites);
-
 		debugPrintCnt++;
 		if (debugPrintCnt == 10) {
 			debugPrintCnt = 0;
@@ -237,6 +308,8 @@ boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 			|| GPSStatus.fixMode < REQUIRE_HIGH_PRECISION_FIXLEVEL)
 			&& !(timeout = timer_elapsed(maxTime)) && timer_sleep(200));
 
+	GPIOB->ODR &= ~GPIO_Pin_6;
+	getGPSData();
 	GPS_debugGPSPosition();
 
 	if (timeout) {
@@ -244,9 +317,6 @@ boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 	}
 
 	lastGPSFixTime = timer_timeSinceMark() / 1000;
-
-	GPIOB->ODR &= ~GPIO_Pin_6;
-
 	return !timeout;
 }
 
@@ -319,8 +389,6 @@ static void parseTime(char c, uint8_t* state, Time_t* value) {
 	}
 }
 
-static boolean debugParseDegrees;
-
 static void parseDegrees(char c, uint8_t* state, double* value) {
 	static uint32_t ivalue;
 	uint8_t i;
@@ -362,11 +430,6 @@ static void parseDegrees(char c, uint8_t* state, double* value) {
 		}
 		*value += temp;
 		break;
-	}
-
-	if (debugParseDegrees) {
-		trace_printf("in %c, state %d, value %d\n", c, *state,
-				(int) (*value * 1000));
 	}
 }
 
@@ -604,9 +667,7 @@ void parseGPGLL(char c) {
 				tempLat = -tempLat;
 			break;
 		case 3:
-			debugParseDegrees = false;
 			parseDegrees(c, &state, &tempLon);
-			debugParseDegrees = false;
 			break;
 		case 4:
 			if (c == 'W')
@@ -652,6 +713,11 @@ void GPS_start() {
 	if (!GPS_isGPSRunning()) {
 		// Only record this start if not already started.
 		PWR_startGPS(batteryVoltage);
+		// Reset the message sending
+		lastSendConfigurationTime = systemTimeMillis;
+		currentSendingIndex = 0;
+		busySendingMessage = false;
+		navSettingsConfirmed = false;
 	}
 	setupUSART1();
 	GPIOA->ODR &= ~ GPIO_Pin_0;
@@ -679,13 +745,24 @@ static char id[5];
 uint8_t nmea_parse(char c) {
 	static char sentence;
 	static uint8_t checksum;
-
+	//trace_printf("GPS state %d, in %d\n", state, c);
 	switch (state) {
 	case STATE_IDLE:
 		if (c == '$') {
 			state = STATE_READ_ID;
 			dataindex = 0;
 			checksum = 0;
+		} else if (c == 0xb5) {
+			state = STATE_READ_BINARY_UBX_SYNC_2;
+		}
+
+		// trigger sending a message, until confirmed.
+		if (!navSettingsConfirmed && !busySendingMessage
+				&& systemTimeMillis >= lastSendConfigurationTime + 1000) {
+			ackedClassId = 0;
+			ackedMessageId = 0; // clear any prior acknowledge.
+			beginSendUBXMessage(&INIT_NAV_MESSAGE);
+			lastSendConfigurationTime = systemTimeMillis;
 		}
 		break;
 	case STATE_READ_ID:
@@ -762,6 +839,50 @@ uint8_t nmea_parse(char c) {
 			// trace_printf("parse check %d\n", commitCheck);
 			return 1;
 		}
+		break;
+	case STATE_READ_BINARY_UBX_SYNC_2:
+		if (c == 0x62)
+			state = STATE_READ_BINARY_UBX_CLASS_ID;
+		else
+			state = STATE_IDLE;
+		break;
+	case STATE_READ_BINARY_UBX_CLASS_ID:
+		readClassId = c;
+		state = STATE_READ_BINARY_UBX_MSG_ID;
+		break;
+	case STATE_READ_BINARY_UBX_MSG_ID:
+		readMessageId = c;
+		state = STATE_READ_BINARY_UBX_MSG_LEN1;
+		break;
+	case STATE_READ_BINARY_UBX_MSG_LEN1:
+		readBodyLength = c;
+		state = STATE_READ_BINARY_UBX_MSG_LEN2;
+		break;
+	case STATE_READ_BINARY_UBX_MSG_LEN2:
+		readBodyLength += (c << 8);
+		readBodyCnt = 0;
+		state = STATE_READ_BINARY_UBX_MSG_BODY;
+		break;
+	case STATE_READ_BINARY_UBX_MSG_BODY:
+		if (readBodyCnt == 0 && readClassId == 5 && readMessageId == 1) {
+			ackedClassId = c;
+		} else if (readBodyCnt == 1 && readClassId == 5 && readMessageId == 1) {
+			ackedMessageId = c;
+		}
+		readBodyCnt++;
+		if (readBodyCnt == readBodyLength)
+			state = STATE_READ_BINARY_UBX_MSG_CHECKA;
+		break;
+	case STATE_READ_BINARY_UBX_MSG_CHECKA:
+		// don't bother to check.
+		state = STATE_READ_BINARY_UBX_MSG_CHECKB;
+		break;
+	case STATE_READ_BINARY_UBX_MSG_CHECKB:
+		if (ackedClassId == 6 && ackedMessageId == 0x24) {
+			trace_printf("NAV5 Settings confirmed.\n");
+			navSettingsConfirmed = true;
+		}
+		state = STATE_IDLE;
 		break;
 	}
 	return 0;

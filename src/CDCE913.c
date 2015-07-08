@@ -30,7 +30,7 @@ CDCE913_PLL_SETTINGS_30m_WSPR
 // static const CDCE913_PLLSetting_t PLL_OPTIONS_APRS_DIRECT_2m[];
 // This does not belong here at ALL but try to get the compiler convinced that they really are const
 // if coming from a different source .. it's not possible.
-
+/*
 const HF_BandDef_t HF_BAND_DEFS[] = { { .hardwareChannel = 1, .numPLLOptions =
 		sizeof(PLL_OPTIONS_WSPR_30m) / sizeof(CDCE913_PLLSetting_t),
 		.PLLOptions = PLL_OPTIONS_WSPR_30m, .frequency = 10140200 }, {
@@ -46,6 +46,7 @@ const VHF_ChannelDef_Si6643_t VHF_SI4463_BAND_DEFS[] = { 144390, 144620, 144640,
 		144575, 144660, 144930, 144800, 145010, 145175, 145525, 145575 };
 const uint8_t NUM_VHF_SI4463_BAND_DEFS = sizeof(VHF_SI4463_BAND_DEFS)
 		/ sizeof(VHF_ChannelDef_Si6643_t);
+*/
 
 static void CDCE913_initInterface() {
 	GPIO_InitTypeDef GPIO_InitStructure;

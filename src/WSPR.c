@@ -15,8 +15,12 @@ uint8_t interleavedbuf[21];
 uint8_t symbolList[162 / 4 + 1];
 
 const uint32_t WSPR_FREQUENCIES[] = {10140200, 28126100};
+
 const uint8_t WSPR_SCHEDULE[] = WSPR_SCHEDULE_DEF;
 const uint8_t WSPR_SCHEDULE_LENGTH = sizeof(WSPR_SCHEDULE)/sizeof(uint8_t);
+
+const uint8_t WSPR_LOWALT_SCHEDULE[] = WSPR_LOWALT_SCHEDULE_DEF;
+const uint8_t WSPR_LOWALT_SCHEDULE_LENGTH = sizeof(WSPR_LOWALT_SCHEDULE)/sizeof(uint8_t);
 
 extern uint16_t hash(const char* call, uint16_t length);
 
@@ -375,6 +379,7 @@ void prepareType1Transmission(uint8_t power) {
   completeMessage();
 }
 
+/*
 static uint8_t ilog2(uint16_t N) {
 	uint8_t result = 0;
 	N >>= 1; // 0->0, 1->0, which both will correctly return 0
@@ -384,6 +389,7 @@ static uint8_t ilog2(uint16_t N) {
 	}
 	return result;
 }
+*/
 
 void prepareType3Transmission(uint8_t power, enum WSPR_MESSAGE_TYPE fake) {
   char maidenhead6_fake[7];
@@ -392,34 +398,36 @@ void prepareType3Transmission(uint8_t power, enum WSPR_MESSAGE_TYPE fake) {
   // dummy tm
   // uint8_t gpsFixMode = GPSStatus.fixMode; // between 0 and 2
   // gpsAcqTime is allowed to be in the range [0..5]
-  uint8_t gpsAcqTime = ilog2(lastGPSFixTime/2);
-  uint8_t gpsNumSats = GPSStatus.numberOfSatellites;
+  // uint8_t gpsAcqTime = ilog2(lastGPSFixTime/2);
+  // uint8_t gpsNumSats = GPSStatus.numberOfSatellites;
 
   switch(fake) {
   case  REAL_EXTENDED_LOCATION:
     currentPositionAs6DigitMaidenhead(maidenhead6_fake);
-    if (maidenhead6_fake[4] & 1) maidenhead6_fake[4]++; // make even
+    // if (maidenhead6_fake[4] & 1) maidenhead6_fake[4]++; // make even
     if (maidenhead6_fake[5] & 1) maidenhead6_fake[5]++; // make even
     break;
 
+    /*
   case SUPERFINE_EXTENDED_LOCATION:
     currentPositionAsMaidenheadSuperfine(maidenhead6_fake);
     if (!(maidenhead6_fake[4] & 1)) maidenhead6_fake[4]--; // make odd
     if (maidenhead6_fake[5] & 1) maidenhead6_fake[5]++;  // make even
     break;
-    
+   */
   case ALTITUDE:
     currentPositionAs4DigitMaidenhead(maidenhead6_fake);
     // add data here
-    int16_t ialt = (int16_t)(lastNonzero3DPosition.alt / 100);
+    int16_t ialt = (int16_t)((lastNonzero3DPosition.alt+25) / 50);
     if (ialt < 0) ialt = 0;
     // 144 units of 100m each
-    maidenhead6_fake[4] = 'a' + (ialt / 12)*2;
-    maidenhead6_fake[5] = 'a' + (ialt % 12)*2;
-    if (maidenhead6_fake[4] & 1) maidenhead6_fake[4]++;    // make even
+    maidenhead6_fake[4] = 'a' + (ialt / 12);	// Units of 50m*12m, max. 23*50*12=13800m
+    maidenhead6_fake[5] = 'a' + (ialt % 12)*2;	// Units of 50m, max. 11*50m, max. total 13800m + 50m*11 = 14350m
+    // if (maidenhead6_fake[4] & 1) maidenhead6_fake[4]++;    // make even
     if (!(maidenhead6_fake[5] & 1)) maidenhead6_fake[5]--; // make odd
     break;
 
+    /*
   case TELEMETRY: 
     currentPositionAs4DigitMaidenhead(maidenhead6_fake);
     // gpsNumSats is translated:
@@ -434,6 +442,7 @@ void prepareType3Transmission(uint8_t power, enum WSPR_MESSAGE_TYPE fake) {
     if (!(maidenhead6_fake[4] & 1)) maidenhead6_fake[4]--;
     if (!(maidenhead6_fake[5] & 1)) maidenhead6_fake[5]--;
     break;
+    */
     
   default:
     trace_printf("Unknown fake-type: %u\n", fake);
@@ -467,6 +476,7 @@ uint8_t fake_dBm(float voltage) {
 
 void prepareWSPRMessage(enum WSPR_MESSAGE_TYPE messageType, float voltage) {
     uint8_t power = fake_dBm(voltage);
+    trace_printf("type: %d\n", messageType);
   switch (messageType) {
   case TYPE1:
     prepareType1Transmission(power);

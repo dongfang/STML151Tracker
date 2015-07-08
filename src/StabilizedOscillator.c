@@ -30,12 +30,7 @@ static uint32_t checksum(const CalibrationRecord_t* record) {
 }
 
 const CalibrationRecord_t* getCalibration(int8_t temperature, boolean doAttemptCalibrate) {
-	// 0:	-60 to -45
-	// 1:	-45 to -30
-	// 2:	-30 to -15
-	// 3:	-15 to 0
-	// 4:	 0 to 15
-	// 5:	15 or more
+//#define TEMPERATURE_RANGES {-54,-42,-30,-18,-6,6,18,30};
 	uint8_t index = 0;
 
 	while(index < NUM_TEMPERATURE_RANGES-1 && temperatureRanges[index+1] < temperature)

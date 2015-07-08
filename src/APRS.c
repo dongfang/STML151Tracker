@@ -359,8 +359,10 @@ uint16_t combineVoltages(float batteryVoltage, float solarVoltage) {
 	// the 1000's digit is solar voltage * 4 * 1000 truncated to 1000s and the rest is batt * 100
 	// Example: Solar = 1.23 and battery = 3.92:
 	// result = 4000 + 392
+	// in other words, 1st digit is solar in 1/4 volts steps.
 	uint32_t result = solarVoltage * 4000;
-	result = result - result%4000;
+	result = result - result%1000;
+
 	result += batteryVoltage*100;
 	return result;
 }
@@ -369,18 +371,18 @@ void APRS_marshallPositionMessage(uint16_t txDelay) {
 
 	// We offset temp. by 100 degrees so it is never negative.
 	// Reportable range is thus: -100C to 728C with 1 decimal.
-	int _temperature = temperature + 100;
+	float _temperature = temperature + 100;
 	if (_temperature < 0)
 		_temperature = 0;
-
-	uint16_t GPSFixTime = lastGPSFixTime;
-	if (GPSFixTime > 8280 / (120/5)) {	// max value we have space for is 8280 minus the space for max. WSPR wait time = 120 s / compacting factor 5
-		GPSFixTime = 8280 / (120/5);	// that's 345 seconds.
-	}
 
 	uint16_t WSPRWindowWaitTime = lastWSPRWindowWaitTime / 5;
 	if (WSPRWindowWaitTime > 120/5) {
 		WSPRWindowWaitTime = 120/5; // Should normally not happen. Why wait more than 120 s max?
+	}
+
+	uint16_t GPSFixTime = lastGPSFixTime;
+	if (GPSFixTime > 8280 / (120/5) - (120/5)) {	// max value we have space for is 8280 minus the space for max. WSPR wait time = 120 s / compacting factor 5
+		GPSFixTime = 8280 / (120/5) - (120/5);	// that's 345 seconds.
 	}
 
 	int32_t mainOscillatorError =
@@ -428,7 +430,7 @@ void APRS_marshallStoredPositionMessage(StoredPathRecord_t* record, uint16_t txD
 	end = compressedTimestamp(date, &uncompressedTime, temp);
 	end += compressPosition(record->lat, record->lon, record->alt, temp + end);
 
-	int16_t mainOscillatorError = record->mainOscillatorError;
+	int16_t mainOscillatorError = record->mainOscillatorError + 8120/2;
 		if (mainOscillatorError > 8120) mainOscillatorError = 8120;
 		else if (mainOscillatorError < 0) mainOscillatorError = 0;
 
