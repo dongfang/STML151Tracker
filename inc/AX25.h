@@ -19,7 +19,7 @@
 #define __AX25_H__
 
 #include "Types.h"
-#include "Callsigns.h"
+#include "Setup.h"
 
 void ax25_begin(uint16_t txDelay);
 void ax25_send_header(const AX25_Address_t *addresses[], int num_addresses);

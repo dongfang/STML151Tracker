@@ -1,5 +1,5 @@
 1) Remove Si4463, add jumper wire from CDCEL913 pin 9 to C32 floating end
-2) Remove L6
+2) Remove L6, C30, C13, C19
 3) Remove R6, D1
 4) Jumper wire from R6's CPU end (PB7) to CDCEL913 pin 11 (Y1). This is for PLL calibration signal.
 5) Jumper wire from GPS pin 4 to CPU pin 25 (PB12). This is the 1Hz gate for self calibration.

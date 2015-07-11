@@ -241,7 +241,8 @@ void doWSPR() {
 				if (nextWSPRMessageType >= WSPR_LOWALT_SCHEDULE_LENGTH) {
 					nextWSPRMessageType = 0;
 				}
-				nextWSPRMessageType = WSPR_LOWALT_SCHEDULE[nextWSPRMessageTypeIndex];
+				nextWSPRMessageType =
+						WSPR_LOWALT_SCHEDULE[nextWSPRMessageTypeIndex];
 			} else {
 				if (nextWSPRMessageType >= WSPR_SCHEDULE_LENGTH) {
 					nextWSPRMessageType = 0;
@@ -381,15 +382,14 @@ void APRSCycle() {
 	}
 }
 
-void reschedule(int _scheduleSeconds, uint8_t _mainPeriod, uint8_t _WSPRPeriod, uint8_t _HFAPRSPeriod) {
+void reschedule(int _scheduleSeconds, uint8_t _mainPeriod, uint8_t _WSPRPeriod,
+		uint8_t _HFAPRSPeriod) {
 	// Apparently we often miss wakeups if not doing this over again all the time... rubbish.
 	// Need fixing.
 	RTC_setWakeup(_scheduleSeconds);
 
-	if (_scheduleSeconds != scheduleSeconds ||
-			mainPeriod != _mainPeriod ||
-			WSPRPeriod != _WSPRPeriod ||
-			HFAPRSPeriod != _HFAPRSPeriod) {
+	if (_scheduleSeconds != scheduleSeconds || mainPeriod != _mainPeriod
+			|| WSPRPeriod != _WSPRPeriod || HFAPRSPeriod != _HFAPRSPeriod) {
 		trace_printf("Rescheduling : %d seconds\n", _scheduleSeconds);
 		mainPeriodCnt = 0;
 		WSPRCnt = 0;
@@ -460,7 +460,7 @@ void wakeupCycle() {
 
 		// Are we in a very good shape?
 		if (batteryVoltage
-				>= 3.7 && simpleTemperature >= NORMAL_SCHEDULE_MIN_TEMPERATURE) {
+				>= 3.7&& simpleTemperature >= NORMAL_SCHEDULE_MIN_TEMPERATURE) {
 			trace_printf("Good batt\n");
 			if (lastNonzero3DPosition.alt < LOWALT_THRESHOLD) {
 				reschedule(LOWALT_SCHEDULE_TIME);
@@ -494,6 +494,7 @@ int main() {
 	SetSysClock();
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+	initGeneralIOPorts();
 
 	numRestarts++;
 
@@ -509,8 +510,17 @@ int main() {
 		invalidateStartupLog();
 	}
 
+	double deviation = 0;
+	uint32_t frequency= 0;
+	selfCalibrateModulation(16E6, &WSPR_MODULATION_SELF_CALIBRATION,
+	PLL_PREFERRED_TRIM, &deviation, &frequency);
+	trace_printf("SC HFAPRSmod: freq %d, dev %d at %d p-p\n", frequency,
+			(int) (deviation * 1E9),
+			WSPR_MODULATION_SELF_CALIBRATION.modulation_PP);
+
+	trace_printf("Deviation: %d\n", (int)(deviation * 1E9));
+
 	while (1) {
-		initGeneralIOPorts();
 		// Various stuff was disabled, either by us or by the stop mode.
 		// Get it started again.
 		PWR_RTCAccessCmd(ENABLE);

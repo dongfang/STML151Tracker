@@ -9,6 +9,22 @@
 #define SRC_SETUP_H_
 
 #include "Types.h"
+// An AX.25 address.
+typedef struct {
+	const char* callsign;
+	uint8_t ssid;
+} AX25_Address_t;
+
+//#define MYCALL "KM4FSW"
+#define MYCALL "HB9FDK"
+#define MY_APRS_SSID 12
+
+// AX.25 addresses; MY_ADDRESS.callsign is used for all modes.
+extern const AX25_Address_t MY_ADDRESS;
+extern const AX25_Address_t APRS_APSTM1_DEST;
+extern const AX25_Address_t APRS_DEST;
+extern const AX25_Address_t APRS_DIGI1;
+extern const AX25_Address_t APRS_DIGI2;
 
 #define GPS_TIMEPULSE_WASTED_PULSES 0
 #define RTC_WUT_WASTED_PULSES 0
@@ -26,7 +42,8 @@
 #define REQUIRE_HIGH_PRECISION_ALTITUDE true
 #define REQUIRE_HIGH_PRECISION_MAX_TIME_S 360
 
-#define LOWALT_THRESHOLD 7500
+// 10000 ft
+#define LOWALT_THRESHOLD 3048
 
 // VHF each 2 min, WSPR each 10, HF APRS each 30
 #define LOWALT_SCHEDULE_TIME (2*60),1,5,15

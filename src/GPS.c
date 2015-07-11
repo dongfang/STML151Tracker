@@ -39,11 +39,12 @@ static uint8_t commaindex;
 static uint8_t state;
 static uint8_t commitCheck;
 
-static uint8_t _UBX_POLL_NAV5_MESSAGE[] = UBX_POLL_NAV5_MESSAGE;
+// static uint8_t _UBX_POLL_NAV5_MESSAGE[] = UBX_POLL_NAV5_MESSAGE;
 static uint8_t _UBX_INIT_NAV5_MESSAGE[] = UBX_INIT_NAV5_MESSAGE;
 
-static UBX_MESSAGE POLL_NAV_MESSAGE = { sizeof(_UBX_POLL_NAV5_MESSAGE),
-		_UBX_POLL_NAV5_MESSAGE };
+//static UBX_MESSAGE POLL_NAV_MESSAGE = { sizeof(_UBX_POLL_NAV5_MESSAGE),
+//		_UBX_POLL_NAV5_MESSAGE };
+
 static UBX_MESSAGE INIT_NAV_MESSAGE = { sizeof(_UBX_INIT_NAV5_MESSAGE),
 		_UBX_INIT_NAV5_MESSAGE };
 

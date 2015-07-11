@@ -23,7 +23,6 @@
 #include <string.h>
 
 #include "AX25.h"
-#include "Callsigns.h"
 #include "diag/Trace.h"
 #include "ADC.h"
 //#include "DAC.h"

@@ -6,7 +6,6 @@
 #include "WSPR.h"
 #include "GPS.h"
 #include "PLL.h"
-#include "Callsigns.h"
 #include "Globals.h"
 
 static uint8_t losslessCompressedBuf[11];
