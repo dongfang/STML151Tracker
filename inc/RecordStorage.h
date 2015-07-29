@@ -61,6 +61,7 @@ void compressRecord(StoredPathRecord_t* record);
 boolean hasRecordOutForFirstTransmission();
 boolean hasRecordOutForLastTransmission();
 
+boolean timeToStoreRecord();
 StoredPathRecord_t* nextRecordIn();
 StoredPathRecord_t* nextRecordOutForFirstTransmission();
 StoredPathRecord_t* nextRecordOutForLastTransmission();

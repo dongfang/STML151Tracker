@@ -326,9 +326,10 @@ void setPLL(CDCE913_OutputMode_t output,
 	// I2C_write(1, 0b0101);
 	// I2C_write(2, (1 << 7) | (0b1111 << 2));
 	CDCE913_enableOutput(output, setting->pdiv);
-	I2C_write(5, setting->trim << 3); 	// Cap. in pF.
 	CDCE913_setPLLValue(setting);
-	// CECE913_printSettings();
+	trace_printf("Using trim %d\n", setting->trim);
+	I2C_write(5, setting->trim << 3); 	// Cap. in pF.
+	// PLL_printSettings();
 }
 
 // 0-->0
@@ -411,8 +412,11 @@ int8_t PLL_bestTrim(double desiredTrim) {
 	return bestIndex;
 }
 
-boolean PLL_bestPLLSetting(uint32_t oscillatorFrequency, uint32_t desiredFrequency,
-		double maxError, CDCE913_PLLSetting_t* result) {
+boolean PLL_bestPLLSetting(
+		uint32_t oscillatorFrequency,
+		uint32_t desiredFrequency,
+		double maxError,
+		CDCE913_PLLSetting_t* result) {
 	trace_printf("bestPLLSetting: %d %d\n", oscillatorFrequency,
 			desiredFrequency);
 
@@ -449,6 +453,7 @@ boolean PLL_bestPLLSetting(uint32_t oscillatorFrequency, uint32_t desiredFrequen
 					setPQR(N, M, result);
 
 					int8_t trim = PLL_bestTrim(-signedError);
+					// trace_printf("SignedError PPM: %d, trim:%d\n", (int)(signedError * 1E6), trim);
 
 					if (trim != -1) {
 						/*
@@ -477,6 +482,7 @@ int16_t PLL_oscillatorError(uint32_t measuredFrequency) {
 }
 
 void PLL_printSettings() {
+	uint16_t r5 = I2C_read(0x05);
 	uint16_t r18 = I2C_read(0x18);
 	uint16_t r19 = I2C_read(0x19);
 	trace_printf("N=%u\n", (r18 << 4) + (r19 >> 4));
@@ -487,5 +493,7 @@ void PLL_printSettings() {
 	uint16_t r1b = I2C_read(0x1b);
 	trace_printf("Q=%u\n", ((r1a & 0x7) << 3) + (r1b >> 5));
 	trace_printf("P=%u\n", (r1b & 0b1100) >> 2);
+
+	trace_printf("Trim=%u\n", r5 >> 3);
 }
 

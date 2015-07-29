@@ -185,7 +185,7 @@ void USART1_IRQHandler(void) {
 			{
 		uint16_t rxd = USART_ReceiveData(USART1);
 		if (DEBUG_GPS_DATA)
-			trace_putchar('.');
+			trace_putchar(rxd);
 		nmea_parse(rxd);
 		if (interruptAlarm) {
 			trace_printf("USART\n");
@@ -647,6 +647,59 @@ void parseGPGSA(char c) {
 
 void parseGPGSV(char c) {
 // Ignore GSV
+	static uint8_t state;
+
+	if (c == ',') {
+		state = 0;
+		commaindex++;
+		if (DEBUG_GPS_SNR && commaindex >= 5 && (commaindex-5) % 4 == 0) {
+			// between SV number and elevation data
+				trace_putchar(':');
+		}
+		if (DEBUG_GPS_SNR && commaindex >= 4 && commaindex % 4 == 0) {
+			// Before SV number
+			trace_putchar('\n');
+		}
+	} else {
+		switch (commaindex) {
+		case 1:
+			break;
+		case 2:
+			break;
+		case 3:
+			break;
+		case 4:
+		case 12:
+		case 16:
+		case 20:
+		// PRN number;
+			if (DEBUG_GPS_SNR) {
+				trace_putchar(c);
+			}
+			break;
+		case 5:
+		case 13:
+		case 17:
+		case 21:
+		// elevation
+			break;
+		case 6:
+		case 14:
+		case 18:
+		case 22:
+		// azimuth
+			break;
+		case 7:
+		case 15:
+		case 19:
+		case 23:
+		// SNR
+			if (DEBUG_GPS_SNR) {
+				trace_putchar(c);
+			}
+			break;
+		}
+	}
 	commitCheck |= 32;
 }
 

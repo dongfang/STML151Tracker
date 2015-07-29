@@ -50,6 +50,13 @@ static void modulationCalibration_initHW() {
 
 	GPIO_PinAFConfig(GPIOB, GPIO_PinSource7, GPIO_AF_TIM4);
 
+	// Tie the ADC1 output aka PA.4 to ground.
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIOA->ODR &= ~(GPIO_Pin_4);
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
+
 	/* TIM4 configuration: Input Capture mode ---------------------
 	 The external signal is connected to TIM4 CH2 pin (PB.07)
 	 The Rising edge is used as active edge,
@@ -382,8 +389,7 @@ boolean selfCalibrateModulation(uint32_t hseFrequency,
 }
 
 // Ground use only (by our current plan anyway)
-boolean selfCalibrateTrimming(double* relIncreaseFromInitialTrim,
-		uint8_t trim_pF) {
+boolean selfCalibrateTrimming(double* relIncreaseFromInitialTrim, uint8_t trim_pF) {
 
 	double deviationMeasuredGarbage;
 	uint32_t frequencyMeasured1;
@@ -396,9 +402,9 @@ boolean selfCalibrateTrimming(double* relIncreaseFromInitialTrim,
 			&deviationMeasuredGarbage, &frequencyMeasured2);
 
 	// Divide 2*the diff by 2*the average.
-	*relIncreaseFromInitialTrim = (double) (frequencyMeasured2
-			- frequencyMeasured1) * 2
-			/ (double) (frequencyMeasured2 + frequencyMeasured1);
+	*relIncreaseFromInitialTrim = ((double)frequencyMeasured2
+			- (double)frequencyMeasured1) * 2
+			/ ((double)frequencyMeasured2 + (double)frequencyMeasured1);
 
 	return true;
 }
@@ -478,7 +484,7 @@ boolean selfCalibrate(CalibrationRecord_t* target) {
 	boolean result = true;
 
 	trace_printf("HSE cal\n");
-	result = HSECalibration(120000, &hseFrequency);
+	result = HSECalibration(MAX_HSE_CALIBRATION_TIME, &hseFrequency);
 	target->HSEFrequency = hseFrequency;
 
 	if (!result) {

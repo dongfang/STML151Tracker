@@ -14,8 +14,6 @@
 // the implementation PLL type decides what PLLSetting_t actually is.
 #include "CDCE913.h"
 
-// Implementation nominal xtal frequency
-#define PLL_XTAL_NOMINAL_FREQUENCY 26000000
 #define PLL_XTAL_FREQUENCY CDCE913_XTAL_FREQUENCY
 
 #define PLL_PREFERRED_TRIM CDCE913_PREFERRED_TRIM

@@ -332,7 +332,7 @@ void APRS_marshallStatusMessage(
 	sillyOneDecimalValue('t',temperature, temp);
 	ax25_send_string(temp);
 
-	sprintf(temp, ",o%u", PLL_oscillatorError(referenceFrequency));
+	sprintf(temp, ",o%d", PLL_oscillatorError(referenceFrequency));
 	ax25_send_string(temp);
 
 	sprintf(temp, ",G%cH%cV%c",
@@ -355,12 +355,13 @@ void APRS_marshallStatusMessage(
 static uint16_t telemetrySequence;
 
 uint16_t combineVoltages(float batteryVoltage, float solarVoltage) {
-	// the 1000's digit is solar voltage * 4 * 1000 truncated to 1000s and the rest is batt * 100
-	// Example: Solar = 1.23 and battery = 3.92:
-	// result = 4000 + 392
-	// in other words, 1st digit is solar in 1/4 volts steps.
-	uint32_t result = solarVoltage * 4000;
+	// the 1000's digit is solar voltage * 8 * 1000 truncated to 1000s and the rest is batt * 100
+	// Example: Solar = 0.71 and battery = 3.92:
+	// result = 5000 + 392
+	// in other words, 1st digit is solar in 1/8 volts steps.
+	uint32_t result = solarVoltage * 8000;
 	result = result - result%1000;
+	if (result > 7000) result = 7000;
 
 	result += batteryVoltage*100;
 	return result;

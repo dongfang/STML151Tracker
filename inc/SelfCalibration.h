@@ -79,8 +79,8 @@ typedef struct {
 // Values measured at 4 degrees C
 #define DEFAULT_CALIBRATION { \
 	.HSEFrequency = 16000180,	\
-	.transmitterOscillatorFrequencyAtDefaultTrim = 26000540,\
-	.RTCNeededCorrectionPP10M = -1066, /* This xtal is VERY bad */ \
+	.transmitterOscillatorFrequencyAtDefaultTrim = PLL_XTAL_DEFAULT_FREQUENCY,\
+	.RTCNeededCorrectionPP10M = -1000, /* These xtals is VERY bad, or wrong capacitance or somethi */ \
 	.temperature = 25, \
 	.checksum = 0 \
 }

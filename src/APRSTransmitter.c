@@ -51,6 +51,7 @@ void APRS_endDirectTransmission() {
 	FSK_shutdown();
 }
 
+/* In the current no-Si4463 configuration, this is not used. */
 void APRS_initSi4463Transmission(uint32_t frequency,
 		uint32_t referenceFrequency) {
 	double desiredTrim = (double) PLL_XTAL_NOMINAL_FREQUENCY
@@ -65,7 +66,7 @@ const APRSTransmission_t APRS_TRANSMISSIONS[] = { { .modulationMode = AFSK,
 		.modulationAmplitude = 350, .txDelay = 15, .initTransmitter =
 				APRS_initDirectVHFTransmission, .shutdownTransmitter =
 				APRS_endDirectTransmission }, { .modulationMode = GFSK,
-		.modulationAmplitude = 3660, .txDelay = 5, .initTransmitter =
+		.modulationAmplitude = HF_APRS_DEVIATION_DAC_30m, .txDelay = 5, .initTransmitter =
 				APRS_initDirectHFTransmission, .shutdownTransmitter =
 				APRS_endDirectTransmission } };
 

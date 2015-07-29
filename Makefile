@@ -43,7 +43,7 @@ ROOT=$(shell pwd)
 
 CFLAGS += -I inc -I $(STD_PERIPH_LIB) -I $(STD_PERIPH_LIB)/CMSIS/Device/ST/STM32L1xx/Include
 CFLAGS += -I $(STD_PERIPH_LIB)/CMSIS/Include -I $(STD_PERIPH_LIB)/STM32L1xx_StdPeriph_Driver/inc
-CFLAGS += -include $(STD_PERIPH_LIB)/stm32l1xx_conf.h -DTRACE -D__ARM_ARCH_7M__
+CFLAGS += -include $(STD_PERIPH_LIB)/stm32l1xx_conf.h -D__ARM_ARCH_7M__
 
 SRCS += Device/startup_stm32l1xx_md.s 
 

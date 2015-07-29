@@ -9,6 +9,8 @@
 #define SRC_SETUP_H_
 
 #include "Types.h"
+#include "IndividualBoard.h"
+
 // An AX.25 address.
 typedef struct {
 	const char* callsign;
@@ -17,7 +19,7 @@ typedef struct {
 
 //#define MYCALL "KM4FSW"
 #define MYCALL "HB9FDK"
-#define MY_APRS_SSID 12
+#define MY_APRS_SSID 11
 
 // AX.25 addresses; MY_ADDRESS.callsign is used for all modes.
 extern const AX25_Address_t MY_ADDRESS;
@@ -48,8 +50,8 @@ extern const AX25_Address_t APRS_DIGI2;
 // VHF each 2 min, WSPR each 10, HF APRS each 30
 #define LOWALT_SCHEDULE_TIME (2*60),1,5,15
 
-// VHF each 5 min, WSPR each 10, HF APRS each 30
-#define DAY_SCHEDULE_TIME (5*60),1,2,12
+// VHF each 5 min, WSPR each 15, HF APRS each 30
+#define DAY_SCHEDULE_TIME (5*60),1,3,12
 
 // Wakeup each 10, VHF each 20, WSPR each 40, HF APRS each 1h
 #define NIGHT_SCHEDULE_TIME (10*60),2,2,3
@@ -57,8 +59,8 @@ extern const AX25_Address_t APRS_DIGI2;
 // Wakeup each 20, VHF each 60, WSPR each 120, HF APRS almost never
 #define LOWBATT_SCHEDULE_TIME (20*60),3,2,255
 
-// Wakeup each 20, VHF each 120, WSPR each 120, HF APRS almost never
-#define CRISIS_SCHEDULE_TIME (20*60),6,2,255
+// Wakeup each 20, VHF each 240, WSPR each 480, HF APRS almost never
+#define CRISIS_SCHEDULE_TIME (20*60),12,2,255
 
 #define HF_30m_HARDWARE_OUTPUT 3
 #define DIRECT_2m_HARDWARE_OUTPUT 2
@@ -73,7 +75,13 @@ extern const AX25_Address_t APRS_DIGI2;
 #define BATTERY_FAILSAFE_VOLTAGE_THRESHOLD 0.1
 
 // When getting colder than this, schedule slower. It will happen
-// in the evening, and it will happen rapidly.
-#define NORMAL_SCHEDULE_MIN_TEMPERATURE -15
+// in the evening, and it will happen quickly.
+#define NORMAL_SCHEDULE_MIN_TEMPERATURE -12
+
+#define STORAGE_INTERVAL_S 3600
+
+#define MAX_HSE_CALIBRATION_TIME 30000
+#define MAX_GPS_TIMELOCK_TIME 300000
+
 
 #endif /* SRC_SETUP_H_ */

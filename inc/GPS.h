@@ -60,6 +60,7 @@ typedef struct {
 
 #define BAUDRATE 9600
 #define DEBUG_GPS_DATA 0
+#define DEBUG_GPS_SNR 0
 
 boolean GPS_isGPSRunning();
 // It is assumed that PWR_isSafeToUseGPS() was checked already.

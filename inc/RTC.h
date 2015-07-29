@@ -10,7 +10,7 @@
 
 #include "Types.h"
 
-uint8_t RTC_init() ;
+boolean RTC_init() ;
 
 boolean RTC_setRTC(Date_t* date, Time_t* time);
 
@@ -21,6 +21,8 @@ void RTC_scheduleASAPAlarmInSlot(uint16_t minutes);
 void RTC_setWakeup(uint32_t periodSeconds);
 
 void RTC_setCalibration(int16_t correction_PP10M);
+
+int RTC_timeDiff_s(RTC_TimeTypeDef* t1, RTC_TimeTypeDef* t2);
 
 void RTC_debugRTCTime();
 

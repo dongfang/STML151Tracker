@@ -7,11 +7,10 @@
 
 #include "../inc/StabilizedOscillator.h"
 
-#include "../inc/CDCE913.h"
-#include "../inc/diag/Trace.h"
-#include "../inc/ExperimentallyDerivedConstants.h"
-#include "../inc/Setup.h"
-#include "../inc/Types.h"
+#include "CDCE913.h"
+#include "diag/Trace.h"
+#include "Setup.h"
+#include "Types.h"
 
 const int8_t temperatureRanges[] = TEMPERATURE_RANGES;
 CalibrationRecord_t calibrationByTemperatureRanges[NUM_TEMPERATURE_RANGES];

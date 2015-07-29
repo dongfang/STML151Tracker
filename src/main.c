@@ -159,7 +159,7 @@ boolean GPSCycle() {
 	if (PWR_isSafeToUseGPS()) {
 		GPS_start();
 
-		if (GPS_waitForTimelock(300000)) {
+		if (GPS_waitForTimelock(MAX_GPS_TIMELOCK_TIME)) {
 			RTC_setRTC(&GPSTime.date, &GPSTime.time);
 			// trace_printf("Set RTC to %02d:%02d: %d\n", GPSTime.time.hours,
 			//		GPSTime.time.minutes, success);
@@ -222,6 +222,7 @@ void doWSPR() {
 	currentCalibration = getCalibration(simpleTemperature, false);
 
 	PLL_Setting_t pllSetting;
+
 	double maxError = 10E-6;
 	while (maxError < 100E-6) {
 		if (PLL_bestPLLSetting(
@@ -238,14 +239,14 @@ void doWSPR() {
 			uint8_t nextWSPRMessageType;
 
 			if (lastNonzero3DPosition.alt < LOWALT_THRESHOLD) {
-				if (nextWSPRMessageType >= WSPR_LOWALT_SCHEDULE_LENGTH) {
-					nextWSPRMessageType = 0;
+				if (nextWSPRMessageTypeIndex >= WSPR_LOWALT_SCHEDULE_LENGTH) {
+					nextWSPRMessageTypeIndex = 0;
 				}
 				nextWSPRMessageType =
 						WSPR_LOWALT_SCHEDULE[nextWSPRMessageTypeIndex];
 			} else {
-				if (nextWSPRMessageType >= WSPR_SCHEDULE_LENGTH) {
-					nextWSPRMessageType = 0;
+				if (nextWSPRMessageTypeIndex >= WSPR_SCHEDULE_LENGTH) {
+					nextWSPRMessageTypeIndex = 0;
 				}
 				nextWSPRMessageType = WSPR_SCHEDULE[nextWSPRMessageTypeIndex];
 			}
@@ -254,7 +255,7 @@ void doWSPR() {
 			nextWSPRMessageTypeIndex++;
 
 			PWR_startHFTx(batteryVoltage);
-			WSPR_Transmit(THIRTY_M, &pllSetting, 26);
+			WSPR_Transmit(THIRTY_M, &pllSetting, WSPR_DEVIATION_DAC_30m);
 			PWR_stopHFTx();
 
 			// Recurse, do it again if we sent the rather uninformative TYPE1.
@@ -331,9 +332,10 @@ void VHF_APRSCycle() {
 // Test the stored record crap.
 		if (isOutsideCore) {
 			// Store a message.
-			StoredPathRecord_t* recordToStore = nextRecordIn();
-			storeToRecord(recordToStore);
-
+			if (timeToStoreRecord()) {
+				StoredPathRecord_t* recordToStore = nextRecordIn();
+				storeToRecord(recordToStore);
+			}
 		} else {
 			// Get rid of some storage backlog, first take that scheduled for a 2nd transmission
 			int maxStored = 10;
@@ -349,7 +351,7 @@ void VHF_APRSCycle() {
 				}
 			}
 
-			maxStored = 10;
+			maxStored = 5;
 
 			// Get rid of some storage backlon, 1st transmission
 			while (hasRecordOutForFirstTransmission() && maxStored-- > 0) {
@@ -364,10 +366,6 @@ void VHF_APRSCycle() {
 			}
 		}
 	}
-
-	// Test storage feature. Dummy code.
-	// StoredPathRecord_t* recordToStore = nextRecordIn();
-	// storeToRecord(recordToStore);
 }
 
 void APRSCycle() {
@@ -382,14 +380,22 @@ void APRSCycle() {
 	}
 }
 
-void reschedule(int _scheduleSeconds, uint8_t _mainPeriod, uint8_t _WSPRPeriod,
+void reschedule(
+		int _scheduleSeconds,
+		uint8_t _mainPeriod,
+		uint8_t _WSPRPeriod,
 		uint8_t _HFAPRSPeriod) {
 	// Apparently we often miss wakeups if not doing this over again all the time... rubbish.
 	// Need fixing.
 	RTC_setWakeup(_scheduleSeconds);
 
-	if (_scheduleSeconds != scheduleSeconds || mainPeriod != _mainPeriod
-			|| WSPRPeriod != _WSPRPeriod || HFAPRSPeriod != _HFAPRSPeriod) {
+	if (scheduleSeconds != _scheduleSeconds
+			||
+			mainPeriod != _mainPeriod
+			||
+			WSPRPeriod != _WSPRPeriod
+			||
+			HFAPRSPeriod != _HFAPRSPeriod) {
 		trace_printf("Rescheduling : %d seconds\n", _scheduleSeconds);
 		mainPeriodCnt = 0;
 		WSPRCnt = 0;
@@ -405,8 +411,7 @@ void reschedule(int _scheduleSeconds, uint8_t _mainPeriod, uint8_t _WSPRPeriod,
 extern void SetSysClock(void);
 
 void mainCycle() {
-	if (batteryVoltage
-			>= 3.7&& simpleTemperature >= NORMAL_SCHEDULE_MIN_TEMPERATURE) {
+	if (batteryVoltage >= 3.7&& simpleTemperature >= NORMAL_SCHEDULE_MIN_TEMPERATURE) {
 		boolean GPSStarted = GPSCycle();
 
 		calibrationCycle();
@@ -439,17 +444,17 @@ void mainCycle() {
 void wakeupCycle() {
 	performPrecisionADC();
 
+	trace_printf("ADCValue0: %d\t", ADCUnloadedValues[0]);
+	trace_printf("ADCValue1: %d\t", ADCUnloadedValues[1]);
+	trace_printf("ADCValue2: %d\t", ADCUnloadedValues[2]);
+	trace_printf("ADCValue3: %d\n", ADCUnloadedValues[3]);
+	trace_printf("Precision batt voltage: %d\n", (int) (1000 * batteryVoltage));
+	trace_printf("Temperature mC: %d\n", (int) (1000 * temperature));
+
 	// Are we alive at all?
 	if (batteryVoltage >= 3.0) {
 		// yes, ok start the real HSE clock.
 		SetSysClock();
-
-		trace_printf("ADCValue0: %d\t", ADCUnloadedValues[0]);
-		trace_printf("ADCValue1: %d\t", ADCUnloadedValues[1]);
-		trace_printf("ADCValue2: %d\n", ADCUnloadedValues[2]);
-		trace_printf("Precision batt voltage: %d\n",
-				(int) (1000 * batteryVoltage));
-		trace_printf("Temperature mC: %d\n", (int) (1000 * temperature));
 
 		// Time to do main cycle? (the variables should have been set somewhere above, all of them)
 		mainPeriodCnt++;
@@ -502,7 +507,7 @@ int main() {
 	systick_start();
 
 	// for debug only.
-	timer_sleep(1000);
+	// timer_sleep(1000);
 
 	RTC_init();
 
@@ -511,14 +516,37 @@ int main() {
 	}
 
 	double deviation = 0;
-	uint32_t frequency= 0;
-	selfCalibrateModulation(16E6, &WSPR_MODULATION_SELF_CALIBRATION,
-	PLL_PREFERRED_TRIM, &deviation, &frequency);
-	trace_printf("SC HFAPRSmod: freq %d, dev %d at %d p-p\n", frequency,
-			(int) (deviation * 1E9),
-			WSPR_MODULATION_SELF_CALIBRATION.modulation_PP);
+	uint32_t frequency = 0;
 
-	trace_printf("Deviation: %d\n", (int)(deviation * 1E9));
+	/*
+	timer_sleep(5000);
+	 selfCalibrateModulation(16E6, &WSPR_MODULATION_SELF_CALIBRATION,
+	 PLL_PREFERRED_TRIM, &deviation, &frequency);
+	 trace_printf("SC HFAPRSmod: freq %d, dev %d at %d p-p\n", frequency,
+	 (int) (deviation * 1E9),
+	 WSPR_MODULATION_SELF_CALIBRATION.modulation_PP);
+
+	 trace_printf("Deviation: %d\n", (int) (deviation * 1E9));
+
+	 double WSPRdesiredDeviation = 12000.0 / 8192.0 / 10142200.0;
+	 double APRSdesiredDeviation = 200.0 / 10149300.0;
+
+	 // testpp / testdev = desiredpp / desireddev.
+	 // desiredpp = (testpp / testdev) * desireddev
+	 double WSPRmodulationNeeded = WSPR_MODULATION_SELF_CALIBRATION.modulation_PP/deviation * WSPRdesiredDeviation;
+	 trace_printf("Need per WSPR step DEC count: %d\n", (int)(WSPRmodulationNeeded+0.5));
+
+	 double APRSmodulationNeeded = WSPR_MODULATION_SELF_CALIBRATION.modulation_PP/deviation * APRSdesiredDeviation;
+	 trace_printf("Need per APRS step DEC count: %d\n", (int)(APRSmodulationNeeded+0.5));
+
+	timer_sleep(5000);
+	while (1) {
+		for (uint8_t i = 0; i < 21; i++) {
+			selfCalibrateTrimming(&deviation, i);
+			trace_printf("%d pF: %d\n", i, (int) (deviation * 1E7));
+		}
+	}
+	*/
 
 	while (1) {
 		// Various stuff was disabled, either by us or by the stop mode.
@@ -541,30 +569,6 @@ int main() {
 
 		interruptAlarm = false;
 	}
-
-	/*
-	 double deviation;
-	 uint32_t frequency;
-	 selfCalibrateModulation(16E6, &WSPR_MODULATION_SELF_CALIBRATION,
-	 PLL_PREFERRED_TRIM, &deviation, &frequency);
-	 trace_printf("SC HFAPRSmod: freq %d, dev %d at %d p-p\n", frequency,
-	 (int) (deviation * 1E9),
-	 WSPR_MODULATION_SELF_CALIBRATION.modulation_PP);
-	 */
-	/*
-	 while (1) {
-	 for (uint8_t i = 0; i < 21; i++) {
-	 selfCalibrateTrimming(&deviation, i);
-	 trace_printf("%d pF: %d\n", i, (int) (deviation * 1E7));
-	 }
-
-	 selfCalibrateModulation(16E6, &WSPR_MODULATION_SELF_CALIBRATION, 13,
-	 &deviation, &frequency);
-
-	 trace_printf("WSPR dev %d\n", (int) (deviation * 1E7));
-
-	 }
-	 */
 
 	/*
 	 WSPRSynthesisExperiment(25998440);

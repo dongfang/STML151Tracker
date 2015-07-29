@@ -9,7 +9,7 @@
 #define CDCE913_H_
 
 #include "Types.h"
-#include "ExperimentallyDerivedConstants.h"
+#include "Setup.h"
 
 #define CDCE913_SELFCALIBRATION_DIVISION 1000
 #define CDCE913_PREFERRED_TRIM 13

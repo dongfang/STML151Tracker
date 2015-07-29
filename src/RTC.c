@@ -10,7 +10,7 @@
 #include "Systick.h"
 #include <diag/trace.h>
 
-uint8_t RTC_init() {
+boolean RTC_init() {
 	int timeout = 1000000;
 
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR, ENABLE);
@@ -34,7 +34,7 @@ uint8_t RTC_init() {
 		if (!(RCC->CSR & RCC_CSR_LSEON)) {
 			trace_printf("  (doesn't even seem enabled)\n");
 		}
-		return 0; // fail.
+		return false; // fail.
 	}
 
 	RCC_RTCCLKConfig(RCC_RTCCLKSource_LSE);
@@ -51,12 +51,12 @@ uint8_t RTC_init() {
 	/* initialize the RTC */
 	if (RTC_Init(&R) == ERROR) {
 		trace_printf("RTC init failed \r\n");
-		return 0; // fail.
+		return false; // fail.
 	}
 
-	trace_printf("RTC OK. \r\n");
+	// trace_printf("RTC OK. \r\n");
 
-	return 1; // okay
+	return true; // okay
 }
 
 void RTC_debugRTCTime() {
@@ -66,7 +66,7 @@ void RTC_debugRTCTime() {
 			rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
 }
 
-int timeDiff_s(RTC_TimeTypeDef* t1, RTC_TimeTypeDef* t2) {
+int RTC_timeDiff_s(RTC_TimeTypeDef* t1, RTC_TimeTypeDef* t2) {
 	int result = t1->RTC_Seconds - t2->RTC_Seconds;
 	result += (t1->RTC_Minutes - t2->RTC_Minutes) * 60;
 	result += (t1->RTC_Hours - t2->RTC_Hours) * 3600;
@@ -88,7 +88,7 @@ int RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds) {
 	} while ((seconds != _seconds || (minutes % modulo) != 0)
 			&& timer_sleep(100));
 
-	return timeDiff_s(&rtcTime, &rtcFirstTime);
+	return RTC_timeDiff_s(&rtcTime, &rtcFirstTime);
 }
 
 boolean RTC_setRTC(Date_t* date, Time_t* time) {

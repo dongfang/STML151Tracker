@@ -19,18 +19,21 @@ static volatile uint8_t symbolNumber;
 static uint8_t symbolNumberChangeDetect;
 extern uint8_t getWSPRSymbol(uint8_t i);
 
+void setWSPR_DAC() {
+	uint8_t symbol = getWSPRSymbol(symbolNumber);
+	uint16_t dacData = (uint16_t)(
+			symbol * symbolModulation + 2048 - 1.5 * symbolModulation + 0.5);
+	setDAC(DAC2, dacData);
+}
+
 // WSPR DAC interrupt handler.
 // Could use DMA instead.
 void TIM2_IRQHandler(void) {
 	if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET) {
 		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
 		if (symbolNumber < 162) {
-			uint8_t symbol = getWSPRSymbol(symbolNumber);
-			uint16_t dacData = (uint16_t)(
-					symbol * symbolModulation + 2048 - 1.5 * symbolModulation
-							+ 0.5);
-			setDAC(DAC2, dacData);
-			trace_putchar('0' + symbol);
+			setWSPR_DAC();
+			trace_putchar('0' +  getWSPRSymbol(symbolNumber));
 		}
 
 		if (symbolNumber < 163) {
@@ -58,11 +61,16 @@ static void WSPR_shutdownHW() {
 	PLL_shutdown();
 }
 
-static void WSPR_initHW(uint8_t band, const PLL_Setting_t* setting,
+static void WSPR_initHW(
+		uint8_t band,
+		const PLL_Setting_t* setting,
 		float _symbolModulation) {
 
 	symbolNumber = 0;
 	symbolModulation = _symbolModulation;
+
+	DAC2_initHW();
+	setWSPR_DAC();
 
 	setPLL((CDCE913_OutputMode_t) HF_30m_HARDWARE_OUTPUT, setting);
 
@@ -91,21 +99,21 @@ static void WSPR_initHW(uint8_t band, const PLL_Setting_t* setting,
 	// We have some funny problem with a slow discharge somewhere in the modulator
 	// which causes a ramping drift of a few Hz in WSPR.
 	// Tie GPIO4 to ground, just to get rid of it.
+	/* Configure PA.04 (DAC_OUT1) as output-low */
 	GPIO_InitTypeDef GPIO_InitStructure;
-	/* Configure PA.04 (DAC_OUT1), PA.05 (DAC_OUT2) as analog */
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIOA->ODR &= ~(GPIO_Pin_4);
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
 
-	DAC2_initHW();
-	setDAC(DAC2, 2048);
-
 	TIM_Cmd(TIM2, ENABLE);
 }
 
-void WSPR_Transmit(uint8_t band, const PLL_Setting_t* setting, float stepModulation) {
+void WSPR_Transmit(
+		uint8_t band,
+		const PLL_Setting_t* setting,
+		float stepModulation) {
 
 	// Just to be sure.. The GPS makes too much supply noise for WSPR
 	GPS_kill();

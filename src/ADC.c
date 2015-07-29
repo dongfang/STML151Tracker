@@ -144,7 +144,6 @@ void ADC_DMA_init(volatile uint16_t* conversionTargetArray) {
 	while (RCC_GetFlagStatus(RCC_FLAG_HSIRDY) == RESET)
 		;
 
-
 	/* Enable ADC1 clock */
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
 	/*------------------------ DMA1 configuration ------------------------------*/
@@ -202,9 +201,10 @@ void ADC_DMA_init(volatile uint16_t* conversionTargetArray) {
 	ADC_Init(ADC1, &ADC_InitStructure);
 
 	/* ADC1 regular channel1 configuration. Ch21 is supposedly the PB15 thermometer. */
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_96Cycles); // Batt
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 2, ADC_SampleTime_96Cycles); // Main solar
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_21, 3, ADC_SampleTime_96Cycles); // Temperature
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_24Cycles); // Batt
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 2, ADC_SampleTime_48Cycles); // Main solar
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_21, 3, ADC_SampleTime_48Cycles); // Temperature
+	// ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 4, ADC_SampleTime_48Cycles); // Batt
 	// ADC_RegularChannelConfig(ADC1, ADC_Channel_TempSensor, 4, ADC_SampleTime_192Cycles); // Internal T
 
 	/* Enable ADC1 */

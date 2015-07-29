@@ -10,14 +10,8 @@
 
 #include "stm32l1xx_conf.h"
 #include "Types.h"
+#include "Setup.h"
 
-#define BATT_MEASURED_VOLTAGE 4.228
-#define BATT_READ_ADC12 3687.0
-
-#define SOLAR_MEASURED_VOLTAGE 1.845
-#define SOLAR_READ_ADC12 3554.0
-
-#define VCC 2.202
 #define ADC_FACTOR (VCC / 4096)
 
 #define BATT_ADC_FACTOR (BATT_MEASURED_VOLTAGE / BATT_READ_ADC12)

@@ -17,13 +17,15 @@ static uint16_t storedRecordIndexIn __attribute__((section (".noinit")));
 static uint16_t storedRecordIndexOutHead __attribute__((section (".noinit")));
 static uint16_t storedRecordIndexOutTail __attribute__((section (".noinit")));
 static uint16_t storedRecordIndexCheck __attribute__((section (".noinit")));
+static Time_t nextStorageTime __attribute__((section (".noinit")));
 
 //uint32_t bkup = RTC_ReadBackupRegister(RTC_BKP_DR0);
 //trace_printf("BKUP was %u\n", bkup);
 //RTC_WriteBackupRegister(RTC_BKP_DR0, bkup + 1);
 
 uint16_t checksum() {
-	return storedRecordIndexIn + storedRecordIndexOutHead * 13 + storedRecordIndexOutTail * 17 + 0xa5a;
+	return storedRecordIndexIn + storedRecordIndexOutHead * 13
+			+ storedRecordIndexOutTail * 17 + 0xa5a;
 }
 
 void setIndexCheck() {
@@ -38,38 +40,78 @@ void checkOrResetIndices() {
 	storedRecordIndexOutHead = 0;
 	storedRecordIndexOutTail = 0;
 	setIndexCheck();
+	nextStorageTime = GPSTime.time; // we might as well start storing NOW.
+}
+
+// This is rather primitive! Only works within 24h.
+int secondsBeforeNextStorageTime() {
+	int timeToWait = nextStorageTime.seconds - GPSTime.time.seconds;
+	timeToWait += (nextStorageTime.minutes - GPSTime.time.minutes) * 60;
+	timeToWait += (nextStorageTime.hours - GPSTime.time.hours) * 3600;
+
+	// Wrap-around at +-12h.
+	if (timeToWait <=  -12*3600) timeToWait += 24*3600;
+	else if (timeToWait > 12*3600) timeToWait -= 24*3600;
+
+	return timeToWait;
+}
+
+boolean timeToStoreRecord() {
+	checkOrResetIndices();
+	return secondsBeforeNextStorageTime() <= 0;
+}
+
+void addIntervalToNextStorageTime() {
+	int seconds = nextStorageTime.seconds + STORAGE_INTERVAL_S;
+	nextStorageTime.seconds  = seconds % 60;
+	int minutes = seconds / 60 + nextStorageTime.minutes + STORAGE_INTERVAL_S/60;
+	nextStorageTime.minutes  = minutes % 60;
+	int hours = minutes / 60 + nextStorageTime.hours + STORAGE_INTERVAL_S/3600;
+	nextStorageTime.hours = hours % 24;
 }
 
 // Always has space for more. Else overwrite oldest.
 StoredPathRecord_t* nextRecordIn() {
+	addIntervalToNextStorageTime();
+
 	checkOrResetIndices();
 	uint16_t result = storedRecordIndexIn;
 	storedRecordIndexIn = (storedRecordIndexIn + 1) % NUM_STORED_RECORDS;
 	if (storedRecordIndexIn == storedRecordIndexOutTail) {
 		// We ran out of space. Discard some old crap.
-		storedRecordIndexOutTail = (storedRecordIndexOutTail + 1) % NUM_STORED_RECORDS;
+		storedRecordIndexOutTail = (storedRecordIndexOutTail + 1)
+				% NUM_STORED_RECORDS;
 	}
 	if (storedRecordIndexIn == storedRecordIndexOutHead) {
 		// We ran out of space. Discard some old crap.
-		storedRecordIndexOutHead = (storedRecordIndexOutHead + 1) % NUM_STORED_RECORDS;
+		storedRecordIndexOutHead = (storedRecordIndexOutHead + 1)
+				% NUM_STORED_RECORDS;
 	}
-	trace_printf("Stored a record, indices are now %d %d %d\n", storedRecordIndexIn, storedRecordIndexOutHead, storedRecordIndexOutTail);
+	trace_printf("Stored a record, indices are now %d %d %d\n",
+			storedRecordIndexIn, storedRecordIndexOutHead,
+			storedRecordIndexOutTail);
 	setIndexCheck();
 	return storedRecords + result;
 }
 
 StoredPathRecord_t* nextRecordOutForFirstTransmission() {
 	uint16_t result = storedRecordIndexOutHead;
-	storedRecordIndexOutHead = (storedRecordIndexOutHead + 1) % NUM_STORED_RECORDS;
-	trace_printf("Returned a record for 1, indices are now %d %d %d\n", storedRecordIndexIn, storedRecordIndexOutHead, storedRecordIndexOutTail);
+	storedRecordIndexOutHead = (storedRecordIndexOutHead + 1)
+			% NUM_STORED_RECORDS;
+	trace_printf("Returned a record for 1, indices are now %d %d %d\n",
+			storedRecordIndexIn, storedRecordIndexOutHead,
+			storedRecordIndexOutTail);
 	setIndexCheck();
 	return storedRecords + result;
 }
 
 StoredPathRecord_t* nextRecordOutForLastTransmission() {
 	uint16_t result = storedRecordIndexOutTail;
-	storedRecordIndexOutTail = (storedRecordIndexOutTail + 1) % NUM_STORED_RECORDS;
-	trace_printf("Returned a record for 2, indices are now %d %d %d\n", storedRecordIndexIn, storedRecordIndexOutHead, storedRecordIndexOutTail);
+	storedRecordIndexOutTail = (storedRecordIndexOutTail + 1)
+			% NUM_STORED_RECORDS;
+	trace_printf("Returned a record for 2, indices are now %d %d %d\n",
+			storedRecordIndexIn, storedRecordIndexOutHead,
+			storedRecordIndexOutTail);
 	setIndexCheck();
 	return storedRecords + result;
 }
@@ -96,7 +138,7 @@ uint16_t startupRecordChecksum() {
 	uint16_t result = startupLog.wasGPSRunning ? 13 : 17;
 	result *= startupLog.wasHFTxRunning ? 21 : 29;
 	result *= startupLog.wasVHFTxRunning ? 31 : 41;
-	result += (uint16_t)(startupLog.initialVoltageValue*1000);
+	result += (uint16_t)(startupLog.initialVoltageValue * 1000);
 	return result;
 }
 
@@ -162,9 +204,13 @@ uint8_t uncompressDateHoursMinutes(StoredPathRecord_t* record, Time_t* time) {
 
 // Use "current" global values.
 void storeToRecord(StoredPathRecord_t* record) {
-	int32_t mainOscillatorError = PLL_oscillatorError(currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim) + 8280/2;
-	if (mainOscillatorError > 32767) mainOscillatorError = 32767;
-	else if (mainOscillatorError < -32768) mainOscillatorError = -32768;
+	int32_t mainOscillatorError = PLL_oscillatorError(
+			currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim)
+			+ 8280 / 2;
+	if (mainOscillatorError > 32767)
+		mainOscillatorError = 32767;
+	else if (mainOscillatorError < -32768)
+		mainOscillatorError = -32768;
 
 	record->compressedBatteryVoltage = batteryVoltage * 50; // 5.12V->256
 	record->compressedSolarVoltage = solarVoltage * 50;
