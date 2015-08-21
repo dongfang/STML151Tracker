@@ -60,6 +60,8 @@ uint16_t lastWSPRWindowWaitTime;
 
 int scheduleSeconds = -1;
 
+char scheduleName = '-';
+
 uint8_t mainPeriod;
 uint8_t mainPeriodCnt;
 
@@ -381,6 +383,7 @@ void APRSCycle() {
 }
 
 void reschedule(
+		char _scheduleName,
 		int _scheduleSeconds,
 		uint8_t _mainPeriod,
 		uint8_t _WSPRPeriod,
@@ -401,7 +404,7 @@ void reschedule(
 		WSPRCnt = 0;
 		HFAPRSCnt = 0;
 	}
-
+	scheduleName = _scheduleName;
 	scheduleSeconds = _scheduleSeconds;
 	mainPeriod = _mainPeriod;
 	WSPRPeriod = _WSPRPeriod;

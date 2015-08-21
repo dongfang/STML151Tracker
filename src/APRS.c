@@ -296,7 +296,7 @@ uint8_t sillyOneDecimalValue(char memo, float in, char* out) {
 	return sprintf(out, ",%c%d.%d", memo, i_Whole, i_decimal);
 }
 
-static uint16_t StatusMessageSequence __attribute__((section (".noinit")));
+static uint16_t statusMessageSequence __attribute__((section (".noinit")));
 
 // Exported functions
 void APRS_marshallStatusMessage(
@@ -307,6 +307,9 @@ void APRS_marshallStatusMessage(
 	) {
 
 	char temp[12];
+
+	if (statusMessageSequence > 9999) statusMessageSequence = 0;
+
 	aprs_send_header(&APRS_DEST, txDelay);
 	ax25_send_byte('>');
 	ax25_send_byte('?');
@@ -314,7 +317,7 @@ void APRS_marshallStatusMessage(
 	sprintf(temp, "r%u", numRestarts);
 	ax25_send_string(temp);
 
-	sprintf(temp, ",s%u", StatusMessageSequence);
+	sprintf(temp, ",s%u", statusMessageSequence);
 	ax25_send_string(temp);
 
 	sprintf(temp, ",f%lu", txFrequency/1000);
@@ -341,7 +344,11 @@ void APRS_marshallStatusMessage(
 			(PWR_isSafeToUseVHFTx() ? '1' : '0'));
 	ax25_send_string(temp);
 
-	sprintf(temp, ",p%u", scheduleSeconds*mainPeriod);
+	ax25_send_byte(',');
+	ax25_send_byte('p');
+	ax25_send_byte(scheduleName);
+
+	sprintf(temp, ",a%u", scheduleSeconds*mainPeriod);
 	ax25_send_string(temp);
 
 	sprintf(temp, ",w%u/%u", WSPRCnt, scheduleSeconds*mainPeriod*WSPRPeriod);

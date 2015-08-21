@@ -33,6 +33,7 @@ extern boolean latestAPRSRegions[12]; 	 // 12 is sufficently large for the world
 extern boolean latestAPRSCores[12];	 // 12 is sufficently large for the world map...
 extern const CalibrationRecord_t* currentCalibration;
 
+extern char scheduleName;
 extern int scheduleSeconds;
 
 extern uint8_t mainPeriod;

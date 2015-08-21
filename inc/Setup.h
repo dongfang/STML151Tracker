@@ -48,19 +48,19 @@ extern const AX25_Address_t APRS_DIGI2;
 #define LOWALT_THRESHOLD 3048
 
 // VHF each 2 min, WSPR each 10, HF APRS each 30
-#define LOWALT_SCHEDULE_TIME (2*60),1,5,15
+#define LOWALT_SCHEDULE_TIME 'a',(2*60),1,5,15
 
 // VHF each 5 min, WSPR each 15, HF APRS each 30
-#define DAY_SCHEDULE_TIME (5*60),1,3,12
+#define DAY_SCHEDULE_TIME 'd',(5*60),1,3,12
 
 // Wakeup each 10, VHF each 20, WSPR each 40, HF APRS each 1h
-#define NIGHT_SCHEDULE_TIME (10*60),2,2,3
+#define NIGHT_SCHEDULE_TIME 'n',(10*60),2,2,3
 
 // Wakeup each 20, VHF each 60, WSPR each 120, HF APRS almost never
-#define LOWBATT_SCHEDULE_TIME (20*60),3,2,255
+#define LOWBATT_SCHEDULE_TIME 'b',(20*60),3,2,255
 
 // Wakeup each 20, VHF each 240, WSPR each 480, HF APRS almost never
-#define CRISIS_SCHEDULE_TIME (20*60),12,2,255
+#define CRISIS_SCHEDULE_TIME 'c',(20*60),12,2,255
 
 #define HF_30m_HARDWARE_OUTPUT 3
 #define DIRECT_2m_HARDWARE_OUTPUT 2
