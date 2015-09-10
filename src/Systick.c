@@ -64,7 +64,4 @@ void SysTick_Handler(void) {
 	if (timer_delayCount != 0u) {
 		--timer_delayCount;
 	}
-	if (interruptAlarm) {
-		trace_printf("Systick\n");
-	}
 }

@@ -7,6 +7,7 @@
 
 #ifndef DAC_DMA_SIGNALGENERATION_H_
 #define DAC_DMA_SIGNALGENERATION_H_
+#include <stdint.h>
 
 void setupSimpleDAC(void);
 void setupDMASignalGeneration(void) ;

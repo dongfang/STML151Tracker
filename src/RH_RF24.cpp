@@ -6,6 +6,7 @@
 #include "RH_RF24.h"
 #include "SPI.h"
 #include "Systick.h"
+#include "stm32l1xx.h"
 #include <diag/trace.h>
 #include <string.h>
 
@@ -64,7 +65,7 @@ boolean RH_RF24::initWarm() {
 	if (!command(RH_RF24_CMD_PART_INFO, 0, 0, buf, sizeof(buf)))
 		return false; // SPI error? Not connected?
 	_deviceType = (buf[1] << 8) | buf[2];
-	trace_printf("deviceType: %d\n", _deviceType);
+	trace_printf("deviceType: %x\n", _deviceType);
 	// Check PART to be either 0x4460, 0x4461, 0x4463, 0x4464
 	if (_deviceType != 0x4460 && _deviceType != 0x4461 && _deviceType != 0x4463
 			&& _deviceType != 0x4464)
@@ -74,12 +75,12 @@ boolean RH_RF24::initWarm() {
 
 	return true;
 }
+
 void RH_RF24::clearBuffer() {
 	_bufLen = 0;
 	_txBufSentIndex = 0;
 	_rxBufValid = false;
 }
-
 
 // Sets registers from a canned modem configuration structure
 void RH_RF24::setModemRegisters(const ModemConfig* config) {
@@ -310,54 +311,55 @@ void RH_RF24::setTxPower(uint8_t power) {
 }
 
 // Caution: There was a bug in A1 hardware that will not handle 1 byte commands. 
-bool RH_RF24::command(uint8_t cmd, const uint8_t* write_buf, uint8_t write_len,
-		uint8_t* read_buf, uint8_t read_len) {
+bool RH_RF24::command(
+		uint8_t cmd,
+		const uint8_t* write_buf,
+		uint8_t write_len,
+		uint8_t* read_buf,
+		uint8_t read_len) {
+
 	bool done = false;
 
-	// ATOMIC_BLOCK_START;
-	// First send the command
-	// digitalWrite(_slaveSelectPin, LOW);
-	SPI_assertSS();
+	assertSS();
 
-	trace_printf("Sending command %d of length %d\n", cmd, write_len);
-	SPI_transfer(cmd);
+	transfer(cmd);
 
 	// Now write any write data
 	if (write_buf && write_len) {
 		while (write_len--) {
 			// trace_printf("Sending arg %d\n", *write_buf);
-			SPI_transfer(*write_buf++);
+			transfer(*write_buf++);
 		}
 	}
 
 	// Sigh, the RFM26 at least has problems if we deselect too quickly :-(
 	// Innocuous timewaster:
+	timer_sleep(1);
 	// And finalise the command
 	// trace_printf("done with command %d\n", cmd);
-	SPI_releaseSS();
+	releaseSS();
 
 	uint16_t count; // Number of times we have tried to get CTS
 	for (count = 0; !done && count < RH_RF24_CTS_RETRIES; count++) {
 		// Wait for the CTS
 		timer_sleep(1);
-		SPI_assertSS();
+		assertSS();
 
-		SPI_transfer(RH_RF24_CMD_READ_BUF);
-		if (SPI_transfer(0) == RH_RF24_REPLY_CTS) {
+		transfer(RH_RF24_CMD_READ_BUF);
+		if (transfer(0) == RH_RF24_REPLY_CTS) {
 			// Now read any expected reply data
-			trace_printf("** Got CTS\n");
 			if (read_buf && read_len) {
 				while (read_len--) {
-					*read_buf++ = SPI_transfer(0);
+					*read_buf++ = transfer(0);
 				}
 			}
 			done = true;
-		} else trace_printf("No CTS\n");
+		}
 		// Sigh, the RFM26 at least has problems if we deselect too quickly :-(
 		// Innocuous timewaster:
 		// digitalWrite(_slaveSelectPin, LOW);
 		// Finalise the read
-		SPI_releaseSS();
+		releaseSS();
 	}
 	// ATOMIC_BLOCK_END;
 	return done; // False if too many attempts at CTS
@@ -382,16 +384,14 @@ bool RH_RF24::configure(const uint8_t* commands) {
 		trace_printf("\n");
 */
 		command(buf[0], buf + 1, next_cmd_len - 1);
-
 		commands += (next_cmd_len + 1);
 	}
 	return true;
 }
 
 void RH_RF24::shutdown_HW() {
-	trace_printf("RF24 shut down! \n");
-	// GPIOA->ODR |= (1 << RF24_SDN_BIT);
-	SPI_end();
+	GPIOA->ODR |= (1 << RF24_SDN_BIT);
+	end();
 }
 
 extern "C" boolean timer_sleep(uint32_t);
@@ -399,10 +399,10 @@ extern "C" boolean timer_sleep(uint32_t);
 void RH_RF24::init_HW() {
 	// Sigh: its necessary to control the SDN pin to reset this chip.
 	// Tying it to GND does not produce reliable startups
-	// Per Si4464 Data Sheet 3.3.2
+	// Per Si44f64 Data Sheet 3.3.2
 	// _delay_ms(10);
-	SPI_begin();
-	// GPIOA->ODR &= ~(1 << RF24_SDN_BIT);
+	begin();
+	GPIOA->ODR &= ~(1 << RF24_SDN_BIT);
 	timer_sleep(6);
 }
 

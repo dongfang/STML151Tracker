@@ -3,8 +3,6 @@
 // Copyright (c) 2014 Liviu Ionescu.
 //
 
-#include <core_cm3.h>
-//#include <core_sc300.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/types.h>

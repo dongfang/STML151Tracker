@@ -8,25 +8,11 @@
 #ifndef ADC_H_
 #define ADC_H_
 
-#include "stm32l1xx_conf.h"
 #include "Types.h"
 #include "Setup.h"
+#include <stdint.h>
 
 #define ADC_FACTOR (VCC / 4096)
-
-#define BATT_ADC_FACTOR (BATT_MEASURED_VOLTAGE / BATT_READ_ADC12)
-#define REV_BATT_ADC_FACTOR (BATT_READ_ADC12 / BATT_MEASURED_VOLTAGE)
-
-#define SOLAR_ADC_FACTOR (SOLAR_MEASURED_VOLTAGE / SOLAR_READ_ADC12)
-
-#define BATT_ADC_2V7 (REV_BATT_ADC_FACTOR * 2.7)
-#define BATT_ADC_3V0 (REV_BATT_ADC_FACTOR * 3.0)
-#define BATT_ADC_3V3 (REV_BATT_ADC_FACTOR * 3.3)
-#define BATT_ADC_3V7 (REV_BATT_ADC_FACTOR * 3.7)
-#define BATT_ADC_4V2 (REV_BATT_ADC_FACTOR * 4.2)
-
-#define COARSE(x) ((x)*16)
-#define REV_COARSE(x) ((x)/16)
 
 #define NUM_ADC_VALUES 3
 
@@ -35,16 +21,8 @@ extern volatile uint16_t ADCLoadedValues[NUM_ADC_VALUES];
 
 extern volatile boolean ADC_DMA_Complete;
 
-// uint16_t ADC_cheaplyMeasureBatteryVoltage() ;
-
 void ADC_DMA_init(volatile uint16_t* conversionTargetArray);
 void ADC_DMA_shutdown();
 
-float ADC_batteryUnloadedVoltage();
-float ADC_batteryLoadedVoltage();
-float ADC_solarVoltage();
-float ADC_temperature();
-float ADC_internalTemperature();
-int8_t ADC_simpleTemperature(float temp);
 
 #endif /* ADC_H_ */

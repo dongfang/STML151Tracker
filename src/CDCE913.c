@@ -1,27 +1,15 @@
-#include "../inc/CDCE913.h"
+#include "CDCE913.h"
 
-#include "../inc/Bands.h"
-#include "../inc/CDCE913_26MHzXtal.h"
-#include "../inc/diag/Trace.h"
-#include "../inc/Systick.h"
-#include "../Libraries/CMSIS/Device/ST/STM32L1xx/Include/stm32l1xx.h"
-#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_gpio.h"
-#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_i2c.h"
-#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_rcc.h"
+#include "Bands.h"
+#include "CDCE913.h"
+#include "diag/Trace.h"
+#include "Systick.h"
+#include "stm32l1xx.h"
 
 #define CDCE913_I2C_ADDR 0b1100101
 #define I2C_TIMEOUT 25
 
 const int16_t PLL_XTAL_TRIM_PP10M[] = PLL_XTAL_TRIM_PP10M_VALUES;
-
-// These are different options for the same frequency.
-static const CDCE913_PLLSetting_t PLL_OPTIONS_WSPR_10m[] =
-CDCE913_PLL_SETTINGS_10m_WSPR;
-
-// These are different options for the same frequency.
-static const CDCE913_PLLSetting_t PLL_OPTIONS_WSPR_30m[] =
-CDCE913_PLL_SETTINGS_30m_WSPR
-;
 
 // These are different options for the same frequency (maybe one is enough).
 // static const CDCE913_PLLSetting_t PLL_OPTIONS_APRS_30m[];

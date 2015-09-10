@@ -2,7 +2,7 @@
 #include "Types.h"
 #include <string.h>
 #include <math.h>
-#include "stm32l1xx_conf.h"
+#include "stm32l1xx.h"
 #include "WSPR.h"
 #include "GPS.h"
 #include "PLL.h"

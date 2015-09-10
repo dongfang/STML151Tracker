@@ -12,7 +12,7 @@
 #define _SPI_H_INCLUDED
 
 #include <stdio.h>
-#include "stm32l1xx_conf.h"
+#include <stdint.h>
 
 #define SPI_CLOCK_DIV4 0x00
 #define SPI_CLOCK_DIV16 0x01
@@ -34,11 +34,11 @@
 
 class SPI {
 protected:
-	void SPI_begin();
-	void SPI_assertSS();
-	void SPI_releaseSS();
-	uint8_t SPI_transfer(uint8_t _data);
-	void SPI_end();
+	void begin();
+	void assertSS();
+	void releaseSS();
+	uint8_t transfer(uint8_t _data);
+	void end();
 };
 
 

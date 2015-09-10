@@ -9,7 +9,7 @@
 #define INC_PLL_H_
 
 #include "Types.h"
-// #include "Bands.h"
+#include <stdint.h>
 
 // the implementation PLL type decides what PLLSetting_t actually is.
 #include "CDCE913.h"

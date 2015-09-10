@@ -9,6 +9,7 @@
 #define DAC_H_
 
 #include "Types.h"
+#include <stdint.h>
 
 // WSPR stuff - no DMA.
 // Setup DAC ch 2 but leave Ch1 floating

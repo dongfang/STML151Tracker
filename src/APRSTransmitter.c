@@ -14,11 +14,44 @@
 #include "Power.h"
 #include "Setup.h"
 #include "ADC.h"
+#include "stm32l1xx.h"
+#include "Systick.h"
 #include <diag/trace.h>
 
 volatile APRSModulationMode_t currentMode;
 volatile uint16_t packet_cnt;
 volatile uint8_t packetTransmissionComplete;
+
+static void APRS_initDirectVHFTransmission(uint32_t frequency, uint32_t referenceFrequency);
+static void APRS_endDirectTransmission();
+static void APRS_initDirectHFTransmission(uint32_t frequency, uint32_t referenceFrequency);
+
+const APRSTransmission_t APRS_TRANSMISSIONS[] = { { 
+		.modulationMode = AFSK,
+		.modulationAmplitude = 400,
+		.txDelay = 20,
+		 .initTransmitter = APRS_initDirectVHFTransmission,
+		 .shutdownTransmitter = APRS_endDirectTransmission },
+		 { .modulationMode = GFSK,
+		.modulationAmplitude = HF_APRS_DEVIATION_DAC_30m,
+		.txDelay = 5,
+		.initTransmitter = APRS_initDirectHFTransmission,
+		.shutdownTransmitter = APRS_endDirectTransmission } };
+
+void APRS_initSi4463Transmission(
+		uint32_t frequency,
+		uint32_t referenceFrequency) {
+	PLL_setXOPassthroughMode(PLL_PREFERRED_TRIM_VALUE);
+	RF24_initHW();
+	uint8_t power = isDaytimePower() ? SI4463_DAYTIME_TX_POWER : SI4463_NIGHTTIME_TX_POWER;
+	RF24_transmit(frequency, power);
+}
+
+void APRS_endSi4463Transmission() {
+	RF24_stopTransmitting();
+	RF24_shutdownHW();
+	PLL_shutdown();
+}
 
 static void APRS_makeDirectTransmissionFrequency(uint32_t frequency,
 		uint32_t referenceFrequency, uint8_t output) {
@@ -51,25 +84,6 @@ void APRS_endDirectTransmission() {
 	FSK_shutdown();
 }
 
-/* In the current no-Si4463 configuration, this is not used. */
-void APRS_initSi4463Transmission(uint32_t frequency,
-		uint32_t referenceFrequency) {
-	double desiredTrim = (double) PLL_XTAL_NOMINAL_FREQUENCY
-			/ (double) referenceFrequency - 1;
-	int8_t trim = PLL_bestTrim(desiredTrim);
-	PLL_setXOPassthroughMode(trim);
-	RF24_initHW();
-	RF24_initWarm(frequency, 10);
-}
-
-const APRSTransmission_t APRS_TRANSMISSIONS[] = { { .modulationMode = AFSK,
-		.modulationAmplitude = 350, .txDelay = 15, .initTransmitter =
-				APRS_initDirectVHFTransmission, .shutdownTransmitter =
-				APRS_endDirectTransmission }, { .modulationMode = GFSK,
-		.modulationAmplitude = HF_APRS_DEVIATION_DAC_30m, .txDelay = 5, .initTransmitter =
-				APRS_initDirectHFTransmission, .shutdownTransmitter =
-				APRS_endDirectTransmission } };
-
 extern void APRS_marshallPositionMessage(uint16_t txDelay);
 extern void APRS_marshallStoredPositionMessage(StoredPathRecord_t* record,
 		uint16_t txDelay);
@@ -77,8 +91,11 @@ extern void APRS_marshallStatusMessage(uint32_t frequency,
 		uint32_t referenceFrequency, uint16_t txDelay);
 // extern volatile uint16_t packet_size;
 
-void APRS_transmitMessage(APRS_Band_t band, APRS_MessageType_t messageType,
-		StoredPathRecord_t* storedMessage, uint32_t frequency,
+static void _APRS_transmitMessage(
+		APRS_Band_t band,
+		APRS_MessageType_t messageType,
+		StoredPathRecord_t* storedMessage,
+		uint32_t frequency,
 		uint32_t referenceFrequency) {
 
 	const APRSTransmission_t* mode = &APRS_TRANSMISSIONS[band];
@@ -91,13 +108,9 @@ void APRS_transmitMessage(APRS_Band_t band, APRS_MessageType_t messageType,
 		APRS_marshallStoredPositionMessage(storedMessage, mode->txDelay);
 		break;
 	case STATUS_MESSAGE:
-		APRS_marshallStatusMessage(frequency, referenceFrequency,
-				mode->txDelay);
+		APRS_marshallStatusMessage(frequency, referenceFrequency, mode->txDelay);
 		break;
 	}
-
-	/* Avoid firing a transmission prematurely */
-	packetTransmissionComplete = true;
 
 	// Set up MPU hardware (DAC, timers, ...)
 	switch (mode->modulationMode) {
@@ -111,52 +124,69 @@ void APRS_transmitMessage(APRS_Band_t band, APRS_MessageType_t messageType,
 
 	switch (band) {
 	case VHF:
-		PWR_startVHFTx();
+		PWR_startDevice(E_DEVICE_VHF_TX);
 		break;
 	case HF:
-		PWR_startHFTx();
+		PWR_startDevice(E_DEVICE_HF_TX);
 		GPIOB->ODR |=  (1 << 1);		// arm HF
-		ADC_DMA_init(ADCLoadedValues); 	// Experiment: Loaded voltages measurement.
 		break;
 	}
+
 	GPIOB->ODR |= GPIO_Pin_6; // LED
 
-	packet_cnt = 0;
 	mode->initTransmitter(frequency, referenceFrequency);
 
 	// Go now.
+	packet_cnt = 0;
 	packetTransmissionComplete = false;
+
+	ADC_DMA_init(ADCLoadedValues); 	// Experiment: Loaded voltages measurement.
 
 	while (!packetTransmissionComplete) {
 		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
 	}
 
 	// We are now done transmitting.
+	FSK_shutdown();
 	mode->shutdownTransmitter();
 
 	GPIOB->ODR &= ~(GPIO_Pin_6|GPIO_Pin_1); // LED and HF arm
+	ADC_DMA_shutdown(); // we just assume it will work, if not, no prob.
 
 	switch (band) {
 	case VHF:
-		PWR_stopVHFTx();
+		PWR_stopDevice(E_DEVICE_VHF_TX);
 		break;
 	case HF:
-		PWR_stopHFTx();
-		ADC_DMA_shutdown(); // we just assume it will work, if not, no prob.
+		PWR_stopDevice(E_DEVICE_HF_TX);
 		break;
 	}
+
+	trace_printf("Tx-end\n");
 }
 
-void APRS_transmitRandomMessage(APRS_Band_t band,
-		APRS_MessageType_t messageType, uint32_t frequency,
+void APRS_transmitMessage(
+		APRS_Band_t band,
+		APRS_MessageType_t messageType,
+		uint32_t frequency,
 		uint32_t referenceFrequency) {
-	APRS_transmitMessage(band, messageType, (StoredPathRecord_t*) 0, frequency,
+	_APRS_transmitMessage(
+			band,
+			messageType,
+			(StoredPathRecord_t*) 0,
+			frequency,
 			referenceFrequency);
 }
 
-void APRS_transmitStoredMessage(APRS_Band_t band,
-		StoredPathRecord_t* storedMessage, uint32_t frequency,
+void APRS_transmitStoredMessage(
+		APRS_Band_t band,
+		StoredPathRecord_t* storedMessage,
+		uint32_t frequency,
 		uint32_t referenceFrequency) {
-	APRS_transmitMessage(band, STORED_POSITION_MESSAGE, (StoredPathRecord_t*) 0,
-			frequency, referenceFrequency);
+	_APRS_transmitMessage(
+			band,
+			STORED_POSITION_MESSAGE,
+			storedMessage,
+			frequency,
+			referenceFrequency);
 }

@@ -20,6 +20,7 @@
 
 #include "GPS.h"
 #include "RecordStorage.h"
+#include <stdint.h>
 
 struct APRS_PARAM {
 	char name[8];
@@ -70,20 +71,18 @@ typedef struct {
 extern const APRSFrequencyRegion_t APRS_WORLD_MAP[];
 extern const uint8_t APRS_WORLD_MAP_LENGTH;
 
-extern const uint8_t NUM_APRS_PARAMS;
-extern const struct APRS_PARAM APRS_PARAMS[];
 extern volatile APRSModulationMode_t currentMode;
 extern volatile uint16_t packet_cnt;
 extern volatile uint8_t packetTransmissionComplete;
 
 void APRS_frequenciesFromPosition(
-		const Position_t* position,
+		const Location_t* position,
 		boolean* frequencyVector,
 		boolean* coreVector);
 void APRS_debugFrequency(boolean* result) ;
 void APRS_debugWorldMap();
 
-void APRS_transmitRandomMessage(
+void APRS_transmitMessage(
 		APRS_Band_t band,
 		APRS_MessageType_t messageType,
 		uint32_t frequency,

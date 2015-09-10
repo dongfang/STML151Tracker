@@ -4,10 +4,10 @@
  *  Created on: Jul 4, 2015
  *      Author: dongfang
  */
-#include "APRSWorldMap.h"
 #include "Types.h"
 #include "GPS.h"
 #include "APRS.h"
+#include "WorldMap.h"
 #include <diag/trace.h>
 
 static const APRSPolygonVertex_t boundary144390[] = BOUNDARY_144390;
@@ -112,7 +112,7 @@ void APRS_frequencies(int16_t lat, int16_t lon, boolean* frequenciesVector, bool
 }
 
 void APRS_frequenciesFromPosition(
-		const Position_t* position,
+		const Location_t* position,
 		boolean* frequenciesVector,
 		boolean* isCoreVector) {
 	APRS_frequencies((int16_t)(position->lat + 0.5),

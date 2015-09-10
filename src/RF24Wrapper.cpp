@@ -31,9 +31,7 @@ boolean RF24_initWarm(uint32_t frequency, uint8_t txPower) {
 	if (!rf24.initWarm()) {
 		return false;
 	}
-//	uint8_t trim = OSC_TRIM;
-//	rf24.set_properties(RH_RF24_PROPERTY_GLOBAL_XO_TUNE, &trim, 1);
-	rf24.setFrequency(frequency/1000);
+	rf24.setFrequency(frequency / 1000);
 	rf24.setTxPower(txPower);
 	rf24.setIdleMode(RH_RF24_DEVICE_STATE_SLEEP);
 	return true;
@@ -44,11 +42,9 @@ void RF24_initHW() {
 }
 
 void RF24_transmit(uint32_t frequency, uint8_t txPower) {
-	// Experimental
 	if (RF24_initWarm(frequency, txPower)) {
-	} else {
+		rf24.setModeTx();
 	}
-	rf24.setModeTx();
 }
 
 void RF24_stopTransmitting() {

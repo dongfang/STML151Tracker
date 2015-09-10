@@ -263,9 +263,6 @@ void TIM4_IRQHandler(void) {
 		} else {
 			// do nothing more.
 		}
-		if (interruptAlarm) {
-			trace_printf("Tim4\n");
-		}
 	}
 }
 
@@ -276,29 +273,20 @@ void TIM10_IRQHandler(void) {
 		TIM_ClearITPendingBit(TIM10, TIM_IT_CC1);
 		RTC_ClearITPendingBit(RTC_IT_WUT);
 		trace_printf("Tim10Cap\n");
-		if (TIM10CaptureCount < GPS_TIMEPULSE_WASTED_PULSES) {
-			// waste the first n pulses.
-			TIM10CaptureCount++;
-		} else if (TIM10CaptureCount == GPS_TIMEPULSE_WASTED_PULSES) {
+		if (TIM10CaptureCount == 0) {
 			TIM10CaptureValue32 = -TIM_GetCapture1(TIM10);
 			TIM10CaptureCount++;
-		} else if (TIM10CaptureCount == GPS_TIMEPULSE_WASTED_PULSES + 1) {
+		} else if (TIM10CaptureCount == 1) {
 			// Any overflow was accounted for already.
 			TIM10CaptureValue32 += TIM_GetCapture1(TIM10);
 			TIM10CaptureCount++;
-		}
-		if (interruptAlarm) {
-			trace_printf("Tim10 CC1\n");
 		}
 	}
 	if (TIM_GetITStatus(TIM10, TIM_IT_Update) != RESET) {
 		// Normal overflow, compensate for that by adding to extended counter.
 		TIM_ClearITPendingBit(TIM10, TIM_IT_Update);
-		if (TIM10CaptureCount == GPS_TIMEPULSE_WASTED_PULSES + 1)
+		if (TIM10CaptureCount == 1)
 			TIM10CaptureValue32 += 60000;
-		if (interruptAlarm) {
-			trace_printf("Tim4 Upd\n");
-		}
 	}
 }
 
@@ -432,13 +420,13 @@ boolean HSECalibration(uint32_t maxTime, uint32_t* result) {
 	// ttrace_printf("Waiting for TIM10 captures\n");
 
 	while ((!timer_elapsed(maxTime))
-			&& (TIM10CaptureCount != GPS_TIMEPULSE_WASTED_PULSES + 2)) {
+			&& (TIM10CaptureCount != 2)) {
 		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
 	}
 
 	TIM10Calibration_shutdownHW();
 
-	if (TIM10CaptureCount == GPS_TIMEPULSE_WASTED_PULSES + 2) {
+	if (TIM10CaptureCount == 2) {
 		*result = TIM10CaptureValue32;
 		return 1;
 	}
@@ -455,13 +443,13 @@ boolean RTCCalibration(uint32_t maxTime, uint32_t* result) {
 	timer_mark();
 
 	while ((!timer_elapsed(maxTime))
-			&& (TIM10CaptureCount != RTC_WUT_WASTED_PULSES + 2))
+			&& (TIM10CaptureCount != 2))
 		;
 
 	// This should be reusable for RTC purpose also .. the difference is after all only the capture trigger source.
 	TIM10Calibration_shutdownHW();
 
-	if (TIM10CaptureCount == RTC_WUT_WASTED_PULSES + 2) {
+	if (TIM10CaptureCount == 2) {
 		*result = TIM10CaptureValue32;
 		return 1;
 	}
@@ -477,10 +465,10 @@ boolean selfCalibrate(CalibrationRecord_t* target) {
 	double deviationThrowAway;
 
 	// We need GPS now. If it is not safe to power up and not already running, quit.
-	if (!PWR_isSafeToUseGPS() && !GPS_isGPSRunning())
-		return false;
+	// if (!PWR_isSafeToUseDevice(E_DEVICE_GPS))
+	// 	return false;
+	// GPS_start();
 
-	GPS_start();
 	boolean result = true;
 
 	trace_printf("HSE cal\n");
@@ -500,10 +488,10 @@ boolean selfCalibrate(CalibrationRecord_t* target) {
 		}
 	}
 
-	if (result) {
-		// Sadly, we have to stop the GPS in the middle of calibration.
-		GPS_kill();
+	// Sadly, we have to stop the GPS in the middle of calibration.
+	GPS_shutdown();
 
+	if (result) {
 		// RTCCalibration(3000, &RTCPeriod);
 
 		result &= selfCalibrateModulation(hseFrequency, &TRIM_SELF_CALIBRATION,

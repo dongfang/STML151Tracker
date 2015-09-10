@@ -10,6 +10,7 @@
 
 #include "Types.h"
 #include "Setup.h"
+#include <stdint.h>
 
 #define CDCE913_SELFCALIBRATION_DIVISION 1000
 #define CDCE913_PREFERRED_TRIM 13

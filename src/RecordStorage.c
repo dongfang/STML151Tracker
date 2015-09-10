@@ -11,7 +11,9 @@
 #include "PLL.h"
 #include <diag/trace.h>
 
-StartupRecord_t startupLog __attribute__((section (".noinit")));
+// StartupRecord_t startupLog __attribute__((section (".noinit")));
+NewStartupRecord_t startupLog[E_DEVICE_END] __attribute__((section (".noinit")));
+
 StoredPathRecord_t storedRecords[NUM_STORED_RECORDS] __attribute__((section (".noinit")));
 static uint16_t storedRecordIndexIn __attribute__((section (".noinit")));
 static uint16_t storedRecordIndexOutHead __attribute__((section (".noinit")));
@@ -40,25 +42,22 @@ void checkOrResetIndices() {
 	storedRecordIndexOutHead = 0;
 	storedRecordIndexOutTail = 0;
 	setIndexCheck();
-	nextStorageTime = GPSTime.time; // we might as well start storing NOW.
+	RTC_getTime(&nextStorageTime); // we might as well start storing NOW.
 }
 
-// This is rather primitive! Only works within 24h.
+// This is rather primitive! Only works within +- 12h. Should be okay though.
 int secondsBeforeNextStorageTime() {
-	int timeToWait = nextStorageTime.seconds - GPSTime.time.seconds;
-	timeToWait += (nextStorageTime.minutes - GPSTime.time.minutes) * 60;
-	timeToWait += (nextStorageTime.hours - GPSTime.time.hours) * 3600;
-
-	// Wrap-around at +-12h.
-	if (timeToWait <=  -12*3600) timeToWait += 24*3600;
-	else if (timeToWait > 12*3600) timeToWait -= 24*3600;
-
+	Time_t time;
+	RTC_getTime(&time);
+	int timeToWait = timeDiffModulo24(&time, &nextStorageTime);
 	return timeToWait;
 }
 
 boolean timeToStoreRecord() {
 	checkOrResetIndices();
-	return secondsBeforeNextStorageTime() <= 0;
+	int secondsTillStorageTime = secondsBeforeNextStorageTime();
+	trace_printf("%d till storage time\n", secondsTillStorageTime);
+	return secondsTillStorageTime <= 0;
 }
 
 void addIntervalToNextStorageTime() {
@@ -134,6 +133,7 @@ boolean hasRecordOutForLastTransmission() {
 	return true;
 }
 
+/*
 uint16_t startupRecordChecksum() {
 	uint16_t result = startupLog.wasGPSRunning ? 13 : 17;
 	result *= startupLog.wasHFTxRunning ? 21 : 29;
@@ -141,16 +141,27 @@ uint16_t startupRecordChecksum() {
 	result += (uint16_t)(startupLog.initialVoltageValue * 1000);
 	return result;
 }
+*/
 
-void setStartupRecordChecksum() {
-	startupLog.checksum = startupRecordChecksum();
+uint16_t startupRecordChecksum(E_DEVICE device) {
+	uint16_t result = startupLog[device].wasDeviceRunning ? 13 : 17;
+	result *= startupLog[device].wasDeviceSuccesful ? 21 : 29;
+	result += (uint16_t)(startupLog[device].initialVoltage * 1000);
+	result += (uint16_t)(startupLog[device].initialTemperature << 8);
+	return result;
 }
 
-void invalidateStartupLog() {
-	startupLog.checksum = !startupLog.checksum;
+void setStartupRecordChecksum(E_DEVICE device) {
+	startupLog[device].checksum = startupRecordChecksum(device);
 }
 
-boolean checkStartupRecordValid() {
+void invalidateStartupLogs() {
+	for (E_DEVICE device = 0; device < E_DEVICE_END; device++)
+	startupLog[device].checksum = !startupLog[device].checksum;
+}
+
+/*
+ * boolean checkStartupRecordValid() {
 	uint16_t checksum = startupRecordChecksum();
 	if (checksum != startupLog.checksum) {
 		trace_printf("Startup log checksum invalid\n");
@@ -168,6 +179,24 @@ boolean checkStartupRecordValid() {
 	}
 	return true;
 }
+*/
+
+boolean checkStartupRecordValid(E_DEVICE device) {
+	uint16_t checksum = startupRecordChecksum(device);
+	if (checksum == startupLog[device].checksum) {
+		return true;
+	} else {
+		trace_printf("Startup log checksum invalid\n");
+		/*
+		startupLog[device].wasDeviceRunning = false;
+		startupLog[device].wasDeviceSuccesful = false;
+		startupLog[device].initialVoltage = 255;
+		startupLog[device].initialTemperature = 0;
+		setStartupRecordChecksum(device);
+		*/
+		return false;
+	}
+}
 
 uint16_t compressGPSTime(const NMEA_TimeInfo_t* datetime) {
 	uint16_t result = datetime->date.date;
@@ -177,7 +206,7 @@ uint16_t compressGPSTime(const NMEA_TimeInfo_t* datetime) {
 	return result;
 }
 
-uint16_t compressRTCTime() {
+uint16_t compressRTCDatetime() {
 	uint8_t date;
 	uint8_t hours24;
 	uint8_t minutes;
@@ -204,31 +233,25 @@ uint8_t uncompressDateHoursMinutes(StoredPathRecord_t* record, Time_t* time) {
 
 // Use "current" global values.
 void storeToRecord(StoredPathRecord_t* record) {
-	int32_t mainOscillatorError = PLL_oscillatorError(
-			currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim)
-			+ 8280 / 2;
-	if (mainOscillatorError > 32767)
-		mainOscillatorError = 32767;
-	else if (mainOscillatorError < -32768)
-		mainOscillatorError = -32768;
 
 	record->compressedBatteryVoltage = batteryVoltage * 50; // 5.12V->256
 	record->compressedSolarVoltage = solarVoltage * 50;
-	record->GPSAcqTime = lastGPSFixTime;
-	record->mainOscillatorError = mainOscillatorError;
+	uint16_t gpsFixTime = lastGPSFixTime/2;
+	if (gpsFixTime > 255) gpsFixTime = 255;
+	record->speed = (uint8_t)speed_m_s;
 
 	record->lat = lastNonzeroPosition.lat;
 	record->lon = lastNonzeroPosition.lon;
 	record->alt = lastNonzero3DPosition.alt;
 
 	record->simpleTemperature = simpleTemperature;
-	record->compressedTime = compressRTCTime(); //compressTime(&GPSTime);
+	record->compressedTime = compressRTCDatetime(); //compressTime(&GPSTime);
 }
 
-float uncompressBatteryVoltage(StoredPathRecord_t* record) {
-	return record->compressedBatteryVoltage / 50.0;
+uint16_t uncompressBatteryVoltageTomV(StoredPathRecord_t* record) {
+	return record->compressedBatteryVoltage * (1000/50);
 }
 
-float uncompressSolarVoltage(StoredPathRecord_t* record) {
-	return record->compressedSolarVoltage / 50.0;
+uint16_t uncompressSolarVoltageTomV(StoredPathRecord_t* record) {
+	return record->compressedSolarVoltage * (1000/50);
 }

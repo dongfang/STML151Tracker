@@ -145,15 +145,6 @@ void PendSV_Handler(void)
 	trace_printf("PendSV");
 }
 
-/**
-  * @brief  This function handles SysTick Handler.
-  * @param  None
-  * @retval None
-  */
-void SysTick_Handler(void)
-{
-	trace_printf("SysTick");
-}
 
 /******************************************************************************/
 /*                 STM32L1xx Peripherals Interrupt Handlers                   */

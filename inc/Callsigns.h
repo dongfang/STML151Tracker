@@ -10,5 +10,4 @@
 
 #include "Types.h"
 
-
 #endif /* CALLSIGNS_H_ */

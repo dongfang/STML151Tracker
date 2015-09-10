@@ -5,8 +5,7 @@
  *      Author: dongfang
  */
 
-#include "../inc/StabilizedOscillator.h"
-
+#include "StabilizedOscillator.h"
 #include "CDCE913.h"
 #include "diag/Trace.h"
 #include "Setup.h"
@@ -47,7 +46,7 @@ const CalibrationRecord_t* getCalibration(int8_t temperature, boolean doAttemptC
 
 		trace_printf("Calibrating...\n");
 		if (!selfCalibrate(&tempRecord)) {
-			return  &defaultCalibration;	// damn, we failed!
+			return &defaultCalibration;	// damn, we failed!
 		}
 
 		// Commit the new calibration.

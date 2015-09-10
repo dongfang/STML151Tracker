@@ -20,6 +20,7 @@
 
 #include "Types.h"
 #include "Setup.h"
+#include <stdint.h>
 
 void ax25_begin(uint16_t txDelay);
 void ax25_send_header(const AX25_Address_t *addresses[], int num_addresses);
@@ -27,7 +28,7 @@ void ax25_send_byte(uint8_t byte);
 void ax25_send_string(const char *string);
 void ax25_end();
 
-#define MAX_PACKET 512
+#define MAX_PACKET (256*3/2)
 extern volatile uint8_t packet[MAX_PACKET];
 extern volatile uint16_t packet_size;
 extern volatile uint16_t packet_cnt;

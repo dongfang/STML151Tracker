@@ -1,4 +1,4 @@
-#include "stm32l1xx_conf.h"
+#include "stm32l1xx.h"
 /*
  * PWMModulation.c
  *

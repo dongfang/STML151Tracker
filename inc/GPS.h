@@ -2,6 +2,7 @@
 #define _NMEA_H_
 
 #include "Types.h"
+#include <stdint.h>
 
 #define UBX_POLL_NAV5_MESSAGE {0x06,0x24,0x00,0x00}
 #define UBX_INIT_NAV5_MESSAGE {0x06,0x24,0x24,0x00,0x05,0x00,/*mask allows setting of just the dynModel and fixmode*/\
@@ -45,14 +46,6 @@ typedef struct {
 } NMEA_CRS_SPD_Info_t;
 
 typedef struct {
-	double lat; // 1e-7
-	double lon; // 1e-7
-	Time_t fixTime;
-	float alt;
-	char valid; // The A or V of the position
-} Position_t;
-
-typedef struct {
 	uint8_t fixMode;
 	uint8_t numberOfSatellites;
 	float horizontalAccuracy;
@@ -62,15 +55,22 @@ typedef struct {
 #define DEBUG_GPS_DATA 0
 #define DEBUG_GPS_SNR 0
 
-boolean GPS_isGPSRunning();
-// It is assumed that PWR_isSafeToUseGPS() was checked already.
 void GPS_start();
-void GPS_kill();
-void GPS_stopUART();
-void debugGPSTime();
+void GPS_stopListening();
+void GPS_shutdown();
+
+void GPS_powerUpInit();
+boolean GPS_isPowered();
 
 uint8_t GPS_waitForTimelock(uint32_t maxTime);
 uint8_t GPS_waitForPosition(uint32_t maxTime);
-uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime) ;
+uint8_t GPS_waitForPrecisionPosition(uint32_t maxTime);
+
+// Fake location to be remote from certain stuff
+void excludeZones(Location_t* location);
+
+extern float climbRate;
+extern double odometer_nm;
+extern float speed_m_s;
 
 #endif // _NMEA_H_

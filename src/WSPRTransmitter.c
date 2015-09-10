@@ -115,9 +115,6 @@ void WSPR_Transmit(
 		const PLL_Setting_t* setting,
 		float stepModulation) {
 
-	// Just to be sure.. The GPS makes too much supply noise for WSPR
-	GPS_kill();
-
 	GPIOB->ODR |= GPIO_Pin_1;			// Turn on arm feature.
 
 	WSPR_initHW(band, setting, stepModulation);
@@ -130,7 +127,6 @@ void WSPR_Transmit(
 	}
 
 	GPIOB->ODR &= ~(GPIO_Pin_1 | GPIO_Pin_6);	// Turn off LED and arm feature.
-//	GPIOB->ODR &= ~(1 << 1); 		// Turn off arm feature.
 
 	WSPR_shutdownHW();
 }

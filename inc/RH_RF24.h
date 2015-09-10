@@ -23,6 +23,7 @@
 
 #include "Types.h"
 #include "SPI.h"
+#include <stdint.h>
 
 // The shutdown is on PA8.
 #define RF24_SDN_BIT 8

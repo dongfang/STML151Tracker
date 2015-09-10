@@ -10,12 +10,12 @@
 
 //#include "pins_arduino.h"
 #include "SPI.h"
-#include "stm32l1xx_conf.h"
+#include "stm32l1xx.h"
 
 #include "Systick.h"
 #include <diag/trace.h>
 
-void SPI::SPI_begin() {
+void SPI::begin() {
 	//	  SPI_Cmd(SPI1, DISABLE);           /* Disable the SPI  */
 
 	//Enable clock of the SPI module
@@ -43,63 +43,45 @@ void SPI::SPI_begin() {
 	SPI_InitTypeDef SPI_InitStructure;
 	SPI_StructInit(&SPI_InitStructure);
 	SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
-	SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;
+	SPI_InitStructure.SPI_NSS = SPI_NSS_Soft | SPI_NSSInternalSoft_Set;
 	SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16;
 
 	SPI_Init(SPI1, &SPI_InitStructure);
 	SPI_Cmd(SPI1, ENABLE); /* Enable the SPI  */
 
-	SPI_NSSInternalSoftwareConfig(SPI1, SPI_NSSInternalSoft_Set);
+	// SPI_NSSInternalSoftwareConfig(SPI1, SPI_NSSInternalSoft_Set);
 }
 
-uint8_t SPI::SPI_transfer(uint8_t _data) {
-	// SPI_assertSS();
-
+uint8_t SPI::transfer(uint8_t _data) {
 	while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_TXE) == RESET)
 		;
 
 	SPI_I2S_SendData(SPI1, _data);
 
 	// wait until RXNE = 1
-	while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE) != SET)
+	while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE)  == RESET)
 		;
 
-	// SPI_releaseSS();
-	// timer_sleep(1);
-	// SPI_assertSS();
-	// uint8_t reply;
-
-	/*
-	while(() != 0xff) {
-		SPI_releaseSS();
-		timer_sleep(1);
-		SPI_assertSS();
-	}
-
-	SPI_releaseSS();
-	timer_sleep(1);
-	return reply;
-	*/
 	uint8_t reply = SPI_I2S_ReceiveData(SPI1);
-	trace_printf("Sent %d and got %d back\n", _data, reply);
+	// trace_printf("Sent %d and got %d back\n", _data, reply);
 	return reply;
 }
 
-void SPI::SPI_end() {
+void SPI::end() {
 	SPI_Cmd(SPI1, DISABLE); /* Disable the SPI  */
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, DISABLE);
 }
 
-void SPI::SPI_assertSS() {
-	// SPI_NSSInternalSoftwareConfig(SPI1, SPI_NSSInternalSoft_Reset);
-	timer_sleep(1);
+void SPI::assertSS() {
+// SPI_NSSInternalSoftwareConfig(SPI1, SPI_NSSInternalSoft_Reset);
+//	timer_sleep(1);
 	GPIOB->ODR &= ~(1 << 0);
-	timer_sleep(1);
+//	timer_sleep(1);
 }
 
-void SPI::SPI_releaseSS() {
-	timer_sleep(1);
+void SPI::releaseSS() {
+//	timer_sleep(1);
 	GPIOB->ODR |= (1 << 0);
-	timer_sleep(1);
+//	timer_sleep(1);
 	// SPI_NSSInternalSoftwareConfig(SPI1, SPI_NSSInternalSoft_Set);
 }

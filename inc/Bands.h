@@ -9,6 +9,7 @@
 #define INC_BANDS_H_
 
 #include "PLL.h"
+#include <stdint.h>
 
 /*
  * For transmitting on a frequency, which options are aviailable

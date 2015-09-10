@@ -8,7 +8,7 @@
 #ifndef INC_TYPES_H_
 #define INC_TYPES_H_
 
-#include "Types.h"
+#include <stdint.h>
 
 typedef uint8_t boolean;
 #define true 1
@@ -27,6 +27,19 @@ typedef struct {
 	uint8_t seconds;
 	boolean valid;
 } Time_t;
+
+typedef struct {
+	double lat; // 1e-7
+	double lon; // 1e-7
+} Position_t;
+
+typedef struct {
+	double lat; // 1e-7
+	double lon; // 1e-7
+	Time_t fixTime;
+	float alt;
+	char valid; // The A or V of the position
+} Location_t;
 
 typedef enum {
 	DAC1,

@@ -1,5 +1,5 @@
 /* Includes ------------------------------------------------------------------*/
-#include "stm32l1xx_conf.h"
+#include "stm32l1xx.h"
 #include <math.h>
 #include "APRS.h"
 #include "DAC.h"
@@ -270,9 +270,6 @@ void TIM3_IRQHandler(void) {
 			} else {
 				packetTransmissionComplete = true;
 			}
-		}
-		if (interruptAlarm) {
-			trace_printf("DACTim3\n");
 		}
 	}
 }
