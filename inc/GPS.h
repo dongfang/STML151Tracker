@@ -71,6 +71,6 @@ void excludeZones(Location_t* location);
 
 extern float climbRate;
 extern double odometer_nm;
-extern float speed_m_s;
+extern float speed_kts;
 
 #endif // _NMEA_H_

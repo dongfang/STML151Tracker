@@ -198,7 +198,6 @@ void APRS_marshallStatusMessage(
 
 	aprs_send_header(&APRS_DEST, txDelay);
 	ax25_send_byte('>');
-	ax25_send_byte('?');
 
 	sprintf(temp, "q%u", statusMessageSequence);
 	ax25_send_string(temp);
@@ -256,7 +255,7 @@ void APRS_marshallPositionMessage(uint16_t txDelay) {
 			(uint16_t) (solarVoltage * 1000.0f),
 			_temperature * 10,	// Will require an offset of 100
 			lastGPSFixTime,
-			(int16_t)(speed_m_s * 19.4384449244062f) // conversion to 1/10 kts
+			(int16_t)(speed_kts * 10) // conversion to 1/10 kts
 	};
 
 	aprs_send_header(&APRS_APSTM1_DEST, txDelay);
@@ -279,7 +278,8 @@ void APRS_marshallPositionMessage(uint16_t txDelay) {
 	ax25_end();
 }
 
-void APRS_marshallStoredPositionMessage(StoredPathRecord_t* record,
+void APRS_marshallStoredPositionMessage(
+		StoredPathRecord_t* record,
 		uint16_t txDelay) {
 	aprs_send_header(&APRS_APSTM1_DEST, txDelay);
 	char temp[40];
@@ -291,12 +291,12 @@ void APRS_marshallStoredPositionMessage(StoredPathRecord_t* record,
 	end = compressedTimestamp(date, &uncompressedTime, temp);
 	end += compressPosition(record->lat, record->lon, record->alt, temp + end);
 
-	int16_t speed = (int16_t)(record->speed * 19.4384449244062f); // conversion to 1/10 kts
+	int16_t speed = (int16_t)(record->speed * 10); // conversion to 1/10 kts
 
 	uint16_t telemetryValues[] = {
 			uncompressBatteryVoltageTomV(record),
 			uncompressSolarVoltageTomV(record),
-			record->simpleTemperature * 10 + 100,			// Will require an offset of 100
+			(record->simpleTemperature +100)*10,			// Will require an offset of 100
 			0,
 			speed };
 

@@ -19,7 +19,7 @@ typedef struct {
 } AX25_Address_t;
 
 #define MYCALL "HB9FDK"
-#define MY_APRS_SSID 11
+#define MY_APRS_SSID 13
 
 #define SI4463_DAYTIME_TX_POWER 100
 #define SI4463_NIGHTTIME_TX_POWER 10
@@ -27,6 +27,10 @@ typedef struct {
 #define FLIGHT 1
 #define GROUNDTEST 2
 #define MODE FLIGHT
+
+// If defined, VHF will remain keyed unmodulated for some seconds after tx to allow
+// checking whether the frequency is right.
+// #define TEST_VHF_FREQUENCY
 
 // AX.25 addresses; MY_ADDRESS.callsign is used for all modes.
 extern const AX25_Address_t MY_ADDRESS;
@@ -69,8 +73,8 @@ extern const AX25_Address_t APRS_DIGI2;
 #define __STORAGE_INTERVAL_SECONDS 3600
 #endif
 
-// 10000 ft
-#define LOWALT_THRESHOLD 3048
+// 20000 ft
+#define LOWALT_THRESHOLD 5000
 
 // VHF each 2 min
 #define LOWALT_SCHEDULE_TIME 'a', (__LOWALTSCHEDULE_SECONDS/RTC_WAKEUP_PERIOD_S)
@@ -92,7 +96,7 @@ extern const AX25_Address_t APRS_DIGI2;
 
 // When battery and temperature are both at least this good,
 // ignore old records of CPU fail while running equipment.
-#define BATTERY_FAILSAFE_ALWAYS_SAFE_VOLTAGE 3.9
+#define BATTERY_FAILSAFE_ALWAYS_SAFE_VOLTAGE 3.7
 #define BATTERY_FAILSAFE_ALWAYS_SAFE_TEMPERATURE -12
 
 // When CPU failed runing some equipment, don't try again until

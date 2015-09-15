@@ -38,7 +38,7 @@ static void modulationCalibration_initHW() {
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
 
 	/* GPIOB clock enable */
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+	//RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
 
 	/* TIM4 channel 2 pin (PB.07) configuration */
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
@@ -256,8 +256,8 @@ void TIM4_IRQHandler(void) {
 		} else if (TIM4CaptureCount <= TIM4CaptureStop) {
 			/* Get the Input Capture value */
 			currentTIM4TimerCapture = TIM_GetCapture2(TIM4);
-			TIM4CaptureValue32 += (uint16_t)(
-					currentTIM4TimerCapture - previousTIM4TimerCapture);
+			TIM4CaptureValue32 += (uint16_t) (currentTIM4TimerCapture
+					- previousTIM4TimerCapture);
 			previousTIM4TimerCapture = currentTIM4TimerCapture;
 			TIM4CaptureCount++;
 		} else {
@@ -318,7 +318,7 @@ boolean selfCalibrateModulation(uint32_t hseFrequency,
 		double* deviationMeasured, uint32_t* oscillatorFrequencyMeasured) {
 
 	TIM4CaptureStop = settings->numCyclesPerRound;
-	CDCE913_setDirectModeWithDivision(trim, CDCE913_SELFCALIBRATION_DIVISION);
+	PLL_setDirectModeWithDivision(trim, CDCE913_SELFCALIBRATION_DIVISION);
 	DAC2_initHW();
 	modulationCalibration_initHW();
 
@@ -377,7 +377,8 @@ boolean selfCalibrateModulation(uint32_t hseFrequency,
 }
 
 // Ground use only (by our current plan anyway)
-boolean selfCalibrateTrimming(double* relIncreaseFromInitialTrim, uint8_t trim_pF) {
+boolean selfCalibrateTrimming(double* relIncreaseFromInitialTrim,
+		uint8_t trim_pF) {
 
 	double deviationMeasuredGarbage;
 	uint32_t frequencyMeasured1;
@@ -390,9 +391,9 @@ boolean selfCalibrateTrimming(double* relIncreaseFromInitialTrim, uint8_t trim_p
 			&deviationMeasuredGarbage, &frequencyMeasured2);
 
 	// Divide 2*the diff by 2*the average.
-	*relIncreaseFromInitialTrim = ((double)frequencyMeasured2
-			- (double)frequencyMeasured1) * 2
-			/ ((double)frequencyMeasured2 + (double)frequencyMeasured1);
+	*relIncreaseFromInitialTrim = ((double) frequencyMeasured2
+			- (double) frequencyMeasured1) * 2
+			/ ((double) frequencyMeasured2 + (double) frequencyMeasured1);
 
 	return true;
 }
@@ -401,8 +402,10 @@ boolean selfCalibrateTrimming(double* relIncreaseFromInitialTrim, uint8_t trim_p
  * Should not be necessary to use in-flight, as not temperature dependent.
  * Just run once on ground and put results in the CDCEL913_XTAL_TRIM_PP10M_VALUES definition.
  */
-void buildTrimmingCalibrationTable() {
+void printTrimmingCalibrationTable() {
 	double freqRelDiffPerPico = 0;
+
+	selfCalibrateTrimming(&freqRelDiffPerPico, 0);
 
 	for (uint8_t trim = 0; trim <= 20; trim++) {
 		selfCalibrateTrimming(&freqRelDiffPerPico, trim);
@@ -419,8 +422,7 @@ boolean HSECalibration(uint32_t maxTime, uint32_t* result) {
 
 	// ttrace_printf("Waiting for TIM10 captures\n");
 
-	while ((!timer_elapsed(maxTime))
-			&& (TIM10CaptureCount != 2)) {
+	while ((!timer_elapsed(maxTime)) && (TIM10CaptureCount != 2)) {
 		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
 	}
 
@@ -434,6 +436,7 @@ boolean HSECalibration(uint32_t maxTime, uint32_t* result) {
 	return 0;
 }
 
+/*
 // Be aware this kills WUT interrupt.
 boolean RTCCalibration(uint32_t maxTime, uint32_t* result) {
 	RTC_ITConfig(RTC_IT_WUT, DISABLE); // Better remember to restore this crap .. both the timer latch and the interrupt enable stuff.
@@ -442,9 +445,9 @@ boolean RTCCalibration(uint32_t maxTime, uint32_t* result) {
 
 	timer_mark();
 
-	while ((!timer_elapsed(maxTime))
-			&& (TIM10CaptureCount != 2))
-		;
+	while ((!timer_elapsed(maxTime)) && (TIM10CaptureCount != 2)) {
+		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
+	}
 
 	// This should be reusable for RTC purpose also .. the difference is after all only the capture trigger source.
 	TIM10Calibration_shutdownHW();
@@ -456,6 +459,7 @@ boolean RTCCalibration(uint32_t maxTime, uint32_t* result) {
 
 	return 0;
 }
+*/
 
 // Beware, this kills GPS and WUT interrupt.
 boolean selfCalibrate(CalibrationRecord_t* target) {
@@ -492,15 +496,15 @@ boolean selfCalibrate(CalibrationRecord_t* target) {
 	GPS_shutdown();
 
 	if (result) {
-		// RTCCalibration(3000, &RTCPeriod);
+		// RTCCalibration(3000, &RTCPeriod); // no reason to do it. We get GPS updates all the time.
 
 		result &= selfCalibrateModulation(hseFrequency, &TRIM_SELF_CALIBRATION,
 		PLL_PREFERRED_TRIM, &deviationThrowAway, &pllFrequency);
 
 		target->transmitterOscillatorFrequencyAtDefaultTrim = pllFrequency;
 
-		if (pllFrequency > PLL_XTAL_NOMINAL_FREQUENCY * 1.002
-				|| pllFrequency < PLL_XTAL_NOMINAL_FREQUENCY * 0.998) {
+		if (pllFrequency > PLL_XTAL_DEFAULT_FREQUENCY * 1.002
+				|| pllFrequency < PLL_XTAL_DEFAULT_FREQUENCY * 0.998) {
 			trace_printf("Unrealistic PLL freq measured: %u\n", pllFrequency);
 			result = false;
 		} else {
@@ -517,64 +521,32 @@ boolean selfCalibrate(CalibrationRecord_t* target) {
 	return result;
 }
 
-/*
- void selfCalibrateForWSPR(uint32_t fSys, double relIncreasePerpF) {
- double deviationMeasured;
- uint32_t oscillatorFrequencyMeasured;
- const SelfCalibrationConfig_t* settings = &WSPR_SELF_CALIBRATION;
+#include "WSPR.h"
 
- boolean selfCalSuccess = selfCalibrateModulation(
- fSys,
- settings,
- CDCE913_PREFERRED_TRIM,
- &deviationMeasured,
- &oscillatorFrequencyMeasured);
+void selfCalibrateForWSPR(uint32_t fSys) {
+	double deviationMeasured;
+	uint32_t oscillatorFrequencyMeasured;
+	const SelfCalibrationConfig_t* settings = &WSPR_MODULATION_SELF_CALIBRATION;
 
- trace_printf("Self-cal success : %u\n", selfCalSuccess);
- trace_printf("Self-cal deviation PPB : %d\n",
- (int) (deviationMeasured * 1.0E9));
- trace_printf("Self-cal osc freq: %u\n", oscillatorFrequencyMeasured);
+	selfCalibrateModulation(fSys, settings,
+		PLL_PREFERRED_TRIM, &deviationMeasured, &oscillatorFrequencyMeasured);
+	boolean selfCalSuccess = selfCalibrateModulation(fSys, settings,
+	PLL_PREFERRED_TRIM, &deviationMeasured, &oscillatorFrequencyMeasured);
 
- for (WSPRBand_t band = THIRTY_M; band <= TEN_M; band++) {
- uint32_t targetFrequency = WSPR_BAND_SETTINGS[band].frequency;
+	trace_printf("Self-cal success : %u\n", selfCalSuccess);
+	trace_printf("Self-cal deviation PPB : %d\n",
+			(int) (deviationMeasured * 1.0E9));
+	trace_printf("Self-cal osc freq: %u\n", oscillatorFrequencyMeasured);
 
- double DACStepsPerHz = settings->modulation_PP
- / (deviationMeasured * targetFrequency);
+	uint32_t targetFrequency = WSPR_FREQUENCIES[0];
 
- float stepModulation = 12000.0 * DACStepsPerHz / 8192.0;
- trace_printf("%d DAC steps per Hz and %d per WSPR step\n",
- (int) DACStepsPerHz, (int) stepModulation);
+	double DACStepsPerHz = settings->modulation_PP
+			/ (deviationMeasured * targetFrequency);
 
- double desiredMultiplication = (double)targetFrequency
- / (double)oscillatorFrequencyMeasured;
+	float wsprStepModulation = 12000.0 * DACStepsPerHz / 8192.0;
+	float hfPacketStepModulation = 200 * DACStepsPerHz;
 
- const TransmitterSetting_t* bestSetting = bestPLLSetting(
- &WSPR_BAND_SETTINGS[band], desiredMultiplication);
+	trace_printf("%d DAC steps per Hz, %d per WSPR step, %d per packet step\n",
+			(int) DACStepsPerHz, (int) (wsprStepModulation+0.5), (int) (hfPacketStepModulation+0.5));
+}
 
- double estimatedFrequency = bestSetting->mul
- * oscillatorFrequencyMeasured;
-
- trace_printf("Best setting found: N=%u, f=%u\n", bestSetting->N,
- (uint32_t) estimatedFrequency);
-
- int16_t lastCorrection = (targetFrequency - estimatedFrequency)
- * DACStepsPerHz;
-
- trace_printf("Final correction on modulation: %d\n", lastCorrection);
-
- if (lastCorrection > 1500) {
- lastCorrection = 1500;
- } else if (lastCorrection < -1500) {
- lastCorrection = -1500;
- }
-
- int16_t pfCorrection = (targetFrequency - estimatedFrequency) / relIncreasePerpF;
- trace_printf("Trim correction pF: %d\n", pfCorrection);
-
- WSPR_BAND_CALIBRATIONS[band].selfCalibrationSymbolSize = stepModulation;
- WSPR_BAND_CALIBRATIONS[band].selfCalibrationOffset = lastCorrection;
- WSPR_BAND_CALIBRATIONS[band].estimatedFrequency = estimatedFrequency;
- WSPR_BAND_CALIBRATIONS[band].bestPLLSetting = bestSetting;
- }
- }
- */

@@ -29,7 +29,7 @@ static void APRS_initDirectHFTransmission(uint32_t frequency, uint32_t reference
 const APRSTransmission_t APRS_TRANSMISSIONS[] = { { 
 		.modulationMode = AFSK,
 		.modulationAmplitude = 400,
-		.txDelay = 20,
+		.txDelay = 10,
 		 .initTransmitter = APRS_initDirectVHFTransmission,
 		 .shutdownTransmitter = APRS_endDirectTransmission },
 		 { .modulationMode = GFSK,
@@ -81,7 +81,6 @@ static void APRS_initDirectVHFTransmission(uint32_t frequency,
 
 void APRS_endDirectTransmission() {
 	PLL_shutdown();
-	FSK_shutdown();
 }
 
 extern void APRS_marshallPositionMessage(uint16_t txDelay);
@@ -128,7 +127,6 @@ static void _APRS_transmitMessage(
 		break;
 	case HF:
 		PWR_startDevice(E_DEVICE_HF_TX);
-		GPIOB->ODR |=  (1 << 1);		// arm HF
 		break;
 	}
 
@@ -148,9 +146,13 @@ static void _APRS_transmitMessage(
 
 	// We are now done transmitting.
 	FSK_shutdown();
+
+#if defined(TEST_VHF_FREQUENCY) && MODE == GROUNDTEST
+	timer_sleep(2500);
+#endif
 	mode->shutdownTransmitter();
 
-	GPIOB->ODR &= ~(GPIO_Pin_6|GPIO_Pin_1); // LED and HF arm
+	GPIOB->ODR &= ~(GPIO_Pin_6); // LED and HF arm
 	ADC_DMA_shutdown(); // we just assume it will work, if not, no prob.
 
 	switch (band) {

@@ -26,28 +26,32 @@
  */
 
 /* Includes ------------------------------------------------------------------*/
-#include <math.h>
 
-#include "ADC.h"
-#include "APRS.h"
-#include "diag/Trace.h"
-#include "Globals.h"
-#include "PLL.h"
-#include "GPS.h"
-#include "IndividualBoard.h"
-#include "Physics.h"
-#include "Power.h"
-#include "RecordStorage.h"
-#include "RTC.h"
-#include "SelfCalibration.h"
-#include "Setup.h"
-#include "StabilizedOscillator.h"
-#include "Systick.h"
-#include "Types.h"
-#include "WSPR.h"
-#include "CMSIS/Device/ST/STM32L1xx/Include/stm32l1xx.h"
-#include "STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_gpio.h"
-#include "STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_rcc.h"
+#include <stdint.h>
+
+#include "../inc/ADC.h"
+#include "../inc/APRS.h"
+#include "../inc/diag/Trace.h"
+#include "../inc/Globals.h"
+#include "../inc/GPS.h"
+#include "../inc/IndividualBoard.h"
+#include "../inc/Physics.h"
+#include "../inc/PLL.h"
+#include "../inc/Power.h"
+#include "../inc/RecordStorage.h"
+#include "../inc/RTC.h"
+#include "../inc/SelfCalibration.h"
+#include "../inc/Setup.h"
+#include "../inc/StabilizedOscillator.h"
+#include "../inc/Systick.h"
+#include "../inc/Types.h"
+#include "../inc/WSPR.h"
+#include "../Libraries/CMSIS/Device/ST/STM32L1xx/Include/stm32l1xx.h"
+#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/misc.h"
+#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_gpio.h"
+#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_pwr.h"
+#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_rcc.h"
+#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_rtc.h"
 
 // Some globals.
 float temperature;
@@ -91,6 +95,9 @@ void diagsWhyReset() {
 }
 
 void initGeneralIOPorts() {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+
 	GPIO_InitTypeDef GPIO_InitStructure;
 
 	/* GPIOA and B Periph clock were enabled in main */
@@ -106,13 +113,12 @@ void initGeneralIOPorts() {
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
 
 	GPIOB->ODR = 0;	 //  GPIO_Pin_0; // LED off, disarm WSPR, disable Si4463 SS.
+	// GPIOB->ODR = GPIO_Pin_1; // experiment - all time power on PLL.
 
 	/* Configure GPS power pin and Si4463 SDN pin */
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;	 // | GPIO_Pin_8;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
-
 	GPIOA->ODR = GPIO_Pin_0;	 // | GPIO_Pin_8;
-
 }
 
 void performPrecisionADC() {
@@ -236,7 +242,7 @@ void doWSPR() {
 		} else {
 			trace_printf(
 					"NO feasible PLL setting in range! Should not really happen. Anyway, we try again with more tolerance.\n");
-			maxError += 10E-6;
+			maxError += 25E-6;
 		}
 	}
 }
@@ -263,7 +269,7 @@ void VHF_APRSCycle() {
 					APRS_WORLD_MAP[i].frequency * 1000);
 			APRS_transmitMessage(VHF, COMPRESSED_POSITION_MESSAGE,
 					APRS_WORLD_MAP[i].frequency * 1000,
-					PLL_XTAL_NOMINAL_FREQUENCY);
+					PLL_XTAL_DEFAULT_FREQUENCY);
 
 		}
 		if (latestAPRSCores[i])
@@ -280,7 +286,7 @@ void VHF_APRSCycle() {
 						APRS_WORLD_MAP[i].frequency * 1000);
 				APRS_transmitMessage(VHF, STATUS_MESSAGE,
 						APRS_WORLD_MAP[i].frequency * 1000,
-						PLL_XTAL_NOMINAL_FREQUENCY);
+						PLL_XTAL_DEFAULT_FREQUENCY);
 
 			}
 		}
@@ -299,7 +305,7 @@ void VHF_APRSCycle() {
 				if (latestAPRSCores[i])
 					APRS_transmitStoredMessage(VHF, storedRecord,
 							APRS_WORLD_MAP[i].frequency * 1000,
-							PLL_XTAL_NOMINAL_FREQUENCY);
+							PLL_XTAL_DEFAULT_FREQUENCY);
 			}
 		}
 
@@ -314,7 +320,7 @@ void VHF_APRSCycle() {
 				if (latestAPRSCores[i])
 					APRS_transmitStoredMessage(VHF, storedRecord,
 							APRS_WORLD_MAP[i].frequency * 1000,
-							PLL_XTAL_NOMINAL_FREQUENCY);
+							PLL_XTAL_DEFAULT_FREQUENCY);
 			}
 		}
 	} else { // Not core.
@@ -361,6 +367,7 @@ void reschedule(char _scheduleName, uint8_t _mainPeriodWakeupCycles) {
 extern void SetSysClock(void);
 
 void wakeupCycle() {
+	systick_start(); // for some weird reason we need this already now.
 	performPrecisionADC();
 
 	trace_printf("ADCValue0: %d\t", ADCUnloadedValues[0]);
@@ -401,15 +408,32 @@ void wakeupCycle() {
 
 			// start the real HSE clock.
 			SetSysClock();
+			// And fire up periphs
+			RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+			RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
 
 			// do some radio work :)
 			GPSCycle();
 			radioCycle();
+
+			// GPIOB->ODR &= ~GPIO_Pin_1;
 		}
 	} else { // we are below 3.0
 		trace_printf("Battery too low for main-stuff (<3)\n");
 		reschedule(CRISIS_SCHEDULE_TIME);
 	}
+	systick_end();
+}
+
+void groundCalibration() {
+// just to be sure we didn't enable this for a flight build.
+#if defined (TRACE) && MODE == GROUNDTEST
+	SetSysClock();
+	systick_start();
+	selfCalibrateForWSPR(16E6);
+	printTrimmingCalibrationTable();
+	while(1) doWSPR();
+#endif
 }
 
 int main() {
@@ -419,23 +443,24 @@ int main() {
 	 To reconfigure the default setting of SystemInit() function, refer to
 	 system_stm32l1xx.c file
 	 */
-	SetSysClock();
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+	// SetSysClock();
 
 	/* Configure one bit for preemption priority */
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
 
 	initGeneralIOPorts();
+	// GPIOB->ODR |= GPIO_Pin_1;
 
 	numRestarts++;
 	if (numRestarts > 99)
 		numRestarts = 0;
 
 // for debug only.
-#if MODE == GROUNDTEST
+#if defined(TRACE)
 	systick_start();
+	SetSysClock();
 	timer_sleep(3000);
+	trace_printf("start\n");
 #endif
 
 	RTC_init();
@@ -446,11 +471,11 @@ int main() {
 		invalidateStartupLogs();
 	}
 
+	// groundCalibration();
+
 	while (1) {
 		// TODO something depends on systick running (or else gets stuck), what is it?
-		systick_start();
 		wakeupCycle();
-		systick_end();
 
 		// Prepare sleep. Clear any used-up RTC event out's.
 		// Really, both of these 2 steps were found to be needed. No monkeying.
@@ -459,9 +484,7 @@ int main() {
 		PWR_RTCAccessCmd(DISABLE);
 
 		trace_printf("Sleeping...\n");
-
 		PWR_EnterSTOPMode(PWR_Regulator_ON, PWR_STOPEntry_WFE);
-
-		// GPIOB->ODR ^= GPIO_Pin_7;
+		trace_printf("Wakeup\n");
 	}
 }

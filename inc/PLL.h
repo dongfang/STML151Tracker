@@ -14,9 +14,9 @@
 // the implementation PLL type decides what PLLSetting_t actually is.
 #include "CDCE913.h"
 
-#define PLL_XTAL_FREQUENCY CDCE913_XTAL_FREQUENCY
+#define PLL_XTAL_FREQUENCY PLL_XTAL_DEFAULT_FREQUENCY
 
-#define PLL_PREFERRED_TRIM CDCE913_PREFERRED_TRIM
+#define PLL_PREFERRED_TRIM PLL_PREFERRED_TRIM_VALUE
 
 // Implementation type of PLL setting (well, one of them)
 typedef CDCE913_PLLSetting_t PLL_Setting_t;
@@ -36,6 +36,8 @@ int8_t PLL_bestTrim(double desiredTrim);
 void setPLL(uint8_t output, const PLL_Setting_t* setting);
 
 void PLL_setXOPassthroughMode(uint8_t trim);
+
+void PLL_setDirectModeWithDivision(uint8_t trim, uint16_t pdiv);
 
 // Shut em down
 void PLL_shutdown();

@@ -34,7 +34,7 @@ void setIndexCheck() {
 	storedRecordIndexCheck = checksum();
 }
 
-void checkOrResetIndices() {
+void checkRecordIndexes() {
 	if (storedRecordIndexCheck == checksum())
 		return; // Was okay.
 	trace_printf("Record storage checksum mismatch, resetting it all :( \n");
@@ -54,7 +54,7 @@ int secondsBeforeNextStorageTime() {
 }
 
 boolean timeToStoreRecord() {
-	checkOrResetIndices();
+	checkRecordIndexes();
 	int secondsTillStorageTime = secondsBeforeNextStorageTime();
 	trace_printf("%d till storage time\n", secondsTillStorageTime);
 	return secondsTillStorageTime <= 0;
@@ -73,7 +73,7 @@ void addIntervalToNextStorageTime() {
 StoredPathRecord_t* nextRecordIn() {
 	addIntervalToNextStorageTime();
 
-	checkOrResetIndices();
+	checkRecordIndexes();
 	uint16_t result = storedRecordIndexIn;
 	storedRecordIndexIn = (storedRecordIndexIn + 1) % NUM_STORED_RECORDS;
 	if (storedRecordIndexIn == storedRecordIndexOutTail) {
@@ -116,7 +116,7 @@ StoredPathRecord_t* nextRecordOutForLastTransmission() {
 }
 
 boolean hasRecordOutForFirstTransmission() {
-	checkOrResetIndices();
+	checkRecordIndexes();
 	if (storedRecordIndexIn == storedRecordIndexOutHead) {
 		trace_printf("No more records for 1\n");
 		return false;
@@ -125,7 +125,7 @@ boolean hasRecordOutForFirstTransmission() {
 }
 
 boolean hasRecordOutForLastTransmission() {
-	checkOrResetIndices();
+	checkRecordIndexes();
 	if (storedRecordIndexOutHead == storedRecordIndexOutTail) {
 		trace_printf("No more records for 2\n");
 		return false;
@@ -238,7 +238,7 @@ void storeToRecord(StoredPathRecord_t* record) {
 	record->compressedSolarVoltage = solarVoltage * 50;
 	uint16_t gpsFixTime = lastGPSFixTime/2;
 	if (gpsFixTime > 255) gpsFixTime = 255;
-	record->speed = (uint8_t)speed_m_s;
+	record->speed = (uint8_t)speed_kts;
 
 	record->lat = lastNonzeroPosition.lat;
 	record->lon = lastNonzeroPosition.lon;

@@ -9,6 +9,7 @@
 #include <math.h>
 
 NMEA_TimeInfo_t GPSTime;
+uint8_t GPSDate;
 NMEA_CRS_SPD_Info_t GPSCourseSpeed;
 Location_t GPSPosition;
 NMEA_StatusInfo_t GPSStatus;
@@ -21,7 +22,7 @@ Location_t lastNonzero3DPosition; // __attribute__((section (".noinit")));
 Position_t lastOdometeredPosition __attribute__((section (".noinit")));
 double lastOdometeredPositionCheck __attribute__((section (".noinit")));
 double odometer_nm __attribute__((section (".noinit")));
-float speed_m_s;
+float speed_kts;
 
 Time_t lastOdometerTime __attribute__((section (".noinit")));
 
@@ -73,8 +74,8 @@ void flashNumSatellites(uint8_t numSatellites) {
 		cnt = 0;
 }
 
-extern void GPS_invalidateTime();
-extern boolean GPS_isTimeValid();
+extern void GPS_invalidateDateTime();
+extern boolean GPS_isDateTimeValid();
 extern void GPS_invalidatePosition();
 extern boolean GPS_isPositionValid();
 extern void GPS_getData();
@@ -82,28 +83,27 @@ extern void GPS_invalidateNumSatellites();
 extern uint8_t GPS_numberOfSatellites();
 extern void GPS_powerOn();
 extern void GPS_powerOff();
-extern boolean GPS_isGPSRunning();
 // Implementation of stopListening is elsewhere. It depends on the IO type to GPS.
 extern void GPS_stopListening();
 // Implementation of GPS_kill is elsewhere. It depends on the power control mechanism.
 
 uint8_t GPS_waitForTimelock(uint32_t maxTime) {
 	timer_mark();
-	GPS_invalidateTime();
+	GPS_invalidateDateTime();
 
 	trace_printf("Waiting for GPS time\n");
 
 	do {
 		GPS_getData();
 		flashNumSatellites(GPSStatus.numberOfSatellites);
-		timer_sleep(200);
-	} while ((!GPS_isTimeValid()
+		timer_sleep(150);
+	} while ((!GPS_isDateTimeValid()
 			|| (GPSTime.time.hours == 0 && GPSTime.time.minutes == 0
 					&& GPSTime.time.seconds == 0)) && !timer_elapsed(maxTime));
 	GPIOB->ODR &= ~GPIO_Pin_6;
 	GPS_getData();
 	if (GPSTime.time.valid) {
-		// debugGPSTime();
+		trace_printf("GPS time success: %02d:%02d\n", GPSTime.time.hours, GPSTime.time.minutes);
 		return 1;
 	} else {
 		trace_printf("GPS wait for timelock: FAIL\n");
@@ -119,7 +119,7 @@ boolean GPS_waitForPosition(uint32_t maxTime) {
 	do {
 		GPS_getData();
 		flashNumSatellites(GPSStatus.numberOfSatellites);
-		timer_sleep(200);
+		timer_sleep(150);
 	} while (!GPS_isPositionValid() && !timer_elapsed(maxTime));
 	GPIOB->ODR &= ~GPIO_Pin_6;
 	GPS_getData();
@@ -151,6 +151,7 @@ boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 	do {
 		GPS_getData();
 		flashNumSatellites(GPSStatus.numberOfSatellites);
+		timer_sleep(150);
 		debugPrintCnt++;
 		if (debugPrintCnt == 10) {
 			debugPrintCnt = 0;
@@ -173,7 +174,7 @@ boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 				== lastOdometeredPositionCheck) {
 			// valid
 			double latFactor = cos(GPSPosition.lat * 0.01745329251994); // convert to radians
-			double dist = (GPSPosition.lat - lastOdometeredPosition.lat)
+			float dist = (GPSPosition.lat - lastOdometeredPosition.lat)
 					* (GPSPosition.lat - lastOdometeredPosition.lat);
 			dist += (GPSPosition.lon - lastOdometeredPosition.lon)
 					* (GPSPosition.lon - lastOdometeredPosition.lon)
@@ -184,19 +185,15 @@ boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 			dist = dist * 60.0; // now it's in nautical miles
 			odometer_nm += dist;
 
-			dist *= 1852; // now it's in m.
-
 			Time_t now;
 			RTC_getTime(&now);
-			int time_s = timeAfter_seconds(&lastOdometerTime, &now);
-			speed_m_s = dist / time_s;
-
-			trace_printf("Dist, time, speed: %d,%d,%d\n", (int)dist, time_s, (int)speed_m_s);
-
+			float time_h = timeAfter_seconds(&lastOdometerTime, &now) / 3600.0;
+			speed_kts = dist / time_h;
+			// trace_printf("Dist, time, speed: %d,%d,%d\n", (int)dist, time_s, (int)speed_m_s);
 			lastOdometerTime = now;
 		} else {
 			odometer_nm = 0;
-			speed_m_s = 0;
+			speed_kts = 0;
 		}
 
 		lastOdometeredPosition.lat = GPSPosition.lat;

@@ -304,13 +304,13 @@ static void parseFloat(char c, uint8_t *state, float* value) {
 	}
 }
 
-void parseDate(char c, uint8_t* state, Date_t* value) {
+static void parseDate(char c, uint8_t* state, Date_t* value) {
 	switch (++(*state)) {
 	case 1:
-		value->year100 = (c - '0') * 10;
+		value->date = (c - '0') * 10;
 		break;
 	case 2:
-		value->year100 += (c - '0');
+		value->date += (c - '0');
 		break;
 	case 3:
 		value->month = (c - '0') * 10;
@@ -319,10 +319,10 @@ void parseDate(char c, uint8_t* state, Date_t* value) {
 		value->month += (c - '0');
 		break;
 	case 5:
-		value->date = (c - '0') * 10;
+		value->year100 = (c - '0') * 10;
 		break;
 	case 6:
-		value->date += (c - '0');
+		value->year100 += (c - '0');
 		break;
 	default:
 		break;
@@ -629,6 +629,7 @@ uint8_t nmea_parse(char c) {
 			ackedMessageId = 0; // clear any prior acknowledge.
 			beginSendUBXMessage(&INIT_NAV_MESSAGE);
 			lastSendConfigurationTime = systemTimeMillis;
+			trace_printf("Sending GPS conf. message\n");
 		}
 		break;
 	case STATE_READ_ID:
@@ -801,12 +802,13 @@ boolean GPS_isGPSRunning() {
 	return !result;
 }
 
-void GPS_invalidateTime() {
+void GPS_invalidateDateTime() {
 	nmeaTimeInfo_unsafe.time.valid = 0;
+	nmeaTimeInfo_unsafe.date.valid = 0;
 }
 
-boolean GPS_isTimeValid() {
-	return nmeaTimeInfo_unsafe.time.valid;
+boolean GPS_isDateTimeValid() {
+	return nmeaTimeInfo_unsafe.time.valid && nmeaTimeInfo_unsafe.date.valid;
 }
 
 void GPS_invalidatePosition() {

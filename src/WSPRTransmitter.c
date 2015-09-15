@@ -75,7 +75,7 @@ static void WSPR_initHW(
 	setPLL((CDCE913_OutputMode_t) HF_30m_HARDWARE_OUTPUT, setting);
 
 	/* Periph clocks enable */
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+	// RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
 
 	// Set up timer.
@@ -115,7 +115,7 @@ void WSPR_Transmit(
 		const PLL_Setting_t* setting,
 		float stepModulation) {
 
-	GPIOB->ODR |= GPIO_Pin_1;			// Turn on arm feature.
+	// GPIOB->ODR |= GPIO_Pin_1;			// Turn on arm feature.
 
 	WSPR_initHW(band, setting, stepModulation);
 
@@ -126,7 +126,7 @@ void WSPR_Transmit(
 		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
 	}
 
-	GPIOB->ODR &= ~(GPIO_Pin_1 | GPIO_Pin_6);	// Turn off LED and arm feature.
+	GPIOB->ODR &= ~(/*GPIO_Pin_1 | */ GPIO_Pin_6);	// Turn off LED and arm feature.
 
 	WSPR_shutdownHW();
 }

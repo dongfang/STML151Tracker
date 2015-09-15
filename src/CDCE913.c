@@ -7,34 +7,14 @@
 #include "stm32l1xx.h"
 
 #define CDCE913_I2C_ADDR 0b1100101
+#define CDCE913_I2C_ADDR_PROG (CDCE913_I2C_ADDR & 3)
+
 #define I2C_TIMEOUT 25
 
 const int16_t PLL_XTAL_TRIM_PP10M[] = PLL_XTAL_TRIM_PP10M_VALUES;
 
 // These are different options for the same frequency (maybe one is enough).
 // static const CDCE913_PLLSetting_t PLL_OPTIONS_APRS_30m[];
-
-// These are different options but each for its OWN frequency.
-// static const CDCE913_PLLSetting_t PLL_OPTIONS_APRS_DIRECT_2m[];
-// This does not belong here at ALL but try to get the compiler convinced that they really are const
-// if coming from a different source .. it's not possible.
-/*
-const HF_BandDef_t HF_BAND_DEFS[] = { { .hardwareChannel = 1, .numPLLOptions =
-		sizeof(PLL_OPTIONS_WSPR_30m) / sizeof(CDCE913_PLLSetting_t),
-		.PLLOptions = PLL_OPTIONS_WSPR_30m, .frequency = 10140200 }, {
-		.hardwareChannel = 1, .numPLLOptions = sizeof(PLL_OPTIONS_WSPR_10m)
-				/ sizeof(CDCE913_PLLSetting_t), .PLLOptions =
-				PLL_OPTIONS_WSPR_10m, .frequency = 28126100 } };
-
-const VHF_ChannelDef_PLL_t VHF_PLL_BAND_DEFS[] = { };
-const uint8_t NUM_VHF_PLL_BAND_DEFS = sizeof(VHF_PLL_BAND_DEFS)
-		/ sizeof(VHF_ChannelDef_PLL_t);
-
-const VHF_ChannelDef_Si6643_t VHF_SI4463_BAND_DEFS[] = { 144390, 144620, 144640,
-		144575, 144660, 144930, 144800, 145010, 145175, 145525, 145575 };
-const uint8_t NUM_VHF_SI4463_BAND_DEFS = sizeof(VHF_SI4463_BAND_DEFS)
-		/ sizeof(VHF_ChannelDef_Si6643_t);
-*/
 
 static void CDCE913_initInterface() {
 	GPIO_InitTypeDef GPIO_InitStructure;
@@ -59,22 +39,28 @@ static void CDCE913_initInterface() {
 	I2C_DeInit(I2C1);
 
 	/*enable I2C*/
-	I2C_Cmd(I2C1, ENABLE);
+	I2C_Cmd(I2C1, DISABLE);
 
 	/* I2C1 configuration */
 	I2C_StructInit(&I2C_InitStructure);
 	I2C_InitStructure.I2C_Mode = I2C_Mode_I2C;
 	I2C_InitStructure.I2C_DutyCycle = I2C_DutyCycle_2;
-	I2C_InitStructure.I2C_OwnAddress1 = 0x00;
+	I2C_InitStructure.I2C_OwnAddress1 = 0xAA;
 	I2C_InitStructure.I2C_Ack = I2C_Ack_Enable;
 	I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
-	I2C_InitStructure.I2C_ClockSpeed = IS_I2C_CLOCK_SPEED(400000);
+	I2C_InitStructure.I2C_ClockSpeed = 20000;
 	I2C_Init(I2C1, &I2C_InitStructure);
-	//trace_printf("I2C initialized.\n");
+
+	/*enable I2C*/
+	I2C_Cmd(I2C1, ENABLE);
 }
 
 static void CDCE913_initInterfaceIfNecessary() {
-	if (!(I2C1->CR1 & I2C_CR1_PE)) {
+	// if (!(I2C1->CR1 & I2C_CR1_PE)) {
+	//if  (!(RCC->APB1ENR & RCC_APB1Periph_I2C1)) {
+	if (!(GPIOB->ODR & GPIO_Pin_1)) {
+		GPIOB->ODR |= GPIO_Pin_1;
+		timer_sleep(4);
 		CDCE913_initInterface();
 	}
 }
@@ -239,51 +225,53 @@ static void CDCE913_setPLLValue(const CDCE913_PLLSetting_t* setting) {
 // 3 : Use Y3 and ground the other two.
 // 4 : Feed xtal to Y1 with division.
 // The direct mode is not supported from here.
-static void CDCE913_enableOutput(CDCE913_OutputMode_t whichOutput,
-		uint16_t pdiv) {
-	uint8_t r1 = 0;
+static void CDCE913_enableOutput(CDCE913_OutputMode_t whichOutput, uint16_t pdiv) {
+
+	uint8_t r1 = CDCE913_I2C_ADDR_PROG;
 	uint8_t r2 = 0;
 	uint8_t r0x14 = 0;
 	switch (whichOutput) {
 
 	case CDCE913_OutputMode_SHUTDOWN:
-		r1 = 0b00010001;	// power down
+		// CDCEL913_disableOutputPower();
+		r1 |= 0b00010000;	// power down
 		r2 = 0;
 		r0x14 = 0;
 		break;
 	case CDCE913_OutputMode_OUTPUT_1:
-		r1 = 0b00000101; 	// power on, VCXO and default address
+		r1 |= 0b00000100; 	// power on, VCXO and default address
 		r2 = 0b10111100 | (pdiv >> 8);
 		r0x14 = 0b01101010;	// Disable Y2, Y3 to low
 		I2C_write(0x03, pdiv);
 		break;
 	case CDCE913_OutputMode_OUTPUT_2:
-		r1 = 0b00000101; 	// power on, VCXO and default address
+		r1 |= 0b00000100; 	// power on, VCXO and default address
 		r2 = 0b10101000;	// Disable Y1
 		r0x14 = 0b01101111;	// Enable Y2, Y3
 		I2C_write(0x16, (1 << 7) | pdiv);
 		I2C_write(0x17, 0);	// Keep Y3 reset.
 		break;
 	case CDCE913_OutputMode_OUTPUT_3:
-		r1 = 0b00000101; 	// power on, VCXO and default address
+		r1 |= 0b00000100; 	// power on, VCXO and default address
 		r2 = 0b10101000;	// Disable Y1
 		r0x14 = 0b01101111;	// Enable Y2, Y3
 		I2C_write(0x16, 1 << 7);	// Keep Y2 reset.
 		I2C_write(0x17, pdiv);
 		break;
 	case CDCE913_OutputMode_SELFCALIBRATION_DIVISION_AT_1:
-		r1 = 0b00000101; 	// power on, VCXO and default address
+		r1 |= 0b00000100; 	// power on, VCXO and default address
 		r2 = 0b00111100 | (pdiv >> 8);
 		r0x14 = 0b11101010;	// Disable Y2, Y3 to low
 		I2C_write(0x03, (uint8_t) pdiv);
 		break;
 	case CDCE913_OutputMode_XO_PASSTHROUGH:
-		r1 = 0b00000101; 	// power on, VCXO and default address
+		r1 |= 0b00000100; 	// power on, VCXO and default address
 		r2 = 0b10111100 | (pdiv >> 8);
 		r0x14 = 0b11101010;	// Disable Y2, Y3 to low
 		I2C_write(0x03, (uint8_t) pdiv);
+		break;
 	}
-	I2C_write(0x01, r1);
+	I2C_write(1, r1);
 	I2C_write(0x02, r2);
 	I2C_write(0x14, r0x14);
 }
@@ -291,10 +279,17 @@ static void CDCE913_enableOutput(CDCE913_OutputMode_t whichOutput,
 void PLL_shutdown() {
 	CDCE913_initInterfaceIfNecessary();
 	CDCE913_enableOutput(CDCE913_OutputMode_SHUTDOWN, 0);
+
+	timer_sleep(2);
+	I2C_Cmd(I2C1, DISABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, DISABLE);
+	timer_sleep(2);
+
+	GPIOB->ODR &= ~GPIO_Pin_1;
 }
 
 // Always on output #1
-void CDCE913_setDirectModeWithDivision(uint8_t trim, uint16_t pdiv) {
+void PLL_setDirectModeWithDivision(uint8_t trim, uint16_t pdiv) {
 	CDCE913_initInterfaceIfNecessary();
 	CDCE913_enableOutput(CDCE913_OutputMode_SELFCALIBRATION_DIVISION_AT_1, pdiv);
 	I2C_write(5, trim << 3); 	// Cap. in pF.
@@ -462,7 +457,7 @@ boolean PLL_bestPLLSetting(
 }
 
 int16_t PLL_oscillatorError(uint32_t measuredFrequency) {
-	int32_t result = (int32_t)measuredFrequency - (int32_t)PLL_XTAL_NOMINAL_FREQUENCY;
+	int32_t result = (int32_t)measuredFrequency - (int32_t)PLL_XTAL_DEFAULT_FREQUENCY;
 	// trace_printf("Osc error: %d\n", result);
 	if (result > 32767) result = 32767;
 	else if (result < -32768) result = -32768;

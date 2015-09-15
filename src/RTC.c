@@ -97,9 +97,11 @@ void RTC_getTime(Time_t* time) {
 }
 
 void RTC_debugRTCTime() {
+	RTC_DateTypeDef rtcDate;
 	RTC_TimeTypeDef rtcTime;
+	RTC_GetDate(RTC_Format_BIN, &rtcDate);
 	RTC_GetTime(RTC_Format_BIN, &rtcTime);
-	trace_printf("RTC is now %02u:%02u:%02u\n", rtcTime.RTC_Hours,
+	trace_printf("RTC is now @%02u %02u:%02u:%02u\n", rtcDate.RTC_Date, rtcTime.RTC_Hours,
 			rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
 }
 
@@ -122,8 +124,7 @@ int RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds) {
 		RTC_GetTime(RTC_Format_BIN, &rtcTime);
 		minutes = rtcTime.RTC_Minutes;
 		_seconds = rtcTime.RTC_Seconds;
-	} while ((seconds != _seconds || (minutes % modulo) != 0)
-			&& timer_sleep(100));
+	} while ((seconds != _seconds || (minutes % modulo) != 0) && timer_sleep(100));
 
 	return RTC_timeDiff_s(&rtcTime, &rtcFirstTime);
 }
@@ -144,9 +145,9 @@ boolean RTC_setRTC(Date_t* date, Time_t* time) {
 	rtcTime.RTC_Hours = time->hours;
 
 	uint8_t result;
-	RTC_WaitForSynchro();
-	result = RTC_SetDate(RTC_HourFormat_24, &rtcDate);
-	result = RTC_SetTime(RTC_HourFormat_24, &rtcTime);
+	// RTC_WaitForSynchro();
+	result = RTC_SetDate(RTC_Format_BIN, &rtcDate);
+	result = RTC_SetTime(RTC_Format_BIN, &rtcTime);
 	RTC_WaitForSynchro();
 
 	RTC_debugRTCTime();

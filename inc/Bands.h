@@ -12,8 +12,7 @@
 #include <stdint.h>
 
 /*
- * For transmitting on a frequency, which options are aviailable
- */
+ * For transmitting on a frequency, which options are available
 typedef struct {
 	const uint8_t hardwareChannel;	// Which hardware output is used (implementation-specific interpretation)
 	const uint8_t numPLLOptions;	// How many different PLL settings can we try using
@@ -23,25 +22,25 @@ typedef struct {
 
 // HF 30 m APRS: Mark 10149200, space 10149400, avg. 10149300
 extern const HF_BandDef_t HF_BAND_DEFS[];
+ */
 
 /*
  * For transmitting VHF from the PLL (like CDCE913) directly.
- */
 typedef struct {
 	const PLL_Setting_t PLLSetting;	// We don't bother to maintain many options here. FM is not so critical
 	const uint32_t frequency;		//
 } VHF_ChannelDef_PLL_t;
-
 extern const VHF_ChannelDef_PLL_t VHF_PLL_BAND_DEFS[];
 extern const uint8_t NUM_VHF_PLL_BAND_DEFS;
+ */
 
 /*
  * Using Si4463, there is no need to store PLL settings; the driver can set it.
- */
 typedef uint32_t VHF_ChannelDef_Si6643_t;
 
 extern const VHF_ChannelDef_Si6643_t VHF_SI4463_BAND_DEFS[];
 extern const uint8_t NUM_VHF_SI4463_BAND_DEFS;
+ */
 
 /*
  * For transmitting on a frequency, which options are aviailable

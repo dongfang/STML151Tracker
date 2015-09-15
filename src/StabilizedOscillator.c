@@ -28,7 +28,6 @@ static uint32_t checksum(const CalibrationRecord_t* record) {
 }
 
 const CalibrationRecord_t* getCalibration(int8_t temperature, boolean doAttemptCalibrate) {
-//#define TEMPERATURE_RANGES {-54,-42,-30,-18,-6,6,18,30};
 	uint8_t index = 0;
 
 	while(index < NUM_TEMPERATURE_RANGES-1 && temperatureRanges[index+1] < temperature)
@@ -61,7 +60,6 @@ int8_t getBestTrimIndex(int16_t desiredPP10M) {
 	int16_t bestError = 30000;
 	int8_t bestIndex = -1;
 	for (uint8_t i = PLL_MIN_TRIM_INDEX_VALUE; i <= PLL_MAX_TRIM_INDEX_VALUE; i++) {
-
 		int16_t test = desiredPP10M - PLL_XTAL_TRIM_PP10M[i];
 		if (test < 0)
 			test = -test;
@@ -73,6 +71,7 @@ int8_t getBestTrimIndex(int16_t desiredPP10M) {
 	return bestIndex;
 }
 
+/*
 void PLLSettingExperiment(const PLL_Setting_t* pllSettings, uint8_t numSettings, double desiredMultiplication) {
 	uint8_t i;
 	uint16_t smallestError = -1;
@@ -110,7 +109,7 @@ void PLLSettingExperiment(const PLL_Setting_t* pllSettings, uint8_t numSettings,
 				settingTrim, remainingErrorPP10M);
 	}
 }
-
+*/
 /*
 void bestStoredPLLSetting(const PLL_Setting_t* pllSettings, uint8_t numSettings, double desiredMultiplication,
 		uint8_t* bestIndex, uint8_t* bestTrim) {
