@@ -10,6 +10,7 @@
 
 #include "Types.h"
 #include "Setup.h"
+#include "IndividualBoard.h"
 #include <stdint.h>
 
 #define ADC_FACTOR (VCC / 4096)

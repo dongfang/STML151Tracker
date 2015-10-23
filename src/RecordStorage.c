@@ -34,6 +34,10 @@ void setIndexCheck() {
 	storedRecordIndexCheck = checksum();
 }
 
+void resetRecordStorageTimer() {
+	RTC_getTime(&nextStorageTime); // we might as well start storing NOW.
+}
+
 void checkRecordIndexes() {
 	if (storedRecordIndexCheck == checksum())
 		return; // Was okay.
@@ -42,7 +46,7 @@ void checkRecordIndexes() {
 	storedRecordIndexOutHead = 0;
 	storedRecordIndexOutTail = 0;
 	setIndexCheck();
-	RTC_getTime(&nextStorageTime); // we might as well start storing NOW.
+	resetRecordStorageTimer(); // we might as well start storing NOW.
 }
 
 // This is rather primitive! Only works within +- 12h. Should be okay though.

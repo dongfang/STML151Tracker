@@ -16,13 +16,6 @@
  */
 #include "RF24Wrapper.h"
 #include "RH_RF24.h"
-
-#ifdef DEBUG
-#include <stdio.h>
-#include "SerialStream.h"
-extern UARTSerial serial0;
-#endif
-
 static RH_RF24 rf24;
 
 extern "C" {

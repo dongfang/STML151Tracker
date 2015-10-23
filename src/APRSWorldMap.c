@@ -6,6 +6,7 @@
  */
 #include "Types.h"
 #include "GPS.h"
+#include "Globals.h"
 #include "APRS.h"
 #include "WorldMap.h"
 #include <diag/trace.h>
@@ -115,8 +116,8 @@ void APRS_frequenciesFromPosition(
 		const Location_t* position,
 		boolean* frequenciesVector,
 		boolean* isCoreVector) {
-	APRS_frequencies((int16_t)(position->lat + 0.5),
-			(int16_t)(position->lon + 0.5), frequenciesVector, isCoreVector);
+	APRS_frequencies((int16_t)(lastNonzeroPosition.lat + 0.5),
+			(int16_t)(lastNonzeroPosition.lon + 0.5), frequenciesVector, isCoreVector);
 }
 
 

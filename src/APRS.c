@@ -29,6 +29,7 @@
 #include "PLL.h"
 #include "Power.h"
 #include "Globals.h"
+#include "StabilizedOscillator.h"
 
 // Module functions
 static float meters_to_feet(float m) {
@@ -205,11 +206,10 @@ void APRS_marshallStatusMessage(
 	sprintf(temp, ",a%d", (int) lastNonzero3DPosition.alt);
 	ax25_send_string(temp);
 
-	sprintf(temp, ",o%d", (int) odometer_nm);
-	// twoDecimalValue('o',odometer_nm, temp);
+	sprintf(temp, ",d%d", (int) odometer_nm);
 	ax25_send_string(temp);
 
-	statusMessageValue('c', climbRate, temp);
+	statusMessageValue('v', climbRate, temp);
 	ax25_send_string(temp);
 
 	sprintf(temp, ",r%u", numRestarts);
@@ -224,7 +224,10 @@ void APRS_marshallStatusMessage(
 	statusMessageValue('l', PHY_batteryLoadedVoltage(), temp);
 	ax25_send_string(temp);
 
-	statusMessageValue('t', temperature, temp);
+
+	const CalibrationRecord_t* cal = getCalibration(simpleTemperature, false);
+	int32_t freqError = cal->transmitterOscillatorFrequencyAtDefaultTrim - PLL_XTAL_DEFAULT_FREQUENCY;
+	sprintf(temp, ",o%ld", freqError);
 	ax25_send_string(temp);
 
 	char safe = (PWR_isSafeToUseDevice(E_DEVICE_GPS) ? 1 : 0)
@@ -266,7 +269,10 @@ void APRS_marshallPositionMessage(uint16_t txDelay) {
 	Location_t location = lastNonzeroPosition;
 	excludeZones(&location);
 
-	end = compressPosition(location.lat, location.lon, GPSPosition.alt, temp);
+	float alt = GPSPosition.alt;
+	if (alt < 0) alt = 0;
+
+	end = compressPosition(location.lat, location.lon, alt , temp);
 	end += compressTelemetry(telemetrySequence, 5, telemetryValues, temp + end);
 	telemetrySequence++;
 	if (telemetrySequence > 8280) {

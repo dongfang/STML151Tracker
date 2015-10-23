@@ -62,17 +62,6 @@ static uint32_t encodeCallsign(const char* callsign) {
 	result = result * 27 + encodeCharOnly(callsign[5]);
 	return result;
 }
-/*
-static uint32_t encodeCallsignFaster(char* callsign) {
-	uint32_t result = encode(callsign[0]) * ((uint32_t) 36 * 10 * 27 * 27 * 27);
-	result += encode(callsign[1]) * ((uint32_t) 10 * 27 * 27 * 27);
-	result += encode(callsign[2]) * ((uint32_t) 27 * 27 * 27);
-	result += encode(callsign[3]) * ((uint32_t) 27 * 27);
-	result += encode(callsign[4]) * ((uint32_t) 27);
-	result += encode(callsign[5]);
-	return result;
-}
-*/
 
 static uint32_t encode4DigitMaidenhead(const char* mh) {
 	uint32_t result = 10 * (mh[0] - 'A') + (mh[2] - '0');
@@ -126,7 +115,6 @@ static void encodeType3Message(const char* maidenhead6, int8_t power) {
 	rotatedMaidenhead[6] = 0;
 
 	uint32_t n1 = encodeCallsign(rotatedMaidenhead);
-	// trace_printf("n1 aka the num value of extended locator is %u\n", n1);
 	n1 = n1<<4;
 
 	uint32_t n2 = hash(MY_ADDRESS.callsign, strlen(MY_ADDRESS.callsign));
@@ -137,7 +125,6 @@ static void encodeType3Message(const char* maidenhead6, int8_t power) {
 
 	power += powerSomething[power % 10];
 	power = -(power + 1);
-	// trace_printf("Power ultimately %d\n", power);
 
 	// This is in arithmetic operations, not bitwise!
 	n2 = n2 * 128 + power + 64;
@@ -182,17 +169,6 @@ static void setBit(uint8_t* buf, uint8_t index, uint8_t value) {
 		buf[idx] &= ~mask;
 }
 
-/*
- void printBuf(const char* name, uint8_t* buf, uint8_t len) {
- printf("%s:\n", name);
- for (uint8_t i=0; i<len; i++) {
- printf("%d ", getBit(buf, i));
- if (i % 16 == 15) printf("\n");
- }
- printf("\n\n");
- }
- */
-
 static inline uint8_t bitParity(uint32_t v);
 static uint8_t bitParity(uint32_t v) {
 	v ^= v >> 16;
@@ -202,6 +178,7 @@ static uint8_t bitParity(uint32_t v) {
 	return (0x6996 >> v) & 1;
 }
 
+/*
 static inline uint8_t stupidBitParity(uint32_t v);
 static uint8_t stupidBitParity(uint32_t v) {
 	uint32_t mask = 1;
@@ -213,6 +190,7 @@ static uint8_t stupidBitParity(uint32_t v) {
 	}
 	return cnt & 1;
 }
+*/
 
 static void convolutionalEncoding() {
 	uint32_t shift1 = 0;
@@ -226,35 +204,19 @@ static void convolutionalEncoding() {
 		shift2 = (shift2 << 1) | bit;
 
 		uint32_t x = shift1 & 0xF2D05351UL;
-		uint8_t bitp = stupidBitParity(x);
+	//	uint8_t bitp = stupidBitParity(x);
 		uint8_t bitp2 = bitParity(x);
 
-		if (bitp != bitp2)
-			trace_printf("ERROR! bitp\n");
+	//	if (bitp != bitp2)
+	//		trace_printf("ERROR! bitp\n");
 
-		setBit(convolutionalBuf, pos++, bitp);
+		setBit(convolutionalBuf, pos++, bitp2);
 
 		x = shift2 & 0xE4613C47UL;
-		bitp = stupidBitParity(x);
-		setBit(convolutionalBuf, pos++, bitp);
+		bitp2 = bitParity(x);
+		setBit(convolutionalBuf, pos++, bitp2);
 	}
 }
-
-/*
-static uint8_t bitReverse(uint8_t v) {
-	uint8_t result = 0;
-	uint8_t maskin = 1;
-	uint8_t maskout = 1 << 7;
-	int8_t bit;
-	for (bit = 7; bit >= 0; bit--) {
-		if (v & maskin)
-			result |= maskout;
-		maskin <<= 1;
-		maskout >>= 1;
-	}
-	return result;
-}
-*/
 
 static uint8_t fasterBitReverse(uint8_t v) {
   uint8_t r = v; // r will be reversed bits of v; first get LSB of v
@@ -283,7 +245,7 @@ static void interleave() {
   }
 }
 
-static const uint32_t SYNC_VECTOR_COMPACT[162/8+1] = {
+static const uint32_t SYNC_VECTOR_COMPACT[162/32+1] = {
 0b11000000100011100010010111100000,
 0b00100101000000101100110100011010,
 0b00011010101010010010110001101010,
@@ -300,13 +262,15 @@ static uint8_t readSyncVectorSym(uint8_t idx) {
 }
 
 static void makeSymbolList() {
-	for (uint8_t i = 0; i < 162; i++) {
+	for (uint8_t i = 0; i < 163; i++) {
+		// The last (161th in 0-base) symbol is added 2x to the list.
+		uint8_t sourceIndex = i==162 ? 161 : i;
 		uint8_t idx = i / 4;
 		uint8_t shift = i & 3;
 		if (shift == 0)
-			symbolList[idx] = 0;
-		uint8_t value = getBit(interleavedbuf, i);
-		uint8_t sym = readSyncVectorSym(i) + (value ? 2 : 0);
+			symbolList[idx] = 0; // clear a byte 1st time we see it.
+		uint8_t value = getBit(interleavedbuf, sourceIndex);
+		uint8_t sym = readSyncVectorSym(sourceIndex) + (value ? 2 : 0);
 		symbolList[idx] |= sym << (6 - shift * 2);
 	}
 }
@@ -377,18 +341,6 @@ void prepareType1Transmission(uint8_t power) {
   encodeType1Message(maidenhead4, power);
   completeMessage();
 }
-
-/*
-static uint8_t ilog2(uint16_t N) {
-	uint8_t result = 0;
-	N >>= 1; // 0->0, 1->0, which both will correctly return 0
-	while (N) {
-		N >>= 1;
-		result++;
-	}
-	return result;
-}
-*/
 
 void prepareType3Transmission(uint8_t power, enum WSPR_MESSAGE_TYPE fake) {
   char maidenhead6_fake[7];

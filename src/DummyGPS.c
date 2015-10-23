@@ -91,10 +91,10 @@ boolean GPS_isGPSRunning() {
 	return isGPSOn;
 }
 
-void GPS_invalidateTime() {
+void GPS_invalidateDateTime() {
 }
 
-boolean GPS_isTimeValid() {
+boolean GPS_isDateTimeValid() {
 	return true;
 }
 

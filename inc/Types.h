@@ -46,5 +46,11 @@ typedef enum {
 	DAC2
 } DACChannel_t;
 
+// Whether we are in an APRS core zone (where we can expect to be received) or not.
+typedef enum {
+	UNKNOWN_CORE_ZONE,
+	IN_CORE_ZONE,
+	OUTSIDE_CORE_ZONE
+} CoreZoneStatus_t;
 
 #endif /* INC_TYPES_H_ */

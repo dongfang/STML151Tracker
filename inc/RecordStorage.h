@@ -72,6 +72,7 @@ StoredPathRecord_t* nextRecordIn();
 StoredPathRecord_t* nextRecordOutForFirstTransmission();
 StoredPathRecord_t* nextRecordOutForLastTransmission();
 
+void resetRecordStorageTimer();
 void storeToRecord(StoredPathRecord_t* record);
 
 //uint16_t compressDateHoursMinutes(uint8_t date, Time_t* time);

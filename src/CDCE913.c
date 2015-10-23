@@ -5,26 +5,25 @@
 #include "diag/Trace.h"
 #include "Systick.h"
 #include "stm32l1xx.h"
+#include "IndividualBoard.h"
 
 #define CDCE913_I2C_ADDR 0b1100101
 #define CDCE913_I2C_ADDR_PROG (CDCE913_I2C_ADDR & 3)
 
-#define I2C_TIMEOUT 25
+// #define I2C_TIMEOUT 25
 
 const int16_t PLL_XTAL_TRIM_PP10M[] = PLL_XTAL_TRIM_PP10M_VALUES;
 
-// These are different options for the same frequency (maybe one is enough).
-// static const CDCE913_PLLSetting_t PLL_OPTIONS_APRS_30m[];
-
+/*
 static void CDCE913_initInterface() {
 	GPIO_InitTypeDef GPIO_InitStructure;
 	I2C_InitTypeDef I2C_InitStructure;
 
-	/* I2C1 clock enable */
+	/ * I2C1 clock enable * /
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, ENABLE);
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+	// RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
 
-	/* I2C1 SDA and SCL configuration */
+	/ * I2C1 SDA and SCL configuration * /
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8 | GPIO_Pin_9;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
@@ -38,10 +37,10 @@ static void CDCE913_initInterface() {
 
 	I2C_DeInit(I2C1);
 
-	/*enable I2C*/
+	/ *enable I2C* /
 	I2C_Cmd(I2C1, DISABLE);
 
-	/* I2C1 configuration */
+	/ * I2C1 configuration * /
 	I2C_StructInit(&I2C_InitStructure);
 	I2C_InitStructure.I2C_Mode = I2C_Mode_I2C;
 	I2C_InitStructure.I2C_DutyCycle = I2C_DutyCycle_2;
@@ -51,52 +50,92 @@ static void CDCE913_initInterface() {
 	I2C_InitStructure.I2C_ClockSpeed = 20000;
 	I2C_Init(I2C1, &I2C_InitStructure);
 
-	/*enable I2C*/
+	/ *enable I2C* /
 	I2C_Cmd(I2C1, ENABLE);
+}
+
+static void I2C_attemptUnjam() {
+	GPIO_InitTypeDef GPIO_InitStructure;
+/ *
+	/ * I2C1 clock enable * /
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, ENABLE);
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+
+	I2C_Cmd(I2C1, DISABLE);
+
+	/ * I2C1 SDA and SCL configuration * /
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8 | GPIO_Pin_9;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_OD;
+	GPIO_Init(GPIOB, &GPIO_InitStructure);
+
+	GPIOB->ODR &= ~GPIO_Pin_8; // SDA low.
+	for (int i=0; i<8; i++) {
+		GPIOB->ODR &= ~GPIO_Pin_9;
+		timer_sleep(1);
+		GPIOB->ODR |= GPIO_Pin_9;
+		timer_sleep(1);
+	}
+	// While clock is high raise SDA. This is supposed to be STOP.
+	GPIOB->ODR |= GPIO_Pin_8; // SDA high.
+	CDCE913_initInterface();
+	timer_sleep(1);
+	* /
+	I2C1->CR1 &= ~I2C_CR1_PE;
+	I2C1->CR1 |= I2C_CR1_SWRST;
+	timer_sleep(1);
+	I2C1->CR1 &= ~I2C_CR1_SWRST;
+	I2C1->CR1 |= I2C_CR1_PE;
+	timer_sleep(1);
 }
 
 static void CDCE913_initInterfaceIfNecessary() {
 	// if (!(I2C1->CR1 & I2C_CR1_PE)) {
-	//if  (!(RCC->APB1ENR & RCC_APB1Periph_I2C1)) {
-	if (!(GPIOB->ODR & GPIO_Pin_1)) {
-		GPIOB->ODR |= GPIO_Pin_1;
-		timer_sleep(4);
-		CDCE913_initInterface();
-	}
+	// if  (!(RCC->APB1ENR & RCC_APB1Periph_I2C1)) {
+	// if (!(GPIOB->ODR & GPIO_Pin_1)) {
+    // GPIOB->ODR |= GPIO_Pin_1; // PLL chip power control, if present.
+	//	timer_sleep(4);
+	CDCE913_initInterface();
+	// }
 }
 
 static uint8_t I2C_read(uint8_t reg_addr) {
 	int status;
 	timer_mark();
-	/* initiate start sequence */
+	/ * initiate start sequence * /
 	I2C_GenerateSTART(I2C1, ENABLE);
 	while ((status = !I2C_GetFlagStatus(I2C1, I2C_FLAG_SB))
 			&& !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending START\n");
+		I2C_attemptUnjam();
 	}
 
-	/*send read command to chip*/
+	/ *send read command to chip* /
 	timer_mark();
 	I2C_Send7bitAddress(I2C1, CDCE913_I2C_ADDR << 1, I2C_Direction_Transmitter);
-	/*check master is now in Tx mode*/
+	/ *check master is now in Tx mode* /
 	while ((status = !I2C_CheckEvent(I2C1,
 	I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)) && !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending address (1)\n");
+		I2C_attemptUnjam();
 	}
 
-	/*who am i register address*/
+	/ *who am i register address* /
 	timer_mark();
 	I2C_SendData(I2C1, reg_addr | (1 << 7)); // The 1<<7 is to do a byte read, not a block read.
-	/*wait for byte send to complete*/
+	/ * wait for byte send to complete* /
 	while ((status = !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED))
 			&& !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending RA\n");
+		I2C_attemptUnjam();
 	}
 
 	// Repeated start
@@ -107,19 +146,21 @@ static uint8_t I2C_read(uint8_t reg_addr) {
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending repeated start\n");
+		I2C_attemptUnjam();
 	}
-	/*send read command to chip*/
+	/ *send read command to chip* /
 	timer_mark();
 	I2C_Send7bitAddress(I2C1, CDCE913_I2C_ADDR << 1, I2C_Direction_Receiver);
-	/*check master is now in Rx mode*/
+	/ *check master is now in Rx mode* /
 	while ((status = !I2C_CheckEvent(I2C1,
 	I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED)) && !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending address (2)\n");
+		I2C_attemptUnjam();
 	}
 
-	/*enable ACK bit */
+	/ *enable ACK bit * /
 	timer_mark();
 	I2C_AcknowledgeConfig(I2C1, DISABLE);
 	while ((status = !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_RECEIVED))
@@ -128,16 +169,18 @@ static uint8_t I2C_read(uint8_t reg_addr) {
 	uint8_t data = I2C_ReceiveData(I2C1);
 	if (status) {
 		trace_printf("I2C:Timeout sending data\n");
+		I2C_attemptUnjam();
 	}
-	/*generate stop*/
+	/ *generate stop* /
 	timer_mark();
 	I2C_GenerateSTOP(I2C1, ENABLE);
-	/*stop bit flag*/
+	/ *stop bit flag* /
 	while ((status = I2C_GetFlagStatus(I2C1, I2C_FLAG_STOPF))
 			&& !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending STOP\n");
+		I2C_attemptUnjam();
 	}
 
 	return data;
@@ -146,58 +189,84 @@ static uint8_t I2C_read(uint8_t reg_addr) {
 static void I2C_write(uint8_t reg_addr, uint8_t data) {
 	int status;
 	timer_mark();
-	/* initiate start sequence */
+	/ * initiate start sequence * /
 	I2C_GenerateSTART(I2C1, ENABLE);
 	while ((status = !I2C_GetFlagStatus(I2C1, I2C_FLAG_SB))
 			&& !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending START\n");
+		I2C_attemptUnjam();
 	}
 
 	timer_mark();
-	/*send read command to chip*/
+	/ *send read command to chip* /
 	I2C_Send7bitAddress(I2C1, CDCE913_I2C_ADDR << 1, I2C_Direction_Transmitter);
-	/*check master is now in Tx mode*/
+	/ *check master is now in Tx mode* /
 	while ((status = !I2C_CheckEvent(I2C1,
 	I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)) && !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending address\n");
+		I2C_attemptUnjam();
 	}
 
-	/*who register address*/
+	/ *who register address* /
 	timer_mark();
 	I2C_SendData(I2C1, reg_addr | (1 << 7));
-	/*wait for byte send to complete*/
+	/ *wait for byte send to complete* /
 	while ((status = !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED))
 			&& !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending RA\n");
+		I2C_attemptUnjam();
 	}
 
-	/*data byte*/
+	/ *data byte* /
 	timer_mark();
 	I2C_SendData(I2C1, data);
-	/*wait for byte send to complete*/
+	/ *wait for byte send to complete* /
 	while ((status = !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED))
 			&& !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending data\n");
+		I2C_attemptUnjam();
 	}
 
-	/*generate stop*/
+	/ *generate stop* /
 	timer_mark();
 	I2C_GenerateSTOP(I2C1, ENABLE);
-	/*stop bit flag*/
+	/ *stop bit flag* /
 	while ((status = I2C_GetFlagStatus(I2C1, I2C_FLAG_STOPF))
 			&& !timer_elapsed(I2C_TIMEOUT))
 		;
 	if (status) {
 		trace_printf("I2C:Timeout sending STOP\n");
+		I2C_attemptUnjam();
 	}
+}
+*/
+
+extern void I2C1_GPIO_Config();
+extern boolean I2C1_writeByte(uint8_t DeviceAddress, uint8_t registerAddress, uint8_t data);
+extern uint8_t I2C1_readByte(uint8_t deviceAddress, uint8_t registerAddress);
+
+void CDCE913_initInterfaceIfNecessary() {
+	//if (!(GPIOB->ODR & GPIO_Pin_5)) {
+		//GPIOB->ODR |= GPIO_Pin_5;
+		//timer_sleep(1);
+		I2C1_GPIO_Config();
+	// }
+}
+
+uint8_t I2C_read(uint8_t registerAddress) {
+	return I2C1_readByte(CDCE913_I2C_ADDR<<1, registerAddress);
+}
+
+void I2C_write(uint8_t registerAddress, uint8_t data) {
+	I2C1_writeByte(CDCE913_I2C_ADDR<<1, registerAddress | (1<<7), data);
 }
 
 static void CDCE913_setPLLValue(const CDCE913_PLLSetting_t* setting) {
@@ -280,12 +349,14 @@ void PLL_shutdown() {
 	CDCE913_initInterfaceIfNecessary();
 	CDCE913_enableOutput(CDCE913_OutputMode_SHUTDOWN, 0);
 
-	timer_sleep(2);
-	I2C_Cmd(I2C1, DISABLE);
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, DISABLE);
-	timer_sleep(2);
-
-	GPIOB->ODR &= ~GPIO_Pin_1;
+	timer_sleep(1);
+	// GPIOB->ODR &= ~GPIO_Pin_5;
+	// timer_sleep(1);
+	// I2C_Cmd(I2C1, DISABLE);
+	// RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, DISABLE);
+	// PLL chip power control, if present.
+	// timer_sleep(2);
+	// GPIOB->ODR &= ~GPIO_Pin_1;
 }
 
 // Always on output #1

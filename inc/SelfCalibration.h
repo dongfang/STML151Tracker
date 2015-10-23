@@ -10,6 +10,7 @@
 
 #include "Types.h"
 #include "Setup.h"
+#include "IndividualBoard.h"
 
 typedef struct {
 	// Time before giving up (some hardware or config fault - no signal)

@@ -73,6 +73,8 @@ boolean latestAPRSCores[12];	 // 12 is sufficently large for the world map...
 uint8_t nextWSPRMessageTypeIndex;
 uint16_t lastWSPRWindowWaitTime;
 
+CoreZoneStatus_t coreZoneStatus = UNKNOWN_CORE_ZONE;
+
 const CalibrationRecord_t* currentCalibration = &defaultCalibration;
 
 void diagsWhyReset() {
@@ -102,6 +104,8 @@ void initGeneralIOPorts() {
 
 	/* GPIOA and B Periph clock were enabled in main */
 
+	GPIOB->ODR = GPIO_Pin_1; // LED off, disarm WSPR, disable Si4463 SS.
+
 	// 6: LED, 1: WSPR arm, 0: SPI1 NSS
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_1;	 // | GPIO_Pin_0;
 
@@ -111,9 +115,6 @@ void initGeneralIOPorts() {
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
-
-	GPIOB->ODR = 0;	 //  GPIO_Pin_0; // LED off, disarm WSPR, disable Si4463 SS.
-	// GPIOB->ODR = GPIO_Pin_1; // experiment - all time power on PLL.
 
 	/* Configure GPS power pin and Si4463 SDN pin */
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;	 // | GPIO_Pin_8;
@@ -157,13 +158,15 @@ void calibrationCycle() {
  */
 void GPSCycle() {
 	// Just in case. it bothers the GPS pretty bad. And it should never be running now anyway.
-	PLL_shutdown();
+	// Done in main anyway. We should either have been shut down normally already, or have been
+	// reset. Either way it should have been shut down.
+	// PLL_shutdown();
 
 	if (PWR_isSafeToUseDevice(E_DEVICE_GPS)) {
 		GPS_start();
 		uint32_t gpsStartTime = systemTimeMillis;
 
-		if (GPS_waitForTimelock(MAX_GPS_TIMELOCK_TIME)) {
+		if (GPS_waitForTimelock(MAX_GPS_TIMELOCK_TIME * 1000)) {
 			RTC_setRTC(&GPSTime.date, &GPSTime.time);
 			// trace_printf("Set RTC to %02d:%02d: %d\n", GPSTime.time.hours,
 			//		GPSTime.time.minutes, success);
@@ -177,7 +180,7 @@ void GPSCycle() {
 			GPS_waitForPosition(POSITION_MAX_TIME_S * 1000);
 		}
 
-		lastGPSFixTime = (systemTimeMillis - gpsStartTime) / 1000;
+		lastGPSFixTime = (systemTimeMillis - gpsStartTime + 500) / 1000;
 
 		// Update APRS map
 		APRS_frequenciesFromPosition(&lastNonzeroPosition, latestAPRSRegions,
@@ -209,7 +212,7 @@ void doWSPR() {
 					pllSetting.N, pllSetting.M, pllSetting.trim);
 
 			trace_printf("Waiting for WSPR window\n");
-			lastWSPRWindowWaitTime = RTC_waitTillModuloMinutes(2, 1);
+			lastWSPRWindowWaitTime = RTC_waitTillModuloMinutes(2, 0);
 
 			uint8_t nextWSPRMessageType;
 
@@ -234,9 +237,9 @@ void doWSPR() {
 			PWR_stopDevice(E_DEVICE_HF_TX);
 
 			// Recurse, do it again if we sent the rather uninformative TYPE1.
-			if (nextWSPRMessageType == TYPE1) {
-				doWSPR();
-			}
+			// if (nextWSPRMessageType == TYPE1) {
+			// 	doWSPR();
+			// }
 
 			break;
 		} else {
@@ -258,7 +261,7 @@ void HF_APRSCycle() {
 }
 
 void VHF_APRSCycle() {
-	boolean inCoreCoverage = false;
+	CoreZoneStatus_t newCoreZoneStatus = OUTSIDE_CORE_ZONE;
 
 	// Send position on all relevant frequencies, without a break in between.
 	for (uint8_t i = 0;
@@ -272,13 +275,14 @@ void VHF_APRSCycle() {
 					PLL_XTAL_DEFAULT_FREQUENCY);
 
 		}
+
 		if (latestAPRSCores[i])
-			inCoreCoverage = true;
+			newCoreZoneStatus = IN_CORE_ZONE;
 	}
 
 // Send status on all relevant frequencies, without a break in between but with a break before.
 // If we are not in network coverage, don't bother to try or to delay first.
-	if (inCoreCoverage && PWR_isSafeToUseDevice(E_DEVICE_VHF_TX)) {
+	if (PWR_isSafeToUseDevice(E_DEVICE_VHF_TX)) {
 		timer_sleep(2000);
 		for (uint8_t i = 0; i < APRS_WORLD_MAP_LENGTH; i++) {
 			if (latestAPRSRegions[i]) {
@@ -290,10 +294,12 @@ void VHF_APRSCycle() {
 
 			}
 		}
+	}
 
+	if (newCoreZoneStatus == IN_CORE_ZONE) {
 		timer_sleep(2000);
-		// Get rid of some storage backlog, first take that scheduled for a 2nd transmission
 
+		// Get rid of some storage backlog, first take that scheduled for a 2nd transmission
 		int maxStored = 5;
 
 		StoredPathRecord_t* storedRecord;
@@ -323,8 +329,13 @@ void VHF_APRSCycle() {
 							PLL_XTAL_DEFAULT_FREQUENCY);
 			}
 		}
-	} else { // Not core.
+	} else { // Not core. Either we are outside zones or the transmitter can't be run.
 		trace_printf("Outside APRS core or VHF unsafe to run\n");
+		if (newCoreZoneStatus != coreZoneStatus) {
+			// we have just left core, since last transmit. Or, we never were in core.
+			void resetRecordStorageTimer();
+		}
+
 		// Store a message.
 		if (timeToStoreRecord()) {
 			trace_printf("Storing a record\n");
@@ -334,6 +345,8 @@ void VHF_APRSCycle() {
 			trace_printf("Not storing now\n");
 		}
 	}
+
+	coreZoneStatus = newCoreZoneStatus;
 }
 
 void radioCycle() {
@@ -347,6 +360,7 @@ void radioCycle() {
 	}
 
 	wsprCounter++;
+	trace_printf("WSPRCounter %d\n", wsprCounter);
 	if (wsprCounter >= WSPR_DIVIDER) {
 		wsprCounter = 0;
 		doWSPR();
@@ -356,9 +370,11 @@ void radioCycle() {
 void reschedule(char _scheduleName, uint8_t _mainPeriodWakeupCycles) {
 	if (_scheduleName != scheduleName) {
 		trace_printf("Rescheduling : %c\n", _scheduleName);
-		// don't do this. If bouncing back and forth between 2 different schedules
-		// because of unstable temperature or whatever, there will never be any main cycles.
-		// mainPeriodCnt = 0;
+
+		// If changing to a faster schedule, cut short the delay.
+		if (_mainPeriodWakeupCycles < mainPeriodCounter) {
+			mainPeriodCounter = _mainPeriodWakeupCycles;
+		}
 	}
 	scheduleName = _scheduleName;
 	mainPeriodWakeupCycles = _mainPeriodWakeupCycles;
@@ -373,7 +389,6 @@ void wakeupCycle() {
 	trace_printf("ADCValue0: %d\t", ADCUnloadedValues[0]);
 	trace_printf("ADCValue1: %d\t", ADCUnloadedValues[1]);
 	trace_printf("ADCValue2: %d\t", ADCUnloadedValues[2]);
-
 	trace_printf("Precision batt voltage: %d\n", (int) (1000 * batteryVoltage));
 	trace_printf("Ext mC: %d\n", (int) (1000 * temperature));
 
@@ -383,7 +398,7 @@ void wakeupCycle() {
 		if (isDaytimePower()) {
 			// trace_printf("Good batt\n");
 			if (lastNonzero3DPosition.alt
-					!= 0&& lastNonzero3DPosition.alt < LOWALT_THRESHOLD) {
+					!= 0 && lastNonzero3DPosition.alt < LOWALT_THRESHOLD) {
 				reschedule(LOWALT_SCHEDULE_TIME);
 			} else {
 				reschedule(DAY_SCHEDULE_TIME);
@@ -400,11 +415,10 @@ void wakeupCycle() {
 		}
 
 		// Time to do main cycle? (the variables should have been set somewhere above, all of them)
-		trace_printf("To go until main %d\n",
-				mainPeriodWakeupCycles - mainPeriodCounter);
-		mainPeriodCounter++;
-		if (mainPeriodCounter >= mainPeriodWakeupCycles) {
-			mainPeriodCounter = 0;
+		trace_printf("To go until main %d\n", mainPeriodCounter);
+
+		if (mainPeriodCounter == 0) {
+			mainPeriodCounter = mainPeriodWakeupCycles;
 
 			// start the real HSE clock.
 			SetSysClock();
@@ -415,8 +429,8 @@ void wakeupCycle() {
 			// do some radio work :)
 			GPSCycle();
 			radioCycle();
-
-			// GPIOB->ODR &= ~GPIO_Pin_1;
+		} else {
+			mainPeriodCounter--;
 		}
 	} else { // we are below 3.0
 		trace_printf("Battery too low for main-stuff (<3)\n");
@@ -425,15 +439,35 @@ void wakeupCycle() {
 	systick_end();
 }
 
-void groundCalibration() {
+void HFGroundCalibration() {
+	performPrecisionADC();
+
+	trace_printf("ADCValue0: %d\t", ADCUnloadedValues[0]);
+	trace_printf("ADCValue1: %d\t", ADCUnloadedValues[1]);
+	trace_printf("ADCValue2: %d\t", ADCUnloadedValues[2]);
+	trace_printf("Precision batt voltage: %d\n", (int) (1000 * batteryVoltage));
+	trace_printf("Ext mC: %d\n", (int) (1000 * temperature));
+
 // just to be sure we didn't enable this for a flight build.
 #if defined (TRACE) && MODE == GROUNDTEST
 	SetSysClock();
 	systick_start();
 	selfCalibrateForWSPR(16E6);
 	printTrimmingCalibrationTable();
-	while(1) doWSPR();
+	while (1)
+	doWSPR();
 #endif
+}
+
+void PLLTest() {
+	while (1) {
+		APRS_makeDirectTransmissionFrequency(144700000,
+				PLL_XTAL_DEFAULT_FREQUENCY,
+				DIRECT_2m_HARDWARE_OUTPUT);
+		timer_sleep(1000);
+		//PLL_shutdown();
+		//timer_sleep(1000);
+	}
 }
 
 int main() {
@@ -444,26 +478,53 @@ int main() {
 	 system_stm32l1xx.c file
 	 */
 	// SetSysClock();
-
 	/* Configure one bit for preemption priority */
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
 
 	initGeneralIOPorts();
-	// GPIOB->ODR |= GPIO_Pin_1;
+
+#if defined(SIMPLE_BROWNOUT_MODE)
+	mainPeriodCounter = SIMPLE_BROWNOUT_PERIODS;
+#endif
 
 	numRestarts++;
 	if (numRestarts > 99)
 		numRestarts = 0;
 
-// for debug only.
+	// for debug only.
 #if defined(TRACE)
-	systick_start();
 	SetSysClock();
+	systick_start();
 	timer_sleep(3000);
 	trace_printf("start\n");
-#endif
 
+/*
+ * Monkey-test I2C interface (use a scope).
+	GPIO_InitTypeDef GPIO_InitStructure;
+	// Configure I2C1 pins: SCL and SDA
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8 | GPIO_Pin_9;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+	GPIO_InitStructure.GPIO_Mode = GPIO_OType_OD;
+	GPIO_Init(GPIOB, &GPIO_InitStructure);
+
+	while(1) {
+		GPIOB->ODR |= 1<<8;
+		timer_sleep(200);
+		GPIOB->ODR |= 1<<9;
+		timer_sleep(200);
+		GPIOB->ODR &= ~(1<<8);
+		timer_sleep(200);
+		GPIOB->ODR &= ~(1<<9);\
+		timer_sleep(200);
+	}
+*/
+
+#endif
 	RTC_init();
+
+	// PLLTest();
+	// HFGroundCalibration();
+
 	RTC_scheduleDailyEvent();
 	RTC_setWakeup(RTC_WAKEUP_PERIOD_S);
 
@@ -471,7 +532,9 @@ int main() {
 		invalidateStartupLogs();
 	}
 
-	// groundCalibration();
+	// Get rid of its default startup active.
+	systick_start();
+	PLL_shutdown();
 
 	while (1) {
 		// TODO something depends on systick running (or else gets stuck), what is it?

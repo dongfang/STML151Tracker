@@ -15,12 +15,11 @@
 #include "../inc/PLL.h"
 
 static volatile float symbolModulation;
-static volatile uint8_t symbolNumber;
+static volatile int16_t symbolNumber;
 static uint8_t symbolNumberChangeDetect;
 extern uint8_t getWSPRSymbol(uint8_t i);
 
-void setWSPR_DAC() {
-	uint8_t symbol = getWSPRSymbol(symbolNumber);
+void setWSPR_DAC(uint8_t symbol) {
 	uint16_t dacData = (uint16_t)(
 			symbol * symbolModulation + 2048 - 1.5 * symbolModulation + 0.5);
 	setDAC(DAC2, dacData);
@@ -32,12 +31,10 @@ void TIM2_IRQHandler(void) {
 	if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET) {
 		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
 		if (symbolNumber < 162) {
-			setWSPR_DAC();
-			trace_putchar('0' +  getWSPRSymbol(symbolNumber));
-		}
-
-		if (symbolNumber < 163) {
 			symbolNumber++;
+			uint8_t symbol = getWSPRSymbol(symbolNumber);
+			setWSPR_DAC(symbol);
+			trace_putchar('0' +  symbol);
 		}
 	}
 }
@@ -51,14 +48,19 @@ uint8_t WSPRDidUpdate() {
 }
 
 uint8_t WSPREnded() {
-	return symbolNumber >= 163;
+	// 0 is 1st
+	// 161 is beginning of 162th
+	// 162 is end of 162th
+	return symbolNumber >= 162;
 }
 
 static void WSPR_shutdownHW() {
 	DAC_Cmd(DAC_Channel_2, DISABLE);
 	TIM_ITConfig(TIM2, TIM_IT_Update, DISABLE);
 	TIM_Cmd(TIM2, DISABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, DISABLE);
 	PLL_shutdown();
+	GPIOB->ODR |= GPIO_Pin_1;	// Disarm.
 }
 
 static void WSPR_initHW(
@@ -66,13 +68,17 @@ static void WSPR_initHW(
 		const PLL_Setting_t* setting,
 		float _symbolModulation) {
 
+	// Start a little early, because the osc takes some time to get a steady freq.
 	symbolNumber = 0;
 	symbolModulation = _symbolModulation;
-
 	DAC2_initHW();
-	setWSPR_DAC();
-
+	setWSPR_DAC(getWSPRSymbol(0));
+	// Set the osc to play the 0th symbol but without arming the tx
 	setPLL((CDCE913_OutputMode_t) HF_30m_HARDWARE_OUTPUT, setting);
+	// and do that for 1sec.
+	timer_sleep(1000);
+	// Now arm.
+	GPIOB->ODR &= ~GPIO_Pin_1;			// Turn on arm feature.
 
 	/* Periph clocks enable */
 	// RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
@@ -115,8 +121,6 @@ void WSPR_Transmit(
 		const PLL_Setting_t* setting,
 		float stepModulation) {
 
-	// GPIOB->ODR |= GPIO_Pin_1;			// Turn on arm feature.
-
 	WSPR_initHW(band, setting, stepModulation);
 
 	while (!WSPREnded()) {
@@ -126,7 +130,7 @@ void WSPR_Transmit(
 		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
 	}
 
-	GPIOB->ODR &= ~(/*GPIO_Pin_1 | */ GPIO_Pin_6);	// Turn off LED and arm feature.
+	GPIOB->ODR &= ~GPIO_Pin_6;	// Turn off LED.
 
 	WSPR_shutdownHW();
 }

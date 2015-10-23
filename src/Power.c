@@ -15,77 +15,12 @@ boolean isDaytimePower() {
 			&& temperature >= BATTERY_FAILSAFE_ALWAYS_SAFE_TEMPERATURE;
 }
 
-/*
- // Safe if : Never turned on, if turned back off by program, or if voltage is better now than last time.
- boolean isSafeToUseEquipment(boolean previouslyCrashed) {
- // No history means no objections.
- if (!checkStartupRecordValid()) return true;
-
- if (batteryVoltage >= BATTERY_FAILSAFE_ALWAYS_SAFE_VOLTAGE
- && simpleTemperature >= BATTERY_FAILSAFE_ALWAYS_SAFE_TEMPERATURE)
- return true;
-
- // Might have crashed, but now voltage is significantly better.
- if (batteryVoltage >= startupLog.initialVoltageValue + BATTERY_FAILSAFE_VOLTAGE_DELTA)
- return true;
-
- return !previouslyCrashed;
- }
-
- // Safe if : Never turned on, if turned back off by program, or if voltage is better now than last time.
- boolean PWR_isSafeToUseGPS() {
- return isSafeToUseEquipment(startupLog.wasGPSRunning);
- }
-
- boolean PWR_isSafeToUseHFTx() {
- return isSafeToUseEquipment(startupLog.wasHFTxRunning);
- }
-
- boolean PWR_isSafeToUseVHFTx() {
- return isSafeToUseEquipment(startupLog.wasVHFTxRunning);
- }
-
-void PWR_startGPS() {
-	startupLog.wasGPSRunning = true;
-	startupLog.wasGPSSuccessful = false;
-	startupLog.initialVoltageValue = batteryVoltage;
-	setStartupRecordChecksum();
-}
-
-void PWR_startHFTx() {
-	startupLog.wasHFTxRunning = true;
-	startupLog.wasHFTxSuccessful = false;
-	startupLog.initialVoltageValue = batteryVoltage;
-	setStartupRecordChecksum();
-}
-
-void PWR_startVHFTx() {
-	startupLog.wasVHFTxRunning = true;
-	startupLog.wasVHFTxSuccessful = false;
-	startupLog.initialVoltageValue = batteryVoltage;
-	setStartupRecordChecksum();
-}
-
-void PWR_stopGPS() {
-	startupLog.wasGPSRunning = false;
-	startupLog.wasGPSSuccessful = true;
-	setStartupRecordChecksum();
-}
-
-void PWR_stopHFTx() {
-	startupLog.wasHFTxRunning = false;
-	startupLog.wasHFTxSuccessful = true;
-	setStartupRecordChecksum();
-}
-
-void PWR_stopVHFTx() {
-	startupLog.wasVHFTxRunning = false;
-	startupLog.wasVHFTxSuccessful = true;
-	setStartupRecordChecksum();
-}
-*/
-
 boolean PWR_isSafeToUseDevice(E_DEVICE device) {
+#if defined(SIMPLE_BROWNOUT_MODE)
+	// Do not use a device log. Just make an xx hours sleep penalty after any reset.
+	// Therefore, the device log test here never has any objections.
+	return true;
+#else
 	// If conditions are must-be-good, accept.
 	if (isDaytimePower())
 		return true;
@@ -104,6 +39,7 @@ boolean PWR_isSafeToUseDevice(E_DEVICE device) {
 		return true;
 
 	return !startupLog[device].wasDeviceRunning;
+#endif
 }
 
 void PWR_startDevice(E_DEVICE device) {

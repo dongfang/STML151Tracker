@@ -16,6 +16,7 @@
 #include "ADC.h"
 #include "stm32l1xx.h"
 #include "Systick.h"
+#include "IndividualBoard.h"
 #include <diag/trace.h>
 
 volatile APRSModulationMode_t currentMode;
@@ -53,8 +54,10 @@ void APRS_endSi4463Transmission() {
 	PLL_shutdown();
 }
 
-static void APRS_makeDirectTransmissionFrequency(uint32_t frequency,
-		uint32_t referenceFrequency, uint8_t output) {
+void APRS_makeDirectTransmissionFrequency(
+		uint32_t frequency,
+		uint32_t referenceFrequency,
+		uint8_t output) {
 	PLL_Setting_t pllSetting;
 	double maxError = 30E-6;
 	if (PLL_bestPLLSetting(referenceFrequency, frequency, maxError,
@@ -67,20 +70,18 @@ static void APRS_makeDirectTransmissionFrequency(uint32_t frequency,
 	}
 }
 
-static void APRS_initDirectHFTransmission(uint32_t frequency,
-		uint32_t referenceFrequency) {
-	APRS_makeDirectTransmissionFrequency(frequency, referenceFrequency,
-	HF_30m_HARDWARE_OUTPUT);
+static void APRS_initDirectHFTransmission(uint32_t frequency, uint32_t referenceFrequency) {
+	GPIOB->ODR &= ~GPIO_Pin_1; 		// Arm
+	APRS_makeDirectTransmissionFrequency(frequency, referenceFrequency, HF_30m_HARDWARE_OUTPUT);
 }
 
-static void APRS_initDirectVHFTransmission(uint32_t frequency,
-		uint32_t referenceFrequency) {
-	APRS_makeDirectTransmissionFrequency(frequency, referenceFrequency,
-	DIRECT_2m_HARDWARE_OUTPUT);
+static void APRS_initDirectVHFTransmission(uint32_t frequency, uint32_t referenceFrequency) {
+	APRS_makeDirectTransmissionFrequency(frequency, referenceFrequency, DIRECT_2m_HARDWARE_OUTPUT);
 }
 
 void APRS_endDirectTransmission() {
 	PLL_shutdown();
+	GPIOB->ODR |= GPIO_Pin_1; 		// Disarm
 }
 
 extern void APRS_marshallPositionMessage(uint16_t txDelay);
@@ -152,7 +153,8 @@ static void _APRS_transmitMessage(
 #endif
 	mode->shutdownTransmitter();
 
-	GPIOB->ODR &= ~(GPIO_Pin_6); // LED and HF arm
+	GPIOB->ODR &= ~(GPIO_Pin_6);	// LED off
+
 	ADC_DMA_shutdown(); // we just assume it will work, if not, no prob.
 
 	switch (band) {

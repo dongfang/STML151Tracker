@@ -113,7 +113,7 @@ int RTC_timeDiff_s(RTC_TimeTypeDef* t1, RTC_TimeTypeDef* t2) {
 }
 
 int RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds) {
-	uint8_t minutes;
+	uint8_t _minutes;
 	uint8_t _seconds;
 	RTC_WaitForSynchro();
 	RTC_TimeTypeDef rtcFirstTime;
@@ -122,9 +122,9 @@ int RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds) {
 
 	do {
 		RTC_GetTime(RTC_Format_BIN, &rtcTime);
-		minutes = rtcTime.RTC_Minutes;
+		_minutes = rtcTime.RTC_Minutes;
 		_seconds = rtcTime.RTC_Seconds;
-	} while ((seconds != _seconds || (minutes % modulo) != 0) && timer_sleep(100));
+	} while ((seconds != _seconds || (_minutes % modulo) != 0) && timer_sleep(250));
 
 	return RTC_timeDiff_s(&rtcTime, &rtcFirstTime);
 }
@@ -214,14 +214,12 @@ void RTC_scheduleDailyEvent() {
 	PWR_RTCAccessCmd(ENABLE);
 	RTC_init_RTC_ALARMA_EXTI();
 
-	RTC_TimeTypeDef rtcAlarmTime;
 	RTC_AlarmTypeDef rtcAlarm;
 
 	rtcAlarm.RTC_AlarmTime.RTC_Hours = 8;
 	rtcAlarm.RTC_AlarmTime.RTC_Minutes = 0;
 	rtcAlarm.RTC_AlarmTime.RTC_Seconds = 0;
 
-	rtcAlarm.RTC_AlarmTime = rtcAlarmTime;
 	rtcAlarm.RTC_AlarmMask = RTC_AlarmMask_DateWeekDay; //|RTC_AlarmMask_Minutes;
 	rtcAlarm.RTC_AlarmDateWeekDay = 1; // just some junk date that will be ignored.
 	rtcAlarm.RTC_AlarmDateWeekDaySel = RTC_AlarmDateWeekDaySel_Date;
@@ -237,7 +235,9 @@ void RTC_scheduleDailyEvent() {
 	PWR_RTCAccessCmd(DISABLE);
 
 	trace_printf("Scheduled an alarm at %02u:%02u:%02u with error %d\n",
-			rtcAlarm.RTC_AlarmTime.RTC_Hours, rtcAlarm.RTC_AlarmTime.RTC_Minutes, rtcAlarm.RTC_AlarmTime.RTC_Seconds,
+			rtcAlarm.RTC_AlarmTime.RTC_Hours,
+			rtcAlarm.RTC_AlarmTime.RTC_Minutes,
+			rtcAlarm.RTC_AlarmTime.RTC_Seconds,
 			error);
 }
 
