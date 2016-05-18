@@ -52,8 +52,8 @@ typedef struct {
 } NMEA_StatusInfo_t;
 
 #define BAUDRATE 9600
-#define DEBUG_GPS_DATA 0
-#define DEBUG_GPS_SNR 0
+#define DEBUG_GPS_DATA false
+#define DEBUG_GPS_SNR false
 
 void GPS_start();
 void GPS_stopListening();

@@ -15,7 +15,7 @@ uint8_t symbolList[162 / 4 + 1];
 
 const uint32_t WSPR_FREQUENCIES[] = {10140200, 28126100};
 
-const uint8_t WSPR_SCHEDULE[] = WSPR_SCHEDULE_DEF;
+const uint8_t WSPR_SCHEDULE[] = WSPR_DEFAULT_SCHEDULE;
 const uint8_t WSPR_SCHEDULE_LENGTH = sizeof(WSPR_SCHEDULE)/sizeof(uint8_t);
 
 const uint8_t WSPR_LOWALT_SCHEDULE[] = WSPR_LOWALT_SCHEDULE_DEF;
@@ -342,7 +342,7 @@ void prepareType1Transmission(uint8_t power) {
   completeMessage();
 }
 
-void prepareType3Transmission(uint8_t power, enum WSPR_MESSAGE_TYPE fake) {
+void prepareType3Transmission(uint8_t power, WSPR_MESSAGE_TYPE fake) {
   char maidenhead6_fake[7];
   maidenhead6_fake[6] = 0;
   
@@ -411,21 +411,22 @@ uint8_t getWSPRSymbol(uint8_t i) {
   return sym;
 }
 
-uint8_t fake_dBm(float voltage) {
+static uint8_t fake_dBm(float voltage) {
 	// All others cause failure to report position or something, in WSPR program.
-	static const uint8_t nonweirdPowerLevels[] =
+	static const uint8_t powerLevels[] =
 	{0, 3, 7, 10, 13, 17, 20, 23, 27, 30, 33, 37};
-	// 10 = 3 .. 3.33
-	// 13 = 3.33 .. 3.66
-	// 17 = 3.66 .. 4
-	// 20 = 4 ..
+	// 10 (0.01W)= 3 .. 3.3
+	// 13 (0.02W)= 3.3 .. 3.6
+	// 17 (0.05W)= 3.6 .. 3.9
+	// 20 (0.1W) = 3.9 .. 4.2
+	// 23 (0.2W) = 4.2 .. 4.5
 	int8_t index = (voltage - 3) * 3.33333333 + 3;
 	if (index < 0) return 0;
-	if (index >= sizeof(nonweirdPowerLevels)) return 37;
-	return nonweirdPowerLevels[index];
+	if (index >= sizeof(powerLevels)) return 37;
+	return powerLevels[index];
 }
 
-void prepareWSPRMessage(enum WSPR_MESSAGE_TYPE messageType, float voltage) {
+void prepareWSPRMessage(WSPR_MESSAGE_TYPE messageType, float voltage) {
     uint8_t power = fake_dBm(voltage);
     trace_printf("type: %d\n", messageType);
   switch (messageType) {

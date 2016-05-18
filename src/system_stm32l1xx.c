@@ -11,7 +11,7 @@ __I uint8_t PLLMulTable[9] = { 3, 4, 6, 8, 12, 16, 24, 32, 48 };
 __I uint8_t AHBPrescTable[16] =
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9 };
 
-void SetSysClock();
+int SetSysClock();
 
 /**
  * @brief  Setup the microcontroller system.
@@ -146,7 +146,7 @@ void SystemCoreClockUpdate(void) {
  * @param  None
  * @retval None
  */
-void SetSysClock(void) {
+int SetSysClock(void) {
 	__IO uint32_t StartUpCounter = 0, HSEStatus = 0;
 
 	/* SYSCLK, HCLK, PCLK2 and PCLK1 configuration ---------------------------*/
@@ -231,9 +231,12 @@ void SetSysClock(void) {
 		while ((RCC->CFGR & (uint32_t) RCC_CFGR_SWS)
 				!= (uint32_t) RCC_CFGR_SWS_HSE) {
 		}
+		return 1;
 	} else {
 		/* If HSE fails to start-up, the application will have wrong clock
 		 configuration. User can add here some code to deal with this error */
+		// trace_printf("setSysClk failed!\n");
+		return 0;
 	}
 }
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

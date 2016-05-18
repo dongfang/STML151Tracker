@@ -28,4 +28,7 @@ typedef enum {
 	'.--.', '.-.','...-','-.-.'	// P=PLL(I2C)ERROR, R=RADIO(SPI)ERROR, V=VOLTAGE(ADC)ERROR, C=CLOCK(RTC)ERROR \
 }
 
+#define LED_PORT GPIOB
+#define LED_PORTBIT GPIO_Pin_0
+
 #endif /* INC_LED_H_ */

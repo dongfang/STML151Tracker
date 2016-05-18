@@ -50,14 +50,6 @@ float daynight() {
 	return day;
 }
 
-int8_t PHY_simpleTemperature(float t_f) {
-	if (t_f > 30)
-		t_f = 30;
-	else if (t_f < -65)
-		t_f = -65;
-	return (int8_t) t_f;
-}
-
 #ifdef OPTIMISTIC
 float PHY_temperature() {
 	return 20;
@@ -105,6 +97,8 @@ float PHY_batteryUnloadedVoltage() {
 	*/
 	return 4.2;
 }
+
+void ADC_ensureVDDMeasured() {}
 
 float PHY_batteryLoadedVoltage() {
 	float temperature = PHY_temperature();

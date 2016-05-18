@@ -17,6 +17,8 @@
 #include "stm32l1xx.h"
 #include "Systick.h"
 #include "IndividualBoard.h"
+#include "LED.h"
+#include "HFDriver.h"
 #include <diag/trace.h>
 
 volatile APRSModulationMode_t currentMode;
@@ -30,12 +32,12 @@ static void APRS_initDirectHFTransmission(uint32_t frequency, uint32_t reference
 const APRSTransmission_t APRS_TRANSMISSIONS[] = { { 
 		.modulationMode = AFSK,
 		.modulationAmplitude = 400,
-		.txDelay = 10,
+		.txDelay = 16,
 		 .initTransmitter = APRS_initDirectVHFTransmission,
 		 .shutdownTransmitter = APRS_endDirectTransmission },
 		 { .modulationMode = GFSK,
 		.modulationAmplitude = HF_APRS_DEVIATION_DAC_30m,
-		.txDelay = 5,
+		.txDelay = 10,
 		.initTransmitter = APRS_initDirectHFTransmission,
 		.shutdownTransmitter = APRS_endDirectTransmission } };
 
@@ -71,7 +73,7 @@ void APRS_makeDirectTransmissionFrequency(
 }
 
 static void APRS_initDirectHFTransmission(uint32_t frequency, uint32_t referenceFrequency) {
-	GPIOB->ODR &= ~GPIO_Pin_1; 		// Arm
+	HF_enableDriver(HF_power());
 	APRS_makeDirectTransmissionFrequency(frequency, referenceFrequency, HF_30m_HARDWARE_OUTPUT);
 }
 
@@ -80,8 +82,8 @@ static void APRS_initDirectVHFTransmission(uint32_t frequency, uint32_t referenc
 }
 
 void APRS_endDirectTransmission() {
+	HF_shutdownDriver();
 	PLL_shutdown();
-	GPIOB->ODR |= GPIO_Pin_1; 		// Disarm
 }
 
 extern void APRS_marshallPositionMessage(uint16_t txDelay);
@@ -131,7 +133,7 @@ static void _APRS_transmitMessage(
 		break;
 	}
 
-	GPIOB->ODR |= GPIO_Pin_6; // LED
+	LED_PORT->ODR |= LED_PORTBIT; // LED
 
 	mode->initTransmitter(frequency, referenceFrequency);
 
@@ -139,7 +141,7 @@ static void _APRS_transmitMessage(
 	packet_cnt = 0;
 	packetTransmissionComplete = false;
 
-	ADC_DMA_init(ADCLoadedValues); 	// Experiment: Loaded voltages measurement.
+	ADC_DMA_init(ADC_MEASUREMENT_POWER_LOADED); 	// Experiment: Loaded voltages measurement.
 
 	while (!packetTransmissionComplete) {
 		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
@@ -153,7 +155,7 @@ static void _APRS_transmitMessage(
 #endif
 	mode->shutdownTransmitter();
 
-	GPIOB->ODR &= ~(GPIO_Pin_6);	// LED off
+	LED_PORT->ODR &= ~(LED_PORTBIT);	// LED off
 
 	ADC_DMA_shutdown(); // we just assume it will work, if not, no prob.
 

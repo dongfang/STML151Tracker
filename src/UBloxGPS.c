@@ -54,10 +54,10 @@ static UBX_MESSAGE INIT_NAV_MESSAGE = { sizeof(_UBX_INIT_NAV5_MESSAGE),
 // interrupt handler.
 // Interested consumers should disable interrupts, copy the unsafes into a their locally
 // managed safe copies and re-enable interrupts.
-NMEA_TimeInfo_t nmeaTimeInfo_unsafe;
-NMEA_CRS_SPD_Info_t nmeaCRSSPDInfo_unsafe;
-Location_t nmeaPositionInfo_unsafe;
-NMEA_StatusInfo_t nmeaStatusInfo_unsafe;
+volatile NMEA_TimeInfo_t nmeaTimeInfo_unsafe;
+volatile NMEA_CRS_SPD_Info_t nmeaCRSSPDInfo_unsafe;
+volatile Location_t nmeaPositionInfo_unsafe;
+volatile NMEA_StatusInfo_t nmeaStatusInfo_unsafe;
 
 uint8_t nmea_parse(char c);
 
@@ -147,8 +147,7 @@ void setupUSART1() {
 	USART_InitStructure.USART_WordLength = USART_WordLength_8b;
 	USART_InitStructure.USART_StopBits = USART_StopBits_1;
 	USART_InitStructure.USART_Parity = USART_Parity_No;
-	USART_InitStructure.USART_HardwareFlowControl =
-	USART_HardwareFlowControl_None;
+	USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
 	USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
 	USART_Init(USART1, &USART_InitStructure);
 
@@ -237,10 +236,13 @@ static void parseTime(char c, uint8_t* state, Time_t* value) {
 		break;
 	case 6:
 		value->seconds += (c - '0');
+		value->valid = true;
 		break;
 	default:
 		break;
 	}
+
+	// trace_printf("at state %d parsed %02d:%02d:%02d\n", *state, value->hours, value->minutes, value->seconds);
 }
 
 static void parseDegrees(char c, uint8_t* state, double* value) {
@@ -323,6 +325,7 @@ static void parseDate(char c, uint8_t* state, Date_t* value) {
 		break;
 	case 6:
 		value->year100 += (c - '0');
+		value->valid = true;
 		break;
 	default:
 		break;
@@ -374,6 +377,7 @@ static void parseGPVTG(char c) {
 
 void parseGPGGA(char c) {
 	static uint8_t state;
+	// trace_printf("GGA: commaindex %d, state %d\n", commaindex, state);
 	if (c == ',') {
 		state = 0;
 		if (commaindex == 0) {
@@ -383,10 +387,11 @@ void parseGPGGA(char c) {
 			tempU82 = 0;
 			tempFloat = 0;
 			tempFloat2 = 0;
+			tempTime.valid = false;
 		} else if (commaindex == 9) {
-			//debugTime("GGA", &tempTime);
+			// debugTime("GGA", &tempTime);
 			nmeaTimeInfo_unsafe.time = tempTime;
-			nmeaTimeInfo_unsafe.time.valid = 1;
+			nmeaTimeInfo_unsafe.time.valid = tempTime.valid;
 			nmeaPositionInfo_unsafe.lat = tempLat;
 			nmeaPositionInfo_unsafe.lon = tempLon;
 			nmeaStatusInfo_unsafe.fixMode = tempU8;
@@ -442,17 +447,19 @@ void parseGPRMC(char c) {
 			tempFloat2 = 0;
 			tempLat = 0;
 			tempLon = 0;
+			tempDate.valid = false;
+			tempTime.valid = false;
 		} else if (commaindex == 9) {
 			// debugTime("RMC", &tempTime);
 			nmeaPositionInfo_unsafe.fixTime = tempTime;
-			nmeaPositionInfo_unsafe.fixTime.valid = 1;
+			nmeaPositionInfo_unsafe.fixTime.valid = tempTime.valid;
 			nmeaPositionInfo_unsafe.valid = tempChar;
 			nmeaPositionInfo_unsafe.lat = tempLat;
 			nmeaPositionInfo_unsafe.lon = tempLon;
 			nmeaCRSSPDInfo_unsafe.groundSpeed = tempFloat * 0.514444; // knots to m/s
 			nmeaCRSSPDInfo_unsafe.course = tempFloat2;
 			nmeaTimeInfo_unsafe.date = tempDate;
-			nmeaTimeInfo_unsafe.date.valid = 1;
+			nmeaTimeInfo_unsafe.date.valid = tempDate.valid;
 			commitCheck |= 4;
 		}
 		commaindex++;
@@ -560,6 +567,7 @@ void parseGPGLL(char c) {
 		if (commaindex++ == 0) {
 			tempLat = 0;
 			tempLon = 0;
+			tempTime.valid = false;
 		}
 	} else {
 		switch (commaindex) {
@@ -588,9 +596,9 @@ void parseGPGLL(char c) {
 			nmeaPositionInfo_unsafe.lat = tempLat;
 			nmeaPositionInfo_unsafe.lon = tempLon;
 			nmeaPositionInfo_unsafe.fixTime = tempTime;
-			nmeaTimeInfo_unsafe.time = tempTime;
-			nmeaTimeInfo_unsafe.time.valid = 1;
 			nmeaPositionInfo_unsafe.valid = tempChar;
+			nmeaTimeInfo_unsafe.time = tempTime;
+			nmeaTimeInfo_unsafe.time.valid = tempTime.valid;
 			commitCheck |= 8;
 			break;
 		default:
@@ -629,7 +637,9 @@ uint8_t nmea_parse(char c) {
 			ackedMessageId = 0; // clear any prior acknowledge.
 			beginSendUBXMessage(&INIT_NAV_MESSAGE);
 			lastSendConfigurationTime = systemTimeMillis;
+#ifdef TRACE_GPS
 			trace_printf("Sending GPS conf. message\n");
+#endif
 		}
 		break;
 	case STATE_READ_ID:
@@ -746,7 +756,9 @@ uint8_t nmea_parse(char c) {
 		break;
 	case STATE_READ_BINARY_UBX_MSG_CHECKB:
 		if (ackedClassId == 6 && ackedMessageId == 0x24) {
+#ifdef TRACE_GPS
 			trace_printf("NAV5 Settings confirmed.\n");
+#endif
 			navSettingsConfirmed = true;
 		}
 		state = STATE_IDLE;
@@ -779,7 +791,7 @@ void GPS_powerOn() {
 	busySendingMessage = false;
 	navSettingsConfirmed = false;
 	setupUSART1();
-	GPIOA->ODR &= ~ GPIO_Pin_0;
+	GPIOA->ODR &= ~GPIO_Pin_0;
 	state = STATE_IDLE;
 }
 
@@ -803,12 +815,17 @@ boolean GPS_isGPSRunning() {
 }
 
 void GPS_invalidateDateTime() {
-	nmeaTimeInfo_unsafe.time.valid = 0;
-	nmeaTimeInfo_unsafe.date.valid = 0;
+	nmeaTimeInfo_unsafe.time.valid = false;
+	nmeaTimeInfo_unsafe.date.valid = false;
+	nmeaTimeInfo_unsafe.time.hours = 0;
+	nmeaTimeInfo_unsafe.time.minutes = 0;
+	nmeaTimeInfo_unsafe.time.seconds = 0;
 }
 
 boolean GPS_isDateTimeValid() {
-	return nmeaTimeInfo_unsafe.time.valid && nmeaTimeInfo_unsafe.date.valid;
+	boolean result = nmeaTimeInfo_unsafe.time.valid && nmeaTimeInfo_unsafe.date.valid;
+	// trace_printf("GPS date time valid: %d\n", result);
+	return result;
 }
 
 void GPS_invalidatePosition() {

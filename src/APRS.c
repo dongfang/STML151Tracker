@@ -224,7 +224,6 @@ void APRS_marshallStatusMessage(
 	statusMessageValue('l', PHY_batteryLoadedVoltage(), temp);
 	ax25_send_string(temp);
 
-
 	const CalibrationRecord_t* cal = getCalibration(simpleTemperature, false);
 	int32_t freqError = cal->transmitterOscillatorFrequencyAtDefaultTrim - PLL_XTAL_DEFAULT_FREQUENCY;
 	sprintf(temp, ",o%ld", freqError);
@@ -244,7 +243,7 @@ void APRS_marshallStatusMessage(
 	statusMessageSequence++;
 }
 
-static uint16_t telemetrySequence;
+static uint16_t telemetrySequence __attribute__((section (".noinit")));
 
 void APRS_marshallPositionMessage(uint16_t txDelay) {
 	// We offset temp. by 100 degrees so it is never negative.
@@ -273,11 +272,13 @@ void APRS_marshallPositionMessage(uint16_t txDelay) {
 	if (alt < 0) alt = 0;
 
 	end = compressPosition(location.lat, location.lon, alt , temp);
-	end += compressTelemetry(telemetrySequence, 5, telemetryValues, temp + end);
+
 	telemetrySequence++;
 	if (telemetrySequence > 8280) {
 		telemetrySequence = 0;
 	}
+
+	end += compressTelemetry(telemetrySequence, 5, telemetryValues, temp + end);
 
 	temp[end] = 0;
 	ax25_send_string(temp);

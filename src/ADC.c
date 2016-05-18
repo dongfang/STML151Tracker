@@ -7,45 +7,64 @@
 
 /* Includes ------------------------------------------------------------------*/
 
-#include "ADC.h"
-#include "Globals.h"
-#include <diag/trace.h>
-
-#include "../Libraries/CMSIS/Device/ST/STM32L1xx/Include/stm32l1xx.h"
-#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/misc.h"
-#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_adc.h"
-#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_dma.h"
-#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_gpio.h"
-#include "../Libraries/STM32L1xx_StdPeriph_Driver/inc/stm32l1xx_rcc.h"
+#include <ADC.h>
+#include <misc.h>
+#include <stm32l1xx.h>
+#include <stm32l1xx_adc.h>
+#include <stm32l1xx_dma.h>
+#include <stm32l1xx_gpio.h>
+#include <stm32l1xx_pwr.h>
+#include <stm32l1xx_rcc.h>
 
 /* Private define ------------------------------------------------------------*/
 #define ADC1_DR_ADDRESS    ((uint32_t)0x40012458)
 
 /* Private variables ---------------------------------------------------------*/
-volatile uint16_t ADCUnloadedValues[NUM_ADC_VALUES];
-volatile uint16_t ADCLoadedValues[NUM_ADC_VALUES];
+volatile uint16_t ADCUnloadedPowerValues[NUM_ADC_POWER_VALUES];
+volatile uint16_t ADCLoadedPowerValues[NUM_ADC_POWER_VALUES];
+volatile uint16_t ADCTemperatureValues[NUM_ADC_TEMPERATURE_VALUES];
+volatile uint16_t ADC_VDDValues[NUM_ADC_VDD_VALUES];
 
 volatile boolean ADC_DMA_Complete;
 /* @brief  Configure the ADC1 using DMA channel1.
  * @param  None
  * @retval None
  */
-void ADC_DMA_init(volatile uint16_t* conversionTargetArray) {
+void ADC_DMA_init(ADC_MEASUREMENT_t measurement) {
+	uint8_t numConversions;
+	volatile uint16_t* targetBuffer;
+
+	switch (measurement) {
+	case ADC_MEASUREMENT_POWER_UNLOADED:
+		numConversions = NUM_ADC_POWER_VALUES;
+		targetBuffer = ADCUnloadedPowerValues;
+		break;
+	case ADC_MEASUREMENT_POWER_LOADED:
+		numConversions = NUM_ADC_POWER_VALUES;
+		targetBuffer = ADCLoadedPowerValues;
+		break;
+	case ADC_MEASUREMENT_TEMPERATURE:
+		numConversions = NUM_ADC_TEMPERATURE_VALUES;
+		targetBuffer = ADCTemperatureValues;
+		break;
+	case ADC_MEASUREMENT_VDD:
+		numConversions = NUM_ADC_VDD_VALUES;
+		targetBuffer = ADC_VDDValues;
+		break;
+	}
 
 	/*----------------- ADC1 configuration with DMA enabled --------------------*/
+	ADC_TempSensorVrefintCmd(ENABLE);
+
 	/* Enable the HSI oscillator. ADC runs on that (only). */
 	RCC_HSICmd(ENABLE);
 
-//	ADC_TempSensorVrefintCmd(ENABLE);
-
 	GPIO_InitTypeDef GPIO_InitStructure;
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1 | GPIO_Pin_2;
+	// 6: Solar volt, 7: Batt volt, 2: Temperature
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7 | GPIO_Pin_2;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
-
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_15;
-	GPIO_Init(GPIOB, &GPIO_InitStructure);
 
 	/* Check that HSI oscillator is ready */
 	while (RCC_GetFlagStatus(RCC_FLAG_HSIRDY) == RESET)
@@ -61,9 +80,9 @@ void ADC_DMA_init(volatile uint16_t* conversionTargetArray) {
 	DMA_InitTypeDef DMA_InitStructure;
 	DMA_DeInit(DMA1_Channel1);
 	DMA_InitStructure.DMA_PeripheralBaseAddr = ADC1_DR_ADDRESS;
-	DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t) conversionTargetArray;
+	DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t) targetBuffer;
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;
-	DMA_InitStructure.DMA_BufferSize = NUM_ADC_VALUES;
+	DMA_InitStructure.DMA_BufferSize = numConversions;
 	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable; // Read from same address every time.
 	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
 	DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
@@ -102,16 +121,34 @@ void ADC_DMA_init(volatile uint16_t* conversionTargetArray) {
 	ADC_InitTypeDef ADC_InitStructure;
 	ADC_StructInit(&ADC_InitStructure);
 	ADC_InitStructure.ADC_ScanConvMode = ENABLE;
-	ADC_InitStructure.ADC_NbrOfConversion = NUM_ADC_VALUES;
+	ADC_InitStructure.ADC_NbrOfConversion = numConversions;
 
 	// ADC_Cmd(ADC1, DISABLE);
 	ADC_Init(ADC1, &ADC_InitStructure);
 
-	/* ADC1 regular channel1 configuration. Ch21 is supposedly the PB15 thermometer. */
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_48Cycles); // Batt
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 2, ADC_SampleTime_48Cycles); // Main solar
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_21, 3, ADC_SampleTime_48Cycles); // Temperature
-	// ADC_RegularChannelConfig(ADC1, ADC_Channel_TempSensor, 4, ADC_SampleTime_192Cycles); // Internal T
+	switch (measurement) {
+	case ADC_MEASUREMENT_POWER_UNLOADED:
+	case ADC_MEASUREMENT_POWER_LOADED:
+		ADC_RegularChannelConfig(ADC1, ADC_Channel_7, 1,
+		ADC_SampleTime_48Cycles); // Batt
+		ADC_RegularChannelConfig(ADC1, ADC_Channel_6, 2,
+		ADC_SampleTime_48Cycles); // Main solar
+
+		break;
+	case ADC_MEASUREMENT_TEMPERATURE:
+		for (int i = 1; i <= NUM_ADC_TEMPERATURE_VALUES; i++) {
+			ADC_RegularChannelConfig(ADC1, ADC_Channel_TempSensor, i,
+			ADC_SampleTime_384Cycles); // Internal T
+		}
+		break;
+
+	case ADC_MEASUREMENT_VDD:
+		for (int i = 1; i <= NUM_ADC_VDD_VALUES; i++) {
+			ADC_RegularChannelConfig(ADC1, ADC_Channel_Vrefint, i,
+			ADC_SampleTime_192Cycles); // Voltage ref.
+		}
+		break;
+	}
 
 	/* Enable ADC1 */
 	ADC_Cmd(ADC1, ENABLE);
@@ -124,7 +161,21 @@ void ADC_DMA_init(volatile uint16_t* conversionTargetArray) {
 	ADC_SoftwareStartConv(ADC1);
 }
 
+void ADC_measurement_blocking(ADC_MEASUREMENT_t measurement) {
+	ADC_DMA_init(measurement);
+
+// Danger, this requires that there is an interrupt to have us recover from the sleep!
+	while (!ADC_DMA_Complete) {
+		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
+	}
+
+	ADC_DMA_shutdown();
+}
+
+
 void ADC_DMA_shutdown() {
+	ADC_TempSensorVrefintCmd(DISABLE);
+
 	NVIC_InitTypeDef NVIC_InitStructure;
 	NVIC_InitStructure.NVIC_IRQChannel = DMA1_Channel1_IRQn;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = DISABLE;
@@ -134,7 +185,6 @@ void ADC_DMA_shutdown() {
 
 	/* Disable ADC1 */
 	ADC_Cmd(ADC1, DISABLE);
-	ADC_TempSensorVrefintCmd(DISABLE);
 
 	/* Disable ADC1 DMA */
 	ADC_DMACmd(ADC1, DISABLE);
@@ -149,16 +199,6 @@ void ADC_DMA_shutdown() {
 
 	RCC_HSICmd(DISABLE);
 }
-
-/*
-float ADC_internalTemperature() {
-	uint16_t* cal30Ptr = (uint16_t*)0x1FF8007A;
-	uint16_t* cal110Ptr = (uint16_t*)0x1FF8007E;
-	trace_printf("Cal val for 30 is %d and for 110 is %d\n", *cal30Ptr, *cal110Ptr);
-	float temperature = 30 + 80.0 / (*cal110Ptr - *cal30Ptr) * (ADCUnloadedValues[3] - *cal30Ptr);
-	return temperature;
-}
-*/
 
 void DMA1_Channel1_IRQHandler(void) {
 	/* Test on DMA Transfer Complete interrupt */

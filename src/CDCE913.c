@@ -373,15 +373,14 @@ void PLL_setXOPassthroughMode(uint8_t trim) {
 	I2C_write(5, trim << 3); 	// Cap. in pF.
 }
 
-void setPLL(CDCE913_OutputMode_t output,
-		const CDCE913_PLLSetting_t* setting) {
+void setPLL(CDCE913_OutputMode_t output, const CDCE913_PLLSetting_t* setting) {
 	CDCE913_initInterfaceIfNecessary();
 	// Turn on Y1 output in all cases and PLL out
 	// I2C_write(1, 0b0101);
 	// I2C_write(2, (1 << 7) | (0b1111 << 2));
 	CDCE913_enableOutput(output, setting->pdiv);
 	CDCE913_setPLLValue(setting);
-	trace_printf("Using trim %d\n", setting->trim);
+	// trace_printf("Using trim %d\n", setting->trim);
 	I2C_write(5, setting->trim << 3); 	// Cap. in pF.
 	// PLL_printSettings();
 }
@@ -412,8 +411,7 @@ void setPQR(uint16_t N, uint16_t M, CDCE913_PLLSetting_t* result) {
 	result->R = Nprime - M * result->Q;
 }
 
-boolean findM(int16_t N, double desiredMultiplication, uint16_t* M,
-		double* signedError) {
+boolean findM(int16_t N, double desiredMultiplication, uint16_t* M, double* signedError) {
 	// desiredMultiplication = Fvco/Fin = N/M
 	// M = N/desiredMultiplication
 	int16_t Mlo = N / desiredMultiplication;
@@ -425,18 +423,21 @@ boolean findM(int16_t N, double desiredMultiplication, uint16_t* M,
 	if (Mlo > 0 && Mlo < 512) {
 		// Err = (N/M) / desired
 		// = N / (M * desired)
-		double error = (double) N / (Mlo * desiredMultiplication)-1;
-		*signedError = error;
-		double unsignedError = (error < 0) ? -error : error;
-		*M = Mlo;
+		double loError = (double) N / (Mlo * desiredMultiplication) - 1;
+		double unsignedLoError = (loError < 0) ? -loError : loError;
 
 		if (Mhi < 512) {
-			//trace_printf("FindM 2\n");
-		    error = (double) N / (Mhi * desiredMultiplication)-1;
-			double localUnsignedError = (error < 0) ? -error : error;
-			if (localUnsignedError < unsignedError) {
-				*signedError = error;
+			// trace_printf("FindM 2\n");
+		    double hiError = (double) N / (Mhi * desiredMultiplication) - 1;
+			double unsignedHiError = (hiError < 0) ? -hiError : hiError;
+			if (unsignedHiError < unsignedLoError) {
+				*signedError = unsignedHiError;
 				*M = Mhi;
+				//trace_printf("Took hi M with error %d\n", (int)(hiError*1E7));
+			} else {
+				*signedError = unsignedLoError;
+				*M = Mlo;
+				//trace_printf("Took lo M with error %d\n",  (int)(loError*1E7));
 			}
 		}
 
@@ -449,13 +450,12 @@ boolean findM(int16_t N, double desiredMultiplication, uint16_t* M,
 
 int8_t PLL_bestTrim(double desiredTrim) {
 	int32_t desiredPP10M = desiredTrim * 1E7;
-	// trace_printf("Trim desired change pp10m: %d\n", desiredPP10M);
-	int16_t bestError = 1500;
+	int32_t bestError = 1500;
 	int8_t bestIndex = -1;
 
 	for (uint8_t i = PLL_MIN_TRIM_INDEX_VALUE; i <= PLL_MAX_TRIM_INDEX_VALUE;
 			i++) {
-		int16_t test = desiredPP10M - PLL_XTAL_TRIM_PP10M[i];
+		int32_t test = desiredPP10M - PLL_XTAL_TRIM_PP10M[i];
 		if (test < 0)
 			test = -test;
 		if (test < bestError) {
@@ -463,6 +463,12 @@ int8_t PLL_bestTrim(double desiredTrim) {
 			bestIndex = i;
 		}
 	}
+
+	/*
+	trace_printf("Trim desired change pp10m: %d and got %d\n",
+			desiredPP10M,
+			bestIndex == -1 ? -1 : PLL_XTAL_TRIM_PP10M[bestIndex]);
+*/
 	return bestIndex;
 }
 
@@ -516,7 +522,7 @@ boolean PLL_bestPLLSetting(
 						 (int) (1E7 * (double) N / (double) M),
 						 (int) (signedError * 1E7),
 						 trim);
-						 */
+						*/
 						result->trim = trim;
 						feasible = true;
 					}

@@ -56,7 +56,7 @@
   */
 void NMI_Handler(void)
 {
-	trace_printf("NMI");
+	// trace_printf("NMI");
 }
 
 /**
@@ -69,7 +69,7 @@ void HardFault_Handler(void)
   /* Go to infinite loop when Hard Fault exception occurs */
   while (1)
   {
-		trace_printf("HardFault");
+		// trace_printf("HardFault");
   }
 }
 
@@ -83,7 +83,7 @@ void MemManage_Handler(void)
   /* Go to infinite loop when Memory Manage exception occurs */
   while (1)
   {
-		trace_printf("MemManage");
+		// trace_printf("MemManage");
   }
 }
 
@@ -97,7 +97,7 @@ void BusFault_Handler(void)
   /* Go to infinite loop when Bus Fault exception occurs */
   while (1)
   {
-		trace_printf("BusFault");
+		// trace_printf("BusFault");
   }
 }
 
@@ -111,7 +111,7 @@ void UsageFault_Handler(void)
   /* Go to infinite loop when Usage Fault exception occurs */
   while (1)
   {
-		trace_printf("UsageFault");
+		// trace_printf("UsageFault");
   }
 }
 
@@ -122,7 +122,7 @@ void UsageFault_Handler(void)
   */
 void SVC_Handler(void)
 {
-	trace_printf("SVC");
+	// trace_printf("SVC");
 }
 
 /**
@@ -132,7 +132,7 @@ void SVC_Handler(void)
   */
 void DebugMon_Handler(void)
 {
-	trace_printf("DebugMon");
+	// trace_printf("DebugMon");
 }
 
 /**
@@ -142,7 +142,7 @@ void DebugMon_Handler(void)
   */
 void PendSV_Handler(void)
 {
-	trace_printf("PendSV");
+	// trace_printf("PendSV");
 }
 
 

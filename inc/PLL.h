@@ -16,8 +16,6 @@
 
 #define PLL_XTAL_FREQUENCY PLL_XTAL_DEFAULT_FREQUENCY
 
-#define PLL_PREFERRED_TRIM PLL_PREFERRED_TRIM_VALUE
-
 // Implementation type of PLL setting (well, one of them)
 typedef CDCE913_PLLSetting_t PLL_Setting_t;
 

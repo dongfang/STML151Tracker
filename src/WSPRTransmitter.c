@@ -4,15 +4,18 @@
  *  Created on: Mar 12, 2015
  *      Author: dongfang
  */
-#include "stm32l1xx_conf.h"
+#include "stm32l1xx.h"
 #include "WSPR.h"
 #include "DAC.h"
 #include "GPS.h"
 #include "StabilizedOscillator.h"
 #include "Bands.h"
 #include "Globals.h"
+#include "Systick.h"
+#include "LED.h"
 #include <diag/Trace.h>
-#include "../inc/PLL.h"
+#include "PLL.h"
+#include "HFDriver.h"
 
 static volatile float symbolModulation;
 static volatile int16_t symbolNumber;
@@ -47,7 +50,7 @@ uint8_t WSPRDidUpdate() {
 	return 0;
 }
 
-uint8_t WSPREnded() {
+boolean WSPREnded() {
 	// 0 is 1st
 	// 161 is beginning of 162th
 	// 162 is end of 162th
@@ -55,18 +58,19 @@ uint8_t WSPREnded() {
 }
 
 static void WSPR_shutdownHW() {
+	HF_shutdownDriver();
 	DAC_Cmd(DAC_Channel_2, DISABLE);
 	TIM_ITConfig(TIM2, TIM_IT_Update, DISABLE);
 	TIM_Cmd(TIM2, DISABLE);
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, DISABLE);
 	PLL_shutdown();
-	GPIOB->ODR |= GPIO_Pin_1;	// Disarm.
 }
 
 static void WSPR_initHW(
 		uint8_t band,
 		const PLL_Setting_t* setting,
-		float _symbolModulation) {
+		float _symbolModulation,
+		HF_POWER_LEVEL power) {
 
 	// Start a little early, because the osc takes some time to get a steady freq.
 	symbolNumber = 0;
@@ -75,10 +79,11 @@ static void WSPR_initHW(
 	setWSPR_DAC(getWSPRSymbol(0));
 	// Set the osc to play the 0th symbol but without arming the tx
 	setPLL((CDCE913_OutputMode_t) HF_30m_HARDWARE_OUTPUT, setting);
-	// and do that for 1sec.
-	timer_sleep(1000);
-	// Now arm.
-	GPIOB->ODR &= ~GPIO_Pin_1;			// Turn on arm feature.
+	// and do that for 1.5 sec.
+	timer_sleep(1500);
+
+	// Enable driver.
+	HF_enableDriver(power);
 
 	/* Periph clocks enable */
 	// RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
@@ -105,7 +110,6 @@ static void WSPR_initHW(
 	// We have some funny problem with a slow discharge somewhere in the modulator
 	// which causes a ramping drift of a few Hz in WSPR.
 	// Tie GPIO4 to ground, just to get rid of it.
-	/* Configure PA.04 (DAC_OUT1) as output-low */
 	GPIO_InitTypeDef GPIO_InitStructure;
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
@@ -119,18 +123,18 @@ static void WSPR_initHW(
 void WSPR_Transmit(
 		uint8_t band,
 		const PLL_Setting_t* setting,
-		float stepModulation) {
+		float symbolModulation) {
 
-	WSPR_initHW(band, setting, stepModulation);
+	WSPR_initHW(band, setting, symbolModulation, HF_power());
 
 	while (!WSPREnded()) {
 		if (WSPRDidUpdate()) {
-			GPIOB->ODR ^= GPIO_Pin_6; // Flash LED
+			LED_PORT->ODR ^= LED_PORTBIT; // Flash LED
 		}
 		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
 	}
 
-	GPIOB->ODR &= ~GPIO_Pin_6;	// Turn off LED.
+	LED_PORT->ODR &= ~LED_PORTBIT;	// Turn off LED.
 
 	WSPR_shutdownHW();
 }

@@ -12,7 +12,8 @@
 
 boolean isDaytimePower() {
 	return batteryVoltage >= BATTERY_FAILSAFE_ALWAYS_SAFE_VOLTAGE
-			&& temperature >= BATTERY_FAILSAFE_ALWAYS_SAFE_TEMPERATURE;
+			// && temperature >= BATTERY_FAILSAFE_ALWAYS_SAFE_TEMPERATURE;
+			&& solarVoltage >= BATTERY_FAILSAFE_ALWAYS_SAFE_SOLAR_VOLTAGE;
 }
 
 boolean PWR_isSafeToUseDevice(E_DEVICE device) {

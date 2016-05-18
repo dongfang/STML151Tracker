@@ -16,8 +16,9 @@ NewStartupRecord_t startupLog[E_DEVICE_END] __attribute__((section (".noinit")))
 
 StoredPathRecord_t storedRecords[NUM_STORED_RECORDS] __attribute__((section (".noinit")));
 static uint16_t storedRecordIndexIn __attribute__((section (".noinit")));
-static uint16_t storedRecordIndexOutHead __attribute__((section (".noinit")));
-static uint16_t storedRecordIndexOutTail __attribute__((section (".noinit")));
+static uint16_t storedRecordIndexOut1 __attribute__((section (".noinit")));
+static uint16_t storedRecordIndexOut2 __attribute__((section (".noinit")));
+static uint16_t storedRecordIndexOut3 __attribute__((section (".noinit")));
 static uint16_t storedRecordIndexCheck __attribute__((section (".noinit")));
 static Time_t nextStorageTime __attribute__((section (".noinit")));
 
@@ -26,8 +27,11 @@ static Time_t nextStorageTime __attribute__((section (".noinit")));
 //RTC_WriteBackupRegister(RTC_BKP_DR0, bkup + 1);
 
 uint16_t checksum() {
-	return storedRecordIndexIn + storedRecordIndexOutHead * 13
-			+ storedRecordIndexOutTail * 17 + 0xa5a;
+	return storedRecordIndexIn
+			+ storedRecordIndexOut1 * 13
+			+ storedRecordIndexOut2 * 17
+			+ storedRecordIndexOut3 * 23
+			+ 0xa5a;
 }
 
 void setIndexCheck() {
@@ -43,8 +47,9 @@ void checkRecordIndexes() {
 		return; // Was okay.
 	trace_printf("Record storage checksum mismatch, resetting it all :( \n");
 	storedRecordIndexIn = 0;
-	storedRecordIndexOutHead = 0;
-	storedRecordIndexOutTail = 0;
+	storedRecordIndexOut1 = 0;
+	storedRecordIndexOut2 = 0;
+	storedRecordIndexOut3 = 0;
 	setIndexCheck();
 	resetRecordStorageTimer(); // we might as well start storing NOW.
 }
@@ -80,48 +85,48 @@ StoredPathRecord_t* nextRecordIn() {
 	checkRecordIndexes();
 	uint16_t result = storedRecordIndexIn;
 	storedRecordIndexIn = (storedRecordIndexIn + 1) % NUM_STORED_RECORDS;
-	if (storedRecordIndexIn == storedRecordIndexOutTail) {
+	if (storedRecordIndexIn == storedRecordIndexOut2) {
 		// We ran out of space. Discard some old crap.
-		storedRecordIndexOutTail = (storedRecordIndexOutTail + 1)
+		storedRecordIndexOut2 = (storedRecordIndexOut2 + 1)
 				% NUM_STORED_RECORDS;
 	}
-	if (storedRecordIndexIn == storedRecordIndexOutHead) {
+	if (storedRecordIndexIn == storedRecordIndexOut1) {
 		// We ran out of space. Discard some old crap.
-		storedRecordIndexOutHead = (storedRecordIndexOutHead + 1)
+		storedRecordIndexOut1 = (storedRecordIndexOut1 + 1)
 				% NUM_STORED_RECORDS;
 	}
 	trace_printf("Stored a record, indices are now %d %d %d\n",
-			storedRecordIndexIn, storedRecordIndexOutHead,
-			storedRecordIndexOutTail);
+			storedRecordIndexIn, storedRecordIndexOut1,
+			storedRecordIndexOut2);
 	setIndexCheck();
 	return storedRecords + result;
 }
 
 StoredPathRecord_t* nextRecordOutForFirstTransmission() {
-	uint16_t result = storedRecordIndexOutHead;
-	storedRecordIndexOutHead = (storedRecordIndexOutHead + 1)
+	uint16_t result = storedRecordIndexOut1;
+	storedRecordIndexOut1 = (storedRecordIndexOut1 + 1)
 			% NUM_STORED_RECORDS;
 	trace_printf("Returned a record for 1, indices are now %d %d %d\n",
-			storedRecordIndexIn, storedRecordIndexOutHead,
-			storedRecordIndexOutTail);
+			storedRecordIndexIn, storedRecordIndexOut1,
+			storedRecordIndexOut2);
 	setIndexCheck();
 	return storedRecords + result;
 }
 
 StoredPathRecord_t* nextRecordOutForLastTransmission() {
-	uint16_t result = storedRecordIndexOutTail;
-	storedRecordIndexOutTail = (storedRecordIndexOutTail + 1)
+	uint16_t result = storedRecordIndexOut2;
+	storedRecordIndexOut2 = (storedRecordIndexOut2 + 1)
 			% NUM_STORED_RECORDS;
 	trace_printf("Returned a record for 2, indices are now %d %d %d\n",
-			storedRecordIndexIn, storedRecordIndexOutHead,
-			storedRecordIndexOutTail);
+			storedRecordIndexIn, storedRecordIndexOut1,
+			storedRecordIndexOut2);
 	setIndexCheck();
 	return storedRecords + result;
 }
 
 boolean hasRecordOutForFirstTransmission() {
 	checkRecordIndexes();
-	if (storedRecordIndexIn == storedRecordIndexOutHead) {
+	if (storedRecordIndexIn == storedRecordIndexOut1) {
 		trace_printf("No more records for 1\n");
 		return false;
 	}
@@ -130,7 +135,7 @@ boolean hasRecordOutForFirstTransmission() {
 
 boolean hasRecordOutForLastTransmission() {
 	checkRecordIndexes();
-	if (storedRecordIndexOutHead == storedRecordIndexOutTail) {
+	if (storedRecordIndexOut1 == storedRecordIndexOut2) {
 		trace_printf("No more records for 2\n");
 		return false;
 	}

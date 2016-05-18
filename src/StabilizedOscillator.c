@@ -37,7 +37,7 @@ const CalibrationRecord_t* getCalibration(int8_t temperature, boolean doAttemptC
 	if (!REUSE_CALIBRATION || check != calibrationByTemperatureRanges[index].checksum) {
 		trace_printf("No calibration found for temperature %d in range %d\n", temperature, index);
 		if (!doAttemptCalibrate) {
-			trace_printf("No calibration attempts made.\n");
+			trace_printf("Calibration not requested.\n");
 			return &defaultCalibration;	// damn, we had nothing!
 		}
 

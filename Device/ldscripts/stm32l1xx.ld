@@ -1,3 +1,3 @@
-INCLUDE "stm32l1discovery_def.ld"
-INCLUDE "sections_flash.ld"
+INCLUDE "../Device/ldscripts/stm32l1discovery_def.ld"
+INCLUDE "../Device/ldscripts/sections_flash.ld"
 

@@ -41,4 +41,7 @@ typedef enum {
 	CDCE913_OutputMode_XO_PASSTHROUGH
 } CDCE913_OutputMode_t;
 
+#define ABS_MIN_PLL_TRIM 0
+#define ABS_MAX_PLL_TRIM 20
+
 #endif /* CDCE913_H_ */

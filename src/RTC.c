@@ -101,8 +101,8 @@ void RTC_debugRTCTime() {
 	RTC_TimeTypeDef rtcTime;
 	RTC_GetDate(RTC_Format_BIN, &rtcDate);
 	RTC_GetTime(RTC_Format_BIN, &rtcTime);
-	trace_printf("RTC is now @%02u %02u:%02u:%02u\n", rtcDate.RTC_Date, rtcTime.RTC_Hours,
-			rtcTime.RTC_Minutes, rtcTime.RTC_Seconds);
+	trace_printf("RTC is now %02u:%02u:%02u @%02u \n", rtcTime.RTC_Hours,
+			rtcTime.RTC_Minutes, rtcTime.RTC_Seconds, rtcDate.RTC_Date);
 }
 
 int RTC_timeDiff_s(RTC_TimeTypeDef* t1, RTC_TimeTypeDef* t2) {
@@ -251,7 +251,7 @@ void RTC_setWakeup(uint32_t periodSeconds) {
 	PWR_RTCAccessCmd(ENABLE);
 	RTC_init_RTC_WKUP_EXTI();
 
-	// RTC_ITConfig(RTC_IT_WUT, DISABLE);
+	RTC_ITConfig(RTC_IT_WUT, DISABLE);
 
 	RTC_WakeUpCmd(DISABLE); // This amounts to unlocking RTC_WPR and clearing WUTE
 	RTC_WakeUpClockConfig(RTC_WakeUpClock_CK_SPRE_16bits);

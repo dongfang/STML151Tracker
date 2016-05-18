@@ -4,6 +4,7 @@
 #include "Globals.h"
 #include "Power.h"
 #include "systick.h"
+#include "LED.h"
 #include <diag/Trace.h>
 #include "stm32l1xx.h"
 #include <math.h>
@@ -31,7 +32,7 @@ float lastAltitude;
 float climbRate;
 
 void debugTime(const char* text, Time_t* time) {
-	trace_printf("%s said %u:%u:%u\n", text, time->hours, time->minutes,
+	trace_printf("%s said %02u:%02u:%02u\n", text, time->hours, time->minutes,
 			time->seconds);
 }
 
@@ -62,15 +63,15 @@ void flashNumSatellites(uint8_t numSatellites) {
 	boolean odd = (cnt & 1) != 0;
 
 	if (odd) {
-		GPIOB->ODR &= ~GPIO_Pin_6;
+		LED_PORT->ODR &= ~LED_PORTBIT;
 	} else {
 		if (cnt <= numSatellites * 2) {
-			GPIOB->ODR |= GPIO_Pin_6;
+			LED_PORT->ODR |= LED_PORTBIT;
 		}
 	}
 
 	cnt++;
-	if (cnt >= 20)
+	if (cnt >= 25)
 		cnt = 0;
 }
 
@@ -96,14 +97,15 @@ uint8_t GPS_waitForTimelock(uint32_t maxTime) {
 	do {
 		GPS_getData();
 		flashNumSatellites(GPSStatus.numberOfSatellites);
-		timer_sleep(150);
+		// trace_printf("now %02d:%02d:%02d tvalid %d, dvalid %d\n", GPSTime.time.hours, GPSTime.time.minutes, GPSTime.time.seconds, GPSTime.time.valid, GPSTime.date.valid);
+		timer_sleep(100);
 	} while ((!GPS_isDateTimeValid()
 			|| (GPSTime.time.hours == 0 && GPSTime.time.minutes == 0
 					&& GPSTime.time.seconds == 0)) && !timer_elapsed(maxTime));
-	GPIOB->ODR &= ~GPIO_Pin_6;
+	LED_PORT->ODR &= ~LED_PORTBIT;
 	GPS_getData();
-	if (GPSTime.time.valid) {
-		trace_printf("GPS time success: %02d:%02d\n", GPSTime.time.hours, GPSTime.time.minutes);
+	if (GPS_isDateTimeValid()) {
+		trace_printf("GPS time success: %02d:%02d:%02d\n", GPSTime.time.hours, GPSTime.time.minutes, GPSTime.time.seconds);
 		return 1;
 	} else {
 		trace_printf("GPS wait for timelock: FAIL\n");
@@ -119,14 +121,15 @@ boolean GPS_waitForPosition(uint32_t maxTime) {
 	do {
 		GPS_getData();
 		flashNumSatellites(GPSStatus.numberOfSatellites);
-		timer_sleep(150);
+		timer_sleep(100);
 	} while (!GPS_isPositionValid() && !timer_elapsed(maxTime));
-	GPIOB->ODR &= ~GPIO_Pin_6;
+	LED_PORT->ODR &= ~LED_PORTBIT;
 	GPS_getData();
 	if (GPS_isPositionValid()) {
 		trace_printf("Got GPS position: %d, %d, %d\n",
 				(int) (GPSPosition.lat * 1.0E7),
-				(int) (GPSPosition.lon * 1.0E7), (int) GPSPosition.alt);
+				(int) (GPSPosition.lon * 1.0E7),
+				(int) GPSPosition.alt);
 	} else {
 		trace_printf(
 				"GPS wait for position FAIL: valid:%c, fixMode:%u numSats:%u\n",
@@ -137,10 +140,12 @@ boolean GPS_waitForPosition(uint32_t maxTime) {
 }
 
 static void GPS_debugGPSPosition() {
+#ifdef TRACE_GPS
 	trace_printf("GPS pos: lat %d, lon %d, alt %d, valid %c, fix %d, sat %d\n",
 			(int) (GPSPosition.lat * 1000), (int) (GPSPosition.lon * 1000),
 			(int) (GPSPosition.alt), GPSPosition.valid, GPSStatus.fixMode,
 			GPSStatus.numberOfSatellites);
+#endif
 }
 
 boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
@@ -151,7 +156,7 @@ boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 	do {
 		GPS_getData();
 		flashNumSatellites(GPSStatus.numberOfSatellites);
-		timer_sleep(150);
+		timer_sleep(100);
 		debugPrintCnt++;
 		if (debugPrintCnt == 10) {
 			debugPrintCnt = 0;
@@ -161,9 +166,9 @@ boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 			|| (GPS_numberOfSatellites() < REQUIRE_HIGH_PRECISION_NUM_SATS)
 			|| (REQUIRE_HIGH_PRECISION_ALTITUDE && GPSPosition.alt == 0)
 			|| GPSStatus.fixMode < REQUIRE_HIGH_PRECISION_FIXLEVEL)
-			&& !(timeout = timer_elapsed(maxTime)) && timer_sleep(200));
+			&& !(timeout = timer_elapsed(maxTime)) && timer_sleep(100));
 
-	GPIOB->ODR &= ~GPIO_Pin_6;
+	LED_PORT->ODR &= ~LED_PORTBIT;
 	GPS_getData();
 	GPS_debugGPSPosition();
 
@@ -174,7 +179,7 @@ boolean GPS_waitForPrecisionPosition(uint32_t maxTime) {
 				== lastOdometeredPositionCheck) {
 			// valid
 			double latFactor = cos(GPSPosition.lat * 0.01745329251994); // convert to radians
-			float dist = (GPSPosition.lat - lastOdometeredPosition.lat)
+			double dist = (GPSPosition.lat - lastOdometeredPosition.lat)
 					* (GPSPosition.lat - lastOdometeredPosition.lat);
 			dist += (GPSPosition.lon - lastOdometeredPosition.lon)
 					* (GPSPosition.lon - lastOdometeredPosition.lon)
