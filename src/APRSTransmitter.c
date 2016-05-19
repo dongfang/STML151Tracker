@@ -31,7 +31,7 @@ static void APRS_initDirectHFTransmission(uint32_t frequency, uint32_t reference
 
 const APRSTransmission_t APRS_TRANSMISSIONS[] = { { 
 		.modulationMode = AFSK,
-		.modulationAmplitude = 400,
+		.modulationAmplitude = APRS_FM_DEVIATION_2m,
 		.txDelay = 16,
 		 .initTransmitter = APRS_initDirectVHFTransmission,
 		 .shutdownTransmitter = APRS_endDirectTransmission },

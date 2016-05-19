@@ -328,7 +328,7 @@ void radioCycle() {
 	}
 
 	wsprCounter++;
-	trace_printf("WSPRCounter %d\n", wsprCounter);
+	trace_printf("Cycles until WSPR %d\n", WSPR_DIVIDER - wsprCounter);
 	if (wsprCounter >= WSPR_DIVIDER) {
 		wsprCounter = 0;
 		doWSPR();
@@ -413,7 +413,6 @@ void wakeupCycle() {
 }
 
 void HFGroundCalibration() {
-#if defined (TRACE) && MODE == GROUNDTEST
 	//performUnloadedPowerADC();
 
 // just to be sure we didn't enable this for a flight build.
@@ -425,7 +424,6 @@ void HFGroundCalibration() {
 	printTrimmingCalibrationTable();
 	while (1)
 	doWSPR();
-#endif
 }
 
 void PLLTest() {
@@ -475,8 +473,10 @@ int main() {
 
 	RTC_init();
 
+#if defined (TRACE) && MODE == GROUNDTEST
 	// PLLTest();
-	// HFGroundCalibration();
+    HFGroundCalibration();
+#endif
 
 	// Wake up every day at same time, just in case the interval timer failed.
 	RTC_scheduleDailyEvent();

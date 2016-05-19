@@ -36,6 +36,8 @@ enum {
 	GPGLL	// Lat/Lon data
 } messagesParsed;
 
+#define GPS_CONF_RESEND_INTERVAL 5000
+
 static uint8_t dataindex;
 static uint8_t commaindex;
 static uint8_t state;
@@ -167,8 +169,9 @@ void USART1_IRQHandler(void) {
 	if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET) // Received characters modify string
 			{
 		uint16_t rxd = USART_ReceiveData(USART1);
-		if (DEBUG_GPS_DATA)
+#ifdef TRACE_GPS_DATA
 			trace_putchar(rxd);
+#endif
 		nmea_parse(rxd);
 	}
 }
@@ -509,7 +512,8 @@ void parseGPGSV(char c) {
 // Ignore GSV
 	if (c == ',') {
 		commaindex++;
-		if (DEBUG_GPS_SNR && commaindex >= 5 && (commaindex-5) % 4 == 0) {
+#ifdef TRACE_GPS_SNR
+		if commaindex >= 5 && (commaindex-5) % 4 == 0) {
 			// between SV number and elevation data
 				trace_putchar(':');
 		}
@@ -517,6 +521,7 @@ void parseGPGSV(char c) {
 			// Before SV number
 			trace_putchar('\n');
 		}
+#endif
 	} else {
 		switch (commaindex) {
 		case 1:
@@ -530,9 +535,9 @@ void parseGPGSV(char c) {
 		case 16:
 		case 20:
 		// PRN number;
-			if (DEBUG_GPS_SNR) {
+#ifdef TRACE_GPS_SNR
 				trace_putchar(c);
-			}
+#endif
 			break;
 		case 5:
 		case 13:
@@ -551,9 +556,9 @@ void parseGPGSV(char c) {
 		case 19:
 		case 23:
 		// SNR
-			if (DEBUG_GPS_SNR) {
+#ifdef TRACE_GPS_SNR
 				trace_putchar(c);
-			}
+#endif
 			break;
 		}
 	}
@@ -619,7 +624,8 @@ static char id[5];
 uint8_t nmea_parse(char c) {
 	static char sentence;
 	static uint8_t checksum;
-	//trace_printf("GPS state %d, in %d\n", state, c);
+
+	// trace_printf("GPS state %d, in %d\n", state, c);
 	switch (state) {
 	case STATE_IDLE:
 		if (c == '$') {
@@ -632,7 +638,7 @@ uint8_t nmea_parse(char c) {
 
 		// trigger sending a message, until confirmed.
 		if (!navSettingsConfirmed && !busySendingMessage
-				&& systemTimeMillis >= lastSendConfigurationTime + 1000) {
+				&& systemTimeMillis >= lastSendConfigurationTime + GPS_CONF_RESEND_INTERVAL) {
 			ackedClassId = 0;
 			ackedMessageId = 0; // clear any prior acknowledge.
 			beginSendUBXMessage(&INIT_NAV_MESSAGE);
@@ -786,7 +792,7 @@ void GPS_getData() {
 
 void GPS_powerOn() {
 	// Reset the message sending
-	lastSendConfigurationTime = systemTimeMillis;
+	lastSendConfigurationTime = systemTimeMillis - GPS_CONF_RESEND_INTERVAL;
 	currentSendingIndex = 0;
 	busySendingMessage = false;
 	navSettingsConfirmed = false;

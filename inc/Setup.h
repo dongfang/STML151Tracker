@@ -38,7 +38,7 @@ extern const AX25_Address_t APRS_DIGI1;
 extern const AX25_Address_t APRS_DIGI2;
 
 // we are without a regulator right now
-#define ABSOLUTE_MIN_VBATT 2.9
+#define ABSOLUTE_MIN_VBATT 3.0
 #define LOW_VBATT 3.5
 // When battery and temperature are both at least this good,
 // ignore old records of CPU fail while running equipment.
@@ -58,9 +58,6 @@ extern const AX25_Address_t APRS_DIGI2;
 // Since HF packet is just a joke, don't spend much energy on that.
 #define HF_PACKET_DIVIDER 7
 
-// WSPR once every n radio cycles.
-#define WSPR_DIVIDER 3
-
 // Max time to wait for GPS acquisition.
 #define POSITION_MAX_TIME_S 200
 
@@ -71,6 +68,8 @@ extern const AX25_Address_t APRS_DIGI2;
 #define REQUIRE_HIGH_PRECISION_MAX_TIME_S 300
 
 #if MODE==GROUNDTEST
+// WSPR once every n radio cycles.
+#define WSPR_DIVIDER 1
 #define __LOWALTSCHEDULE_SECONDS 30
 #define __DAYSCHEDULE_SECONDS 30
 #define __NIGHTSCHEDULE_SECONDS 30
@@ -80,6 +79,8 @@ extern const AX25_Address_t APRS_DIGI2;
 #define SIMPLE_BROWNOUT_WAIT_MINUTES 1
 
 #else
+// WSPR once every n radio cycles.
+#define WSPR_DIVIDER 3
 #define __LOWALTSCHEDULE_SECONDS 120
 #define __DAYSCHEDULE_SECONDS 180
 #define __NIGHTSCHEDULE_SECONDS 900

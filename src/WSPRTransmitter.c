@@ -21,6 +21,7 @@ static volatile float symbolModulation;
 static volatile int16_t symbolNumber;
 static uint8_t symbolNumberChangeDetect;
 extern uint8_t getWSPRSymbol(uint8_t i);
+static long startTime;
 
 void setWSPR_DAC(uint8_t symbol) {
 	uint16_t dacData = (uint16_t)(
@@ -34,11 +35,13 @@ void TIM2_IRQHandler(void) {
 	if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET) {
 		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
 		if (symbolNumber < 162) {
-			symbolNumber++;
 			uint8_t symbol = getWSPRSymbol(symbolNumber);
+			trace_printf("wspr symbol #%d %d\n", symbolNumber, systemTimeMillis - startTime);
 			setWSPR_DAC(symbol);
 			trace_putchar('0' +  symbol);
 		}
+		// We just assume there is no prob with overflowing... should be impossible.
+		symbolNumber++;
 	}
 }
 
@@ -51,19 +54,11 @@ uint8_t WSPRDidUpdate() {
 }
 
 boolean WSPREnded() {
-	// 0 is 1st
-	// 161 is beginning of 162th
-	// 162 is end of 162th
-	return symbolNumber >= 162;
-}
-
-static void WSPR_shutdownHW() {
-	HF_shutdownDriver();
-	DAC_Cmd(DAC_Channel_2, DISABLE);
-	TIM_ITConfig(TIM2, TIM_IT_Update, DISABLE);
-	TIM_Cmd(TIM2, DISABLE);
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, DISABLE);
-	PLL_shutdown();
+	// 1 is is beginning of 1st
+	// 2 is end of 1st
+	// 162 is beginning of 162th
+	// 163 is end of 162th
+	return symbolNumber == 163;
 }
 
 static void WSPR_initHW(
@@ -79,11 +74,15 @@ static void WSPR_initHW(
 	setWSPR_DAC(getWSPRSymbol(0));
 	// Set the osc to play the 0th symbol but without arming the tx
 	setPLL((CDCE913_OutputMode_t) HF_30m_HARDWARE_OUTPUT, setting);
-	// and do that for 1.5 sec.
-	timer_sleep(1500);
+
+	// and do that for 1.75 sec (apparently we are always ahead!)
+	startTime = systemTimeMillis;
+	trace_printf("wspr pll start using powerlevel %d at systime %d\n", power, startTime);
+	timer_sleep(1750);
 
 	// Enable driver.
 	HF_enableDriver(power);
+	trace_printf("wspr powerup after %d\n", systemTimeMillis - startTime);
 
 	/* Periph clocks enable */
 	// RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
@@ -110,14 +109,26 @@ static void WSPR_initHW(
 	// We have some funny problem with a slow discharge somewhere in the modulator
 	// which causes a ramping drift of a few Hz in WSPR.
 	// Tie GPIO4 to ground, just to get rid of it.
+	// -- didn't help.
+	/*
 	GPIO_InitTypeDef GPIO_InitStructure;
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIOA->ODR &= ~(GPIO_Pin_4);
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
-
+	*/
 	TIM_Cmd(TIM2, ENABLE);
+}
+
+static void WSPR_shutdownHW() {
+	trace_printf("wspr shutdown after %d\n", systemTimeMillis - startTime);
+	HF_shutdownDriver();
+	PLL_shutdown();
+	DAC_Cmd(DAC_Channel_2, DISABLE);
+	TIM_ITConfig(TIM2, TIM_IT_Update, DISABLE);
+	TIM_Cmd(TIM2, DISABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, DISABLE);
 }
 
 void WSPR_Transmit(
@@ -136,6 +147,7 @@ void WSPR_Transmit(
 
 	LED_PORT->ODR &= ~LED_PORTBIT;	// Turn off LED.
 
+	trace_printf("\n");
 	WSPR_shutdownHW();
 }
 
