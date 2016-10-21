@@ -78,7 +78,7 @@ static uint8_t ackedClassId;
 static uint8_t ackedMessageId;
 static uint32_t lastSendConfigurationTime;
 
-static boolean navSettingsConfirmed;
+static volatile boolean navSettingsConfirmed;
 
 static void continueSendingUBXMessage() {
 	if (currentSendingIndex == -2) {
@@ -634,6 +634,9 @@ uint8_t nmea_parse(char c) {
 			checksum = 0;
 		} else if (c == 0xb5) {
 			state = STATE_READ_BINARY_UBX_SYNC_2;
+#ifdef TRACE_GPS
+			trace_printf("UBX sync2 received\n");
+#endif
 		}
 
 		// trigger sending a message, until confirmed.
@@ -743,6 +746,9 @@ uint8_t nmea_parse(char c) {
 		break;
 	case STATE_READ_BINARY_UBX_MSG_LEN2:
 		readBodyLength += (c << 8);
+#ifdef TRACE_GPS
+			trace_printf("UBX response is class %d msg %d length %d\n", readClassId, readMessageId, readBodyLength);
+#endif
 		readBodyCnt = 0;
 		state = STATE_READ_BINARY_UBX_MSG_BODY;
 		break;
@@ -797,7 +803,12 @@ void GPS_powerOn() {
 	busySendingMessage = false;
 	navSettingsConfirmed = false;
 	setupUSART1();
+
+	// 3.3 V on.
+	// GPIOB->ODR |= GPIO_Pin_1;
+	// GPS transistor control
 	GPIOA->ODR &= ~GPIO_Pin_0;
+
 	state = STATE_IDLE;
 }
 

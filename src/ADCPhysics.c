@@ -16,6 +16,7 @@
 #include "ADC.h"
 #include <diag/trace.h>
 #include <math.h>
+#include "LED.h"
 
 static float _adcFactor;
 static float _VDDa;
@@ -23,6 +24,7 @@ static float _VDDa;
 void ADC_ensureVDDMeasured() {
 	if (_VDDa != 0)
 		return;
+
 	ADC_measurement_blocking(ADC_MEASUREMENT_VDD);
 
 	float sampleSum = 0;
@@ -37,7 +39,7 @@ void ADC_ensureVDDMeasured() {
 	uint16_t* refintCal = (uint16_t*) 0x1FF80078;
 	float VDDa = 3.0 * (*refintCal) / sampleSum;
 
-	trace_printf("VDDa %d mv\n", (int) (VDDa * 1000));
+	trace_printf("VDDa %d mV\n", (int) (VDDa * 1000));
 
 	_VDDa = VDDa;
 	_adcFactor = VDDa / 4096;
@@ -53,7 +55,11 @@ void ADC_ensureVDDMeasured() {
  */
 
 float PHY_internalTemperature() {
+
+	// TODO maybe this needs not be done soooooo often.
+	volatile int i;
 	ADC_measurement_blocking(ADC_MEASUREMENT_TEMPERATURE);
+
 	uint16_t* cal30Ptr = (uint16_t*) 0x1FF8007A;
 	uint16_t* cal110Ptr = (uint16_t*) 0x1FF8007E;
 	float sampleSum = 0;
@@ -72,16 +78,20 @@ float PHY_internalTemperature() {
 	return temperature;
 }
 
-float PHY_batteryUnloadedVoltage() {
-	return ADCUnloadedPowerValues[0] * BATT_ADC_FACTOR * _adcFactor;
+float PHY_batteryBeforeLoadVoltage() {
+	return ADCBeforeLoadPowerValues[0] * BATT_ADC_FACTOR * _adcFactor;
 }
 
-float PHY_batteryLoadedVoltage() {
-	return ADCLoadedPowerValues[0] * BATT_ADC_FACTOR * _adcFactor;
+float PHY_batteryAfterGPSVoltage() {
+	return ADCAfterGPSPowerValues[0] * BATT_ADC_FACTOR * _adcFactor;
+}
+
+float PHY_batteryAfterHFVoltage() {
+	return ADCAfterHFPowerValues[0] * BATT_ADC_FACTOR * _adcFactor;
 }
 
 float PHY_solarVoltage() {
-	return ADCUnloadedPowerValues[1] * _adcFactor;
+	return ADCBeforeLoadPowerValues[1] * _adcFactor;
 }
 
 #endif

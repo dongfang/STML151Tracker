@@ -362,7 +362,6 @@ void setDAC(DACChannel_t channel, uint16_t value) {
 		DAC_SetChannel1Data(DAC_Align_12b_R, value);
 		DAC_SoftwareTriggerCmd(DAC_Channel_1, ENABLE);
 		break;
-		break;
 	case DAC2:
 		DAC_SetChannel2Data(DAC_Align_12b_R, value);
 		DAC_SoftwareTriggerCmd(DAC_Channel_2, ENABLE);

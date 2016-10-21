@@ -8,6 +8,8 @@
 #ifndef INC_LED_H_
 #define INC_LED_H_
 
+#include <stm32l1xx_gpio.h>
+
 typedef enum {
 	GPS_ACQUISITION,
 	GPS_NO_DATA_RECEIVED_ERROR,

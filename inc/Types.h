@@ -53,4 +53,11 @@ typedef enum {
 	OUTSIDE_CORE_ZONE
 } CoreZoneStatus_t;
 
+// An AX.25 address.
+typedef struct {
+	const char* callsign;
+	uint8_t ssid;
+} AX25_Address_t;
+
+
 #endif /* INC_TYPES_H_ */

@@ -13,9 +13,10 @@
 #include "Globals.h"
 #include "Systick.h"
 #include "LED.h"
+#include "RTC.h"
+#include "Power.h"
 #include <diag/Trace.h>
 #include "PLL.h"
-#include "HFDriver.h"
 
 static volatile float symbolModulation;
 static volatile int16_t symbolNumber;
@@ -23,10 +24,11 @@ static uint8_t symbolNumberChangeDetect;
 extern uint8_t getWSPRSymbol(uint8_t i);
 static long startTime;
 
-void setWSPR_DAC(uint8_t symbol) {
+uint16_t setWSPR_DAC(uint8_t symbol) {
 	uint16_t dacData = (uint16_t)(
 			symbol * symbolModulation + 2048 - 1.5 * symbolModulation + 0.5);
 	setDAC(DAC2, dacData);
+	return dacData;
 }
 
 // WSPR DAC interrupt handler.
@@ -36,13 +38,14 @@ void TIM2_IRQHandler(void) {
 		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
 		if (symbolNumber < 162) {
 			uint8_t symbol = getWSPRSymbol(symbolNumber);
-			trace_printf("wspr symbol #%d %d\n", symbolNumber, systemTimeMillis - startTime);
-			setWSPR_DAC(symbol);
+			uint16_t dac = setWSPR_DAC(symbol);
+			// trace_printf("wspr #%d %d : %c DAC %d\n", symbolNumber, systemTimeMillis - startTime, ('0' +  symbol), dac);
 			trace_putchar('0' +  symbol);
 		}
 		// We just assume there is no prob with overflowing... should be impossible.
 		symbolNumber++;
 	}
+	// trace_printf("\n");
 }
 
 uint8_t WSPRDidUpdate() {
@@ -61,11 +64,10 @@ boolean WSPREnded() {
 	return symbolNumber == 163;
 }
 
-static void WSPR_initHW(
+static void WSPR_initPLL(
 		uint8_t band,
 		const PLL_Setting_t* setting,
-		float _symbolModulation,
-		HF_POWER_LEVEL power) {
+		float _symbolModulation) {
 
 	// Start a little early, because the osc takes some time to get a steady freq.
 	symbolNumber = 0;
@@ -74,15 +76,14 @@ static void WSPR_initHW(
 	setWSPR_DAC(getWSPRSymbol(0));
 	// Set the osc to play the 0th symbol but without arming the tx
 	setPLL((CDCE913_OutputMode_t) HF_30m_HARDWARE_OUTPUT, setting);
+}
 
-	// and do that for 1.75 sec (apparently we are always ahead!)
-	startTime = systemTimeMillis;
-	trace_printf("wspr pll start using powerlevel %d at systime %d\n", power, startTime);
-	timer_sleep(1750);
-
+static void WSPR_startTransmission() {
 	// Enable driver.
-	HF_enableDriver(power);
-	trace_printf("wspr powerup after %d\n", systemTimeMillis - startTime);
+	HF_enableDriver(HF_power());
+
+	startTime = systemTimeMillis;
+	trace_printf("wspr powerup\n");
 
 	/* Periph clocks enable */
 	// RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
@@ -110,14 +111,15 @@ static void WSPR_initHW(
 	// which causes a ramping drift of a few Hz in WSPR.
 	// Tie GPIO4 to ground, just to get rid of it.
 	// -- didn't help.
-	/*
+	// Issue was probably caused by a CDCE913 supply voltage drift.
+
 	GPIO_InitTypeDef GPIO_InitStructure;
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIOA->ODR &= ~(GPIO_Pin_4);
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
-	*/
+
 	TIM_Cmd(TIM2, ENABLE);
 }
 
@@ -136,7 +138,13 @@ void WSPR_Transmit(
 		const PLL_Setting_t* setting,
 		float symbolModulation) {
 
-	WSPR_initHW(band, setting, symbolModulation, HF_power());
+	trace_printf("Waiting for WSPR window\n");
+	lastWSPRWindowWaitTime = RTC_waitTillModuloMinutes(2, 0);
+	// Start PLL early to let drift settle
+	WSPR_initPLL(band, setting, symbolModulation);
+	timer_sleep(1000);
+	WSPR_startTransmission();
+	trace_printf("WSPR started\n");
 
 	while (!WSPREnded()) {
 		if (WSPRDidUpdate()) {

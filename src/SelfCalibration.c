@@ -420,7 +420,7 @@ void printTrimmingCalibrationTable() {
 	trace_printf("\n");
 }
 
-boolean HSECalibration(uint32_t maxTime, uint32_t* result) {
+static boolean HSECalibration(uint32_t maxTime, uint32_t* result) {
 	TIM10Calibration_initHW();
 	TIM10Calibration_reset();
 
@@ -533,10 +533,9 @@ void selfCalibrateForWSPR(uint32_t fSys) {
 	uint32_t oscillatorFrequencyMeasured;
 	const SelfCalibrationConfig_t* settings = &WSPR_MODULATION_SELF_CALIBRATION;
 
-	trace_printf("WSPR Self-cal with HSE=%lu, trim=%d, osc=%lu, DAC %c\n",
+	trace_printf("WSPR Self-cal with HSE=%lu, trim=%d, DAC %c\n",
 			fSys,
 			PLL_PREFERRED_TRIM_VALUE,
-			oscillatorFrequencyMeasured,
 			(settings->DACChannel == DAC1 ? '1' : '2'));
 
 	// Waste one run.

@@ -29,7 +29,17 @@
 #include "PLL.h"
 #include "Power.h"
 #include "Globals.h"
+#include "Setup.h"
 #include "StabilizedOscillator.h"
+
+const AX25_Address_t APRS_APSTM1_DEST = {"APSTM1",0};
+
+const AX25_Address_t APRS_DEST = {"APRS",0};
+const AX25_Address_t MY_ADDRESS = {APRS_CALL,MY_APRS_SSID};
+const AX25_Address_t APRS_DIGI1 = {"",0};
+const AX25_Address_t APRS_DIGI2 = {"",0};
+
+const char WSPR_CALLSIGN[] = WSPR_CALL;
 
 // Module functions
 static float meters_to_feet(float m) {
@@ -221,10 +231,16 @@ void APRS_marshallStatusMessage(
 	statusMessageValue('b', batteryVoltage, temp);
 	ax25_send_string(temp);
 
-	statusMessageValue('l', PHY_batteryLoadedVoltage(), temp);
+	statusMessageValue('s', solarVoltage, temp);
 	ax25_send_string(temp);
 
-	const CalibrationRecord_t* cal = getCalibration(simpleTemperature, false);
+	statusMessageValue('g', PHY_batteryAfterGPSVoltage(), temp);
+	ax25_send_string(temp);
+
+	statusMessageValue('h', PHY_batteryAfterHFVoltage(), temp);
+	ax25_send_string(temp);
+
+	const CalibrationRecord_t* cal = getCalibration(simpleTemperature);
 	int32_t freqError = cal->transmitterOscillatorFrequencyAtDefaultTrim - PLL_XTAL_DEFAULT_FREQUENCY;
 	sprintf(temp, ",o%ld", freqError);
 	ax25_send_string(temp);

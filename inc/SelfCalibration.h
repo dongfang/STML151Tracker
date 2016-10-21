@@ -53,7 +53,7 @@ boolean selfCalibrateTrimming(
 /*
  * Find HSE frequency (using GPS 1PPM signal)
  */
-boolean HSECalibration(uint32_t maxTime, uint32_t* result);
+// boolean HSECalibration(uint32_t maxTime, uint32_t* result);
 
 /*
  * Find RTC period (count number of HSE cycles in a RTC second)

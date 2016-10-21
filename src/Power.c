@@ -9,38 +9,24 @@
 #include "Power.h"
 #include "Setup.h"
 #include "Globals.h"
+#include "stm32l1xx.h"
+#include "Globals.h"
 
 boolean isDaytimePower() {
-	return batteryVoltage >= BATTERY_FAILSAFE_ALWAYS_SAFE_VOLTAGE
-			// && temperature >= BATTERY_FAILSAFE_ALWAYS_SAFE_TEMPERATURE;
-			&& solarVoltage >= BATTERY_FAILSAFE_ALWAYS_SAFE_SOLAR_VOLTAGE;
+	return batteryVoltage >= DAY_MODE_VOLTAGE
+			&& solarVoltage >= DAY_MODE_SOLAR_VOLTAGE;
 }
 
 boolean PWR_isSafeToUseDevice(E_DEVICE device) {
-#if defined(SIMPLE_BROWNOUT_MODE)
-	// Do not use a device log. Just make an xx hours sleep penalty after any reset.
-	// Therefore, the device log test here never has any objections.
+	switch (device) {
+	case E_DEVICE_GPS:
+		return batteryVoltage >= 3.7;
+	case E_DEVICE_HF_TX:
+		return batteryVoltage >= 3.8;
+	case E_DEVICE_VHF_TX:
+		return batteryVoltage >= 2.75;
+	}
 	return true;
-#else
-	// If conditions are must-be-good, accept.
-	if (isDaytimePower())
-		return true;
-
-	// No history means no objections.
-	if (!checkStartupRecordValid(device))
-		return true;
-
-	// Might have crashed, but now voltage or temperature is significantly better.
-	if ((batteryVoltage
-			>= startupLog[device].initialVoltage
-					+ BATTERY_FAILSAFE_VOLTAGE_DELTA)
-			|| (simpleTemperature
-					>= startupLog[device].initialTemperature
-							+ BATTERY_FAILSAFE_TEMPERATURE_DELTA))
-		return true;
-
-	return !startupLog[device].wasDeviceRunning;
-#endif
 }
 
 void PWR_startDevice(E_DEVICE device) {
@@ -55,4 +41,35 @@ void PWR_stopDevice(E_DEVICE device) {
 	startupLog[device].wasDeviceRunning = false;
 	startupLog[device].wasDeviceSuccesful = true;
 	setStartupRecordChecksum(device);
+}
+
+HF_POWER_LEVEL HF_power() {
+	HF_POWER_LEVEL power;
+	if (batteryVoltage >= 4.2)
+		power = FOUR_DRIVERS;
+	else if (batteryVoltage >= 4)
+		power = TWO_DRIVERS;
+	else
+		power = ONE_DRIVER;
+	return power;
+}
+
+void HF_enableDriver(HF_POWER_LEVEL power) {
+	GPIOB->ODR &= ~GPIO_Pin_14; // botch transistor
+	switch (power) {
+	case FOUR_DRIVERS:
+		GPIOB->ODR |= GPIO_Pin_6;
+		// no break here!
+	case TWO_DRIVERS:
+		GPIOB->ODR |= GPIO_Pin_4;
+		// no break here!
+	case ONE_DRIVER:
+		GPIOB->ODR |= GPIO_Pin_5;
+		// no break here!
+	}
+}
+
+void HF_shutdownDriver() {
+	GPIOB->ODR &= ~(GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6);
+	GPIOB->ODR |= GPIO_Pin_14;
 }

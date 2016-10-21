@@ -16,16 +16,18 @@
 //#define ADC_FACTOR (VCC / 4096)
 
 typedef enum {
-	ADC_MEASUREMENT_POWER_UNLOADED,
-	ADC_MEASUREMENT_POWER_LOADED,
+	ADC_MEASUREMENT_POWER_BEFORELOAD,
+	ADC_MEASUREMENT_POWER_AFTERGPS,
+	ADC_MEASUREMENT_POWER_AFTERHF,
 	ADC_MEASUREMENT_VDD,
 	ADC_MEASUREMENT_TEMPERATURE
 } ADC_MEASUREMENT_t;
 
 // VBatt, VSolar
 #define NUM_ADC_POWER_VALUES 2
-extern volatile uint16_t ADCUnloadedPowerValues[NUM_ADC_POWER_VALUES];
-extern volatile uint16_t ADCLoadedPowerValues[NUM_ADC_POWER_VALUES];
+extern volatile uint16_t ADCBeforeLoadPowerValues[NUM_ADC_POWER_VALUES];
+extern volatile uint16_t ADCAfterGPSPowerValues[NUM_ADC_POWER_VALUES];
+extern volatile uint16_t ADCAfterHFPowerValues[NUM_ADC_POWER_VALUES];
 
 // What-ever is needed for temperature measurement.
 // Depends if we use external temp. sensor (1 or 2 values) or internal (2 values).

@@ -107,6 +107,15 @@ float PHY_batteryLoadedVoltage() {
 	return voltage + (temperature - 20) * 0.01;
 }
 
+float PHY_batteryAfterGPSVoltage() {
+	return 1.0;
+}
+
+float PHY_batteryAfterHFVoltage() {
+	return 1.5;
+}
+
+
 #endif
 
 float PHY_solarVoltage() {

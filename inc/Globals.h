@@ -14,7 +14,6 @@
 
 extern float temperature;
 extern int8_t simpleTemperature;
-//extern float internalTemperature;
 extern float batteryVoltage;
 extern float solarVoltage;
 extern uint8_t numRestarts;

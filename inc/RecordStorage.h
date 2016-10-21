@@ -42,6 +42,7 @@ typedef struct {
 	float lon __attribute__ ((packed));;
 	uint16_t alt __attribute__ ((packed));
 	uint16_t compressedTime __attribute__ ((packed));
+	uint16_t seq;
 	uint8_t compressedBatteryVoltage;
 	uint8_t compressedSolarVoltage;
 	uint8_t simpleTemperature;
@@ -78,7 +79,6 @@ void storeToRecord(StoredPathRecord_t* record);
 //uint16_t compressDateHoursMinutes(uint8_t date, Time_t* time);
 // Uncompress and return date.
 uint8_t uncompressDateHoursMinutes(StoredPathRecord_t* record, Time_t* time);
-
 uint16_t uncompressBatteryVoltageTomV(StoredPathRecord_t* record);
 uint16_t uncompressSolarVoltageTomV(StoredPathRecord_t* record);
 // Not needed. Just use simpleTemperature.

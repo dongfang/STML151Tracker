@@ -4,6 +4,8 @@
 #include "Types.h"
 #include <stdint.h>
 
+//#define UBX_CONF_PORT_MESSAGE {0x06,0x00,1,0x00,0x00,0x00,
+
 #define UBX_POLL_NAV5_MESSAGE {0x06,0x24,0x00,0x00}
 #define UBX_INIT_NAV5_MESSAGE {0x06,0x24,0x24,0x00,0x05,0x00,/*mask allows setting of just the dynModel and fixmode*/\
 	6,3, /*dynModel 6 (airborne < 1g) and 2/3D fixmode*/\

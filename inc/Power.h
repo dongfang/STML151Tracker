@@ -26,4 +26,16 @@ void PWR_startDevice(E_DEVICE device);
 void PWR_stopDevice(E_DEVICE device);
 uint8_t PWR_numBrownouts(E_DEVICE device);
 
+typedef enum {
+	ONE_DRIVER,
+	TWO_DRIVERS,
+	FOUR_DRIVERS
+} HF_POWER_LEVEL;
+
+void PLL_enablePower();
+void PLL_shutdownPower();
+
+HF_POWER_LEVEL HF_power();
+void HF_enableDriver(HF_POWER_LEVEL power);
+void HF_shutdownDriver();
 #endif /* INC_POWER_H_ */

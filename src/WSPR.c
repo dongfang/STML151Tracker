@@ -76,10 +76,9 @@ static uint8_t encodePower(uint8_t power) {
 }
 
 static void encodeType1Message(const char* maidenhead4, uint8_t power) {
-
 	char myPaddedCall[7];
-	strcpy(myPaddedCall, MY_ADDRESS.callsign);
-	for (uint8_t i = strlen(MY_ADDRESS.callsign); i < 6; i++)
+	strcpy(myPaddedCall, WSPR_CALLSIGN);
+	for (uint8_t i = strlen(WSPR_CALLSIGN); i < 6; i++)
 		myPaddedCall[i] = ' ';
 
 	uint32_t N = encodeCallsign(myPaddedCall) << 4;
@@ -117,7 +116,7 @@ static void encodeType3Message(const char* maidenhead6, int8_t power) {
 	uint32_t n1 = encodeCallsign(rotatedMaidenhead);
 	n1 = n1<<4;
 
-	uint32_t n2 = hash(MY_ADDRESS.callsign, strlen(MY_ADDRESS.callsign));
+	uint32_t n2 = hash(WSPR_CALLSIGN, strlen(WSPR_CALLSIGN));
 
 	//trace_printf("Power initially %d\n",power);
 	if (power > 60)
@@ -415,12 +414,12 @@ static uint8_t fake_dBm(float voltage) {
 	// All others cause failure to report position or something, in WSPR program.
 	static const uint8_t powerLevels[] =
 	{0, 3, 7, 10, 13, 17, 20, 23, 27, 30, 33, 37};
-	// 10 (0.01W)= 3 .. 3.3
-	// 13 (0.02W)= 3.3 .. 3.6
-	// 17 (0.05W)= 3.6 .. 3.9
-	// 20 (0.1W) = 3.9 .. 4.2
-	// 23 (0.2W) = 4.2 .. 4.5
-	int8_t index = (voltage - 3) * 3.33333333 + 3;
+	// 10 (0.01W)= 3   .. 3.9
+	// 13 (0.02W)= 3.9 .. 4.0
+	// 17 (0.05W)= 4.0 .. 4.1
+	// 20 (0.1W) = 4.1 .. 4.2
+	// 23 (0.2W) = 4.2 ..
+	int8_t index = (voltage - 3.8) * 10;
 	if (index < 0) return 0;
 	if (index >= sizeof(powerLevels)) return 37;
 	return powerLevels[index];

@@ -8,8 +8,6 @@
 #ifndef CDCE913_H_
 #define CDCE913_H_
 
-#include "Types.h"
-#include "Setup.h"
 #include <stdint.h>
 
 #define CDCE913_SELFCALIBRATION_DIVISION 1000

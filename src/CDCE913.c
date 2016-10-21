@@ -254,11 +254,11 @@ extern boolean I2C1_writeByte(uint8_t DeviceAddress, uint8_t registerAddress, ui
 extern uint8_t I2C1_readByte(uint8_t deviceAddress, uint8_t registerAddress);
 
 void CDCE913_initInterfaceIfNecessary() {
-	//if (!(GPIOB->ODR & GPIO_Pin_5)) {
-		//GPIOB->ODR |= GPIO_Pin_5;
-		//timer_sleep(1);
+//	if (!(GPIOA->ODR & GPIO_Pin_2)) {
+//		GPIOA->ODR |= GPIO_Pin_2; // turn on 3v3 reg
+//		timer_sleep(5);
 		I2C1_GPIO_Config();
-	// }
+//	}
 }
 
 uint8_t I2C_read(uint8_t registerAddress) {
@@ -349,8 +349,8 @@ void PLL_shutdown() {
 	CDCE913_initInterfaceIfNecessary();
 	CDCE913_enableOutput(CDCE913_OutputMode_SHUTDOWN, 0);
 
-	timer_sleep(1);
-	// GPIOB->ODR &= ~GPIO_Pin_5;
+	// timer_sleep(1);
+	// GPIOA->ODR &= ~GPIO_Pin_2;
 	// timer_sleep(1);
 	// I2C_Cmd(I2C1, DISABLE);
 	// RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, DISABLE);
@@ -412,7 +412,7 @@ void setPQR(uint16_t N, uint16_t M, CDCE913_PLLSetting_t* result) {
 }
 
 boolean findM(int16_t N, double desiredMultiplication, uint16_t* M, double* signedError) {
-	// desiredMultiplication = Fvco/Fin = N/M
+	// desiredMultiplication = N/M
 	// M = N/desiredMultiplication
 	int16_t Mlo = N / desiredMultiplication;
 	// yeah Mhi will be wrong in case of an exact division.
@@ -421,23 +421,25 @@ boolean findM(int16_t N, double desiredMultiplication, uint16_t* M, double* sign
 	int16_t Mhi = Mlo + 1;
 
 	if (Mlo > 0 && Mlo < 512) {
-		// Err = (N/M) / desired
-		// = N / (M * desired)
+		// Err = (N/M) / desired - 1
+		// = N / (M * desired) - 1
+		// Mlo is too low (never too high) so the error should be > 0
 		double loError = (double) N / (Mlo * desiredMultiplication) - 1;
-		double unsignedLoError = (loError < 0) ? -loError : loError;
+		// if (loError <0) trace_printf("SURPRISE!! loError < 0!\n");
 
 		if (Mhi < 512) {
-			// trace_printf("FindM 2\n");
+			// Mhi is too high (never too low) so the error should be < 0
 		    double hiError = (double) N / (Mhi * desiredMultiplication) - 1;
-			double unsignedHiError = (hiError < 0) ? -hiError : hiError;
-			if (unsignedHiError < unsignedLoError) {
-				*signedError = unsignedHiError;
+			// if (hiError >0) trace_printf("SURPRISE!! hiError > 0!\n");
+
+			if (loError > -hiError) {
+				*signedError = hiError;
 				*M = Mhi;
-				//trace_printf("Took hi M with error %d\n", (int)(hiError*1E7));
+				// trace_printf("Took hi M with error %d\n", (int)(hiError*1E7));
 			} else {
-				*signedError = unsignedLoError;
+				*signedError = loError;
 				*M = Mlo;
-				//trace_printf("Took lo M with error %d\n",  (int)(loError*1E7));
+				// trace_printf("Took lo M with error %d\n",  (int)(loError*1E7));
 			}
 		}
 
@@ -453,8 +455,7 @@ int8_t PLL_bestTrim(double desiredTrim) {
 	int32_t bestError = 1500;
 	int8_t bestIndex = -1;
 
-	for (uint8_t i = PLL_MIN_TRIM_INDEX_VALUE; i <= PLL_MAX_TRIM_INDEX_VALUE;
-			i++) {
+	for (uint8_t i = PLL_MIN_TRIM_INDEX_VALUE; i <= PLL_MAX_TRIM_INDEX_VALUE; i++) {
 		int32_t test = desiredPP10M - PLL_XTAL_TRIM_PP10M[i];
 		if (test < 0)
 			test = -test;
@@ -464,11 +465,6 @@ int8_t PLL_bestTrim(double desiredTrim) {
 		}
 	}
 
-	/*
-	trace_printf("Trim desired change pp10m: %d and got %d\n",
-			desiredPP10M,
-			bestIndex == -1 ? -1 : PLL_XTAL_TRIM_PP10M[bestIndex]);
-*/
 	return bestIndex;
 }
 
@@ -477,8 +473,7 @@ boolean PLL_bestPLLSetting(
 		uint32_t desiredFrequency,
 		double maxError,
 		CDCE913_PLLSetting_t* result) {
-	trace_printf("bestPLLSetting: %d %d\n", oscillatorFrequency,
-			desiredFrequency);
+	// trace_printf("bestPLLSetting: %d %d\n", oscillatorFrequency, desiredFrequency);
 
 	// okay the rounding is off if somebody wants 100MHz. But nobody wants that.
 	int Pdivmin = 100E6 / (double) desiredFrequency + 1;
@@ -495,6 +490,7 @@ boolean PLL_bestPLLSetting(
 		if (Nmax > 4095) {
 			Nmax = 4095;
 		}
+
 		// trace_printf("Trying Pdiv : %d, N from 1 to %d\n", Pdiv, Nmax);
 		uint16_t M;
 		// Just cut it short as we get within decent trim range, which is about +-30ppm
@@ -503,7 +499,7 @@ boolean PLL_bestPLLSetting(
 			double unsignedError;
 			if (findM(N, desiredMultiplication, &M, &signedError)) {
 				unsignedError = signedError < 0 ? -signedError : signedError;
-				// trace_printf("N: %d, US %d S %d\n", N, (int)(unsignedError*1000), (int)(signedError*1000));
+				// trace_printf("N: %d, M: %d, US: %d S: %d\n", N, M, (int)(unsignedError*1E7), (int)(signedError*1E7));
 				if (unsignedError < bestError) {
 					bestError = unsignedError;
 					// trace_printf("Best N:%d,M:%d, error pp10M:%u\n", N, M, (int) (signedError * 1E7));
@@ -512,17 +508,18 @@ boolean PLL_bestPLLSetting(
 					result->M = M;
 					setPQR(N, M, result);
 
+					// If we divided too much (freq too low), signedError is negative. We need add a little speed on the trim.
+					// Opposite for dividing too little.
 					int8_t trim = PLL_bestTrim(-signedError);
 					// trace_printf("SignedError PPM: %d, trim:%d\n", (int)(signedError * 1E6), trim);
 
 					if (trim != -1) {
-						/*
-						 trace_printf("desired:%d, real:%d, error:%d, trim: %d\n",
+						 /*trace_printf("desired:%d, real:%d, error:%d, trim: %d\n",
 						 (int) (desiredMultiplication * 1E7),
 						 (int) (1E7 * (double) N / (double) M),
 						 (int) (signedError * 1E7),
 						 trim);
-						*/
+*/
 						result->trim = trim;
 						feasible = true;
 					}

@@ -15,13 +15,16 @@
 #include <stm32l1xx_gpio.h>
 #include <stm32l1xx_pwr.h>
 #include <stm32l1xx_rcc.h>
+#include <diag/Trace.h>
+#include "LED.h"
 
 /* Private define ------------------------------------------------------------*/
 #define ADC1_DR_ADDRESS    ((uint32_t)0x40012458)
 
 /* Private variables ---------------------------------------------------------*/
-volatile uint16_t ADCUnloadedPowerValues[NUM_ADC_POWER_VALUES];
-volatile uint16_t ADCLoadedPowerValues[NUM_ADC_POWER_VALUES];
+volatile uint16_t ADCBeforeLoadPowerValues[NUM_ADC_POWER_VALUES];
+volatile uint16_t ADCAfterGPSPowerValues[NUM_ADC_POWER_VALUES];
+volatile uint16_t ADCAfterHFPowerValues[NUM_ADC_POWER_VALUES];
 volatile uint16_t ADCTemperatureValues[NUM_ADC_TEMPERATURE_VALUES];
 volatile uint16_t ADC_VDDValues[NUM_ADC_VDD_VALUES];
 
@@ -35,13 +38,17 @@ void ADC_DMA_init(ADC_MEASUREMENT_t measurement) {
 	volatile uint16_t* targetBuffer;
 
 	switch (measurement) {
-	case ADC_MEASUREMENT_POWER_UNLOADED:
+	case ADC_MEASUREMENT_POWER_BEFORELOAD:
 		numConversions = NUM_ADC_POWER_VALUES;
-		targetBuffer = ADCUnloadedPowerValues;
+		targetBuffer = ADCBeforeLoadPowerValues;
 		break;
-	case ADC_MEASUREMENT_POWER_LOADED:
+	case ADC_MEASUREMENT_POWER_AFTERGPS:
 		numConversions = NUM_ADC_POWER_VALUES;
-		targetBuffer = ADCLoadedPowerValues;
+		targetBuffer = ADCAfterGPSPowerValues;
+		break;
+	case ADC_MEASUREMENT_POWER_AFTERHF:
+		numConversions = NUM_ADC_POWER_VALUES;
+		targetBuffer = ADCAfterHFPowerValues;
 		break;
 	case ADC_MEASUREMENT_TEMPERATURE:
 		numConversions = NUM_ADC_TEMPERATURE_VALUES;
@@ -56,19 +63,20 @@ void ADC_DMA_init(ADC_MEASUREMENT_t measurement) {
 	/*----------------- ADC1 configuration with DMA enabled --------------------*/
 	ADC_TempSensorVrefintCmd(ENABLE);
 
-	/* Enable the HSI oscillator. ADC runs on that (only). */
+	/* Enable the HSI oscillator. ADC runs on that (only) on the L151. */
 	RCC_HSICmd(ENABLE);
 
 	GPIO_InitTypeDef GPIO_InitStructure;
 	// 6: Solar volt, 7: Batt volt, 2: Temperature
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7 | GPIO_Pin_2;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
 
 	/* Check that HSI oscillator is ready */
-	while (RCC_GetFlagStatus(RCC_FLAG_HSIRDY) == RESET)
-		;
+	while (RCC_GetFlagStatus(RCC_FLAG_HSIRDY) == RESET) {
+		trace_printf("HSI dead?\n");
+	}
 
 	/* Enable ADC1 clock */
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
@@ -123,12 +131,13 @@ void ADC_DMA_init(ADC_MEASUREMENT_t measurement) {
 	ADC_InitStructure.ADC_ScanConvMode = ENABLE;
 	ADC_InitStructure.ADC_NbrOfConversion = numConversions;
 
-	// ADC_Cmd(ADC1, DISABLE);
+    ADC_Cmd(ADC1, DISABLE);
 	ADC_Init(ADC1, &ADC_InitStructure);
 
 	switch (measurement) {
-	case ADC_MEASUREMENT_POWER_UNLOADED:
-	case ADC_MEASUREMENT_POWER_LOADED:
+	case ADC_MEASUREMENT_POWER_BEFORELOAD:
+	case ADC_MEASUREMENT_POWER_AFTERGPS:
+	case ADC_MEASUREMENT_POWER_AFTERHF:
 		ADC_RegularChannelConfig(ADC1, ADC_Channel_7, 1,
 		ADC_SampleTime_48Cycles); // Batt
 		ADC_RegularChannelConfig(ADC1, ADC_Channel_6, 2,
@@ -162,16 +171,18 @@ void ADC_DMA_init(ADC_MEASUREMENT_t measurement) {
 }
 
 void ADC_measurement_blocking(ADC_MEASUREMENT_t measurement) {
+// Danger, this requires that there is an interrupt to have us recover from the sleep!
+	//while (!ADC_DMA_Complete) {
+	//	PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
+	//}
 	ADC_DMA_init(measurement);
 
-// Danger, this requires that there is an interrupt to have us recover from the sleep!
 	while (!ADC_DMA_Complete) {
 		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
 	}
 
 	ADC_DMA_shutdown();
 }
-
 
 void ADC_DMA_shutdown() {
 	ADC_TempSensorVrefintCmd(DISABLE);

@@ -124,9 +124,12 @@ int RTC_waitTillModuloMinutes(uint8_t modulo, uint8_t seconds) {
 		RTC_GetTime(RTC_Format_BIN, &rtcTime);
 		_minutes = rtcTime.RTC_Minutes;
 		_seconds = rtcTime.RTC_Seconds;
+		// trace_printf("%d %d\n", _minutes * 60 + _seconds, systemTimeMillis);
 	} while ((seconds != _seconds || (_minutes % modulo) != 0) && timer_sleep(250));
-
-	return RTC_timeDiff_s(&rtcTime, &rtcFirstTime);
+	//trace_printf("Finished waiting\n");
+	int r = RTC_timeDiff_s(&rtcTime, &rtcFirstTime);
+	//trace_printf("Done\n");
+	return r;
 }
 
 boolean RTC_setRTC(Date_t* date, Time_t* time) {

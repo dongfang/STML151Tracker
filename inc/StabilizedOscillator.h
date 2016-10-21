@@ -17,14 +17,14 @@
  */
 
 #define NUM_TEMPERATURE_RANGES 11
-// #define TEMPERATURE_RANGES {-54,-42,-30,-18,-6,6,18,30};
 #define TEMPERATURE_RANGES {-60,-50,-40,-30,-20,-10,0,10,20,30,40}
 extern const int8_t temperatureRanges[NUM_TEMPERATURE_RANGES];
 extern CalibrationRecord_t calibrationByTemperatureRanges[NUM_TEMPERATURE_RANGES];
 
 extern const CalibrationRecord_t defaultCalibration;
 
-const CalibrationRecord_t* getCalibration(int8_t temperature, boolean doAttemptCalibrate);
+void calibrate(int8_t temperature);
+const CalibrationRecord_t* getCalibration(int8_t temperature);
 
 /* No longer used. We just calculate locally.
 void bestStoredPLLSetting(

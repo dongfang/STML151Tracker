@@ -1,13 +1,12 @@
-#include <inttypes.h>
-#include "GPS.h"
-#include "RTC.h"
-#include "Globals.h"
-#include "Power.h"
-#include "systick.h"
-#include "LED.h"
 #include <diag/Trace.h>
-#include "stm32l1xx.h"
+#include <GPS.h>
+#include <LED.h>
 #include <math.h>
+#include <Power.h>
+#include <RTC.h>
+#include <stm32l1xx.h>
+#include <Setup.h>
+#include <Systick.h>
 
 NMEA_TimeInfo_t GPSTime;
 uint8_t GPSDate;
@@ -44,8 +43,7 @@ void onNewGPSData() {
 		if (GPSPosition.alt != 0) {
 			lastNonzero3DPosition = GPSPosition;
 
-			int timeSinceLastAltitude = timeAfter_seconds(&lastAltitudeTime,
-					&GPSTime.time);
+			int timeSinceLastAltitude = timeAfter_seconds(&lastAltitudeTime, &GPSTime.time);
 			if (timeSinceLastAltitude >= 120) {
 				lastAltitudeTime = GPSTime.time;
 				float dAltitude = GPSPosition.alt - lastAltitude;

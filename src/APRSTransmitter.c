@@ -18,7 +18,6 @@
 #include "Systick.h"
 #include "IndividualBoard.h"
 #include "LED.h"
-#include "HFDriver.h"
 #include <diag/trace.h>
 
 volatile APRSModulationMode_t currentMode;
@@ -46,7 +45,7 @@ void APRS_initSi4463Transmission(
 		uint32_t referenceFrequency) {
 	PLL_setXOPassthroughMode(PLL_PREFERRED_TRIM_VALUE);
 	RF24_initHW();
-	uint8_t power = isDaytimePower() ? SI4463_DAYTIME_TX_POWER : SI4463_NIGHTTIME_TX_POWER;
+	uint8_t power = 100;// isDaytimePower() ? SI4463_DAYTIME_TX_POWER : SI4463_NIGHTTIME_TX_POWER;
 	RF24_transmit(frequency, power);
 }
 
@@ -133,6 +132,7 @@ static void _APRS_transmitMessage(
 		break;
 	}
 
+	GPIOB->ODR |= GPIO_Pin_1; // 3.3V on.
 	LED_PORT->ODR |= LED_PORTBIT; // LED
 
 	mode->initTransmitter(frequency, referenceFrequency);
@@ -141,7 +141,7 @@ static void _APRS_transmitMessage(
 	packet_cnt = 0;
 	packetTransmissionComplete = false;
 
-	ADC_DMA_init(ADC_MEASUREMENT_POWER_LOADED); 	// Experiment: Loaded voltages measurement.
+	// ADC_DMA_init(ADC_MEASUREMENT_POWER_LOADED); 	// Experiment: Loaded voltages measurement.
 
 	while (!packetTransmissionComplete) {
 		PWR_EnterSleepMode(PWR_Regulator_ON, PWR_SLEEPEntry_WFI);
@@ -157,7 +157,7 @@ static void _APRS_transmitMessage(
 
 	LED_PORT->ODR &= ~(LED_PORTBIT);	// LED off
 
-	ADC_DMA_shutdown(); // we just assume it will work, if not, no prob.
+	// ADC_DMA_shutdown(); // we just assume it will work, if not, no prob.
 
 	switch (band) {
 	case VHF:
