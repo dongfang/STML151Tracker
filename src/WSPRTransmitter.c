@@ -142,7 +142,7 @@ void WSPR_Transmit(
 	lastWSPRWindowWaitTime = RTC_waitTillModuloMinutes(2, 0);
 	// Start PLL early to let drift settle
 	WSPR_initPLL(band, setting, symbolModulation);
-	timer_sleep(1000);
+	timer_sleep(1800);
 	WSPR_startTransmission();
 	trace_printf("WSPR started\n");
 

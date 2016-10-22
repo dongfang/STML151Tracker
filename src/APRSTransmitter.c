@@ -58,14 +58,14 @@ void APRS_endSi4463Transmission() {
 void APRS_makeDirectTransmissionFrequency(
 		uint32_t frequency,
 		uint32_t referenceFrequency,
-		uint8_t output) {
+		CDCE913_OutputMode_t output) {
 	PLL_Setting_t pllSetting;
 	double maxError = 30E-6;
 	if (PLL_bestPLLSetting(referenceFrequency, frequency, maxError,
 			&pllSetting)) {
 		trace_printf("Using N=%d, M=%d, trim=%d\n", pllSetting.N, pllSetting.M,
 				pllSetting.trim);
-		setPLL((CDCE913_OutputMode_t) output, &pllSetting);
+		setPLL(output, &pllSetting);
 	} else {
 		trace_printf("Was not able to find a setting (weird)\n");
 	}

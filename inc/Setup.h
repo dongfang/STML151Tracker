@@ -9,10 +9,11 @@
 #define SRC_SETUP_H_
 
 #include <stdint.h>
+#include "CDCE913.h"
 
-#define WSPR_CALL  "OZ1ZOR"
-#define APRS_CALL "HB9FDK"
-#define MY_APRS_SSID 1
+#define WSPR_CALL "VR2UIF"
+#define APRS_CALL "VR2UIF"
+#define MY_APRS_SSID 15
 
 #define FLIGHT 1
 #define GROUNDTEST 2
@@ -34,7 +35,7 @@ extern const char WSPR_CALLSIGN[];
 // Development only! Whether we want to defeat the Power.c checks so that we can reset...
 #define DEFEAT_VOLTAGE_CHECKS false
 
-#define RTC_WAKEUP_PERIOD_S 240
+#define RTC_WAKEUP_PERIOD_S 180
 
 // Experimental: If a reset occurs (even initial power-up reset, d'uh!), wait for
 // SIMPLE_BROWNOUT_WAIT_MINUTES before doing any GPS or radio stuff.
@@ -68,13 +69,13 @@ extern const char WSPR_CALLSIGN[];
 // #define WSPR_CYCLES 1
 #define __LOWALTSCHEDULE_CYCLES 1
 #define __DAYSCHEDULE_CYCLES 1
-#define __NIGHTSCHEDULE_CYCLES 20
+#define __NIGHTSCHEDULE_CYCLES 10
 #define __LOWBATTSCHEDULE_CYCLES 5
 #define __CRISISSCHEDULE_CYCLES 20
 // 1h
 #define __STORAGE_INTERVAL_SECONDS 3600
 // if brownout, wait until doing anything requiring power
-#define SIMPLE_BROWNOUT_WAIT_CYCLES 8
+#define SIMPLE_BROWNOUT_WAIT_CYCLES 5
 #endif
 
 #define SIMPLE_BROWNOUT_PERIODS (SIMPLE_BROWNOUT_WAIT_CYCLES)
@@ -94,8 +95,8 @@ extern const char WSPR_CALLSIGN[];
 // VHF each x
 #define CRISIS_SCHEDULE_TIME 'c', (__CRISISSCHEDULE_CYCLES)
 
-#define DIRECT_2m_HARDWARE_OUTPUT 3
-#define HF_30m_HARDWARE_OUTPUT 2
+#define DIRECT_2m_HARDWARE_OUTPUT CDCE913_OutputMode_OUTPUT_3
+#define HF_30m_HARDWARE_OUTPUT CDCE913_OutputMode_OUTPUT_2
 
 // When CPU failed runing some equipment, don't try again until
 // battery voltage is this much better than at the crashing run.

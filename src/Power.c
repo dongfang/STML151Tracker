@@ -20,11 +20,11 @@ boolean isDaytimePower() {
 boolean PWR_isSafeToUseDevice(E_DEVICE device) {
 	switch (device) {
 	case E_DEVICE_GPS:
-		return batteryVoltage >= 3.7;
-	case E_DEVICE_HF_TX:
 		return batteryVoltage >= 3.8;
+	case E_DEVICE_HF_TX:
+		return batteryVoltage >= 3.9;
 	case E_DEVICE_VHF_TX:
-		return batteryVoltage >= 2.75;
+		return batteryVoltage >= 2.8;
 	}
 	return true;
 }

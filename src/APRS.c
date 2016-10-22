@@ -240,6 +240,9 @@ void APRS_marshallStatusMessage(
 	statusMessageValue('h', PHY_batteryAfterHFVoltage(), temp);
 	ax25_send_string(temp);
 
+	statusMessageValue('t', temperature, temp);
+	ax25_send_string(temp);
+
 	const CalibrationRecord_t* cal = getCalibration(simpleTemperature);
 	int32_t freqError = cal->transmitterOscillatorFrequencyAtDefaultTrim - PLL_XTAL_DEFAULT_FREQUENCY;
 	sprintf(temp, ",o%ld", freqError);
