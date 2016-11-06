@@ -41,10 +41,11 @@ void calibrate(int8_t temperature) {
 	uint8_t index = getIndex(temperature);
 
 	trace_printf("Calibrating...\n");
-	selfCalibrate(&tempRecord);
-	// Commit the new calibration.
-	tempRecord.checksum = checksum(&tempRecord);
-	calibrationByTemperatureRanges[index] = tempRecord;
+	if (selfCalibrate(&tempRecord)) {
+		// Commit the new calibration.
+		tempRecord.checksum = checksum(&tempRecord);
+		calibrationByTemperatureRanges[index] = tempRecord;
+	}
 }
 
 const CalibrationRecord_t* getCalibration(int8_t temperature) {

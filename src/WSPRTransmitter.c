@@ -65,7 +65,7 @@ boolean WSPREnded() {
 }
 
 static void WSPR_initPLL(
-		uint8_t band,
+		WSPRBand_t band,
 		const PLL_Setting_t* setting,
 		float _symbolModulation) {
 
@@ -75,7 +75,7 @@ static void WSPR_initPLL(
 	DAC2_initHW();
 	setWSPR_DAC(getWSPRSymbol(0));
 	// Set the osc to play the 0th symbol but without arming the tx
-	setPLL((CDCE913_OutputMode_t) HF_30m_HARDWARE_OUTPUT, setting);
+	setPLL(HF_30m_HARDWARE_OUTPUT, setting);
 }
 
 static void WSPR_startTransmission() {
@@ -134,7 +134,7 @@ static void WSPR_shutdownHW() {
 }
 
 void WSPR_Transmit(
-		uint8_t band,
+		WSPRBand_t band,
 		const PLL_Setting_t* setting,
 		float symbolModulation) {
 
@@ -142,7 +142,7 @@ void WSPR_Transmit(
 	lastWSPRWindowWaitTime = RTC_waitTillModuloMinutes(2, 0);
 	// Start PLL early to let drift settle
 	WSPR_initPLL(band, setting, symbolModulation);
-	timer_sleep(1800);
+	timer_sleep(2250);
 	WSPR_startTransmission();
 	trace_printf("WSPR started\n");
 

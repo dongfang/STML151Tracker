@@ -95,8 +95,7 @@ void initGeneralIOPorts() {
 	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
 
 	// 0: LED, 1: 3V3 enable, 4,5,6: HF driver enables, 14: ballast
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_4
-			| GPIO_Pin_5 | GPIO_Pin_6;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6;
 
 	// GPIOB stuff: Slow
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
@@ -255,8 +254,9 @@ void doWSPR() {
 	PLL_Setting_t pllSetting;
 
 	double maxError = 10E-6;
-	while (maxError < 100E-6) {
+	// boolean foundSetting = false;
 
+	while (maxError < 100E-6) {
 		if (PLL_bestPLLSetting(
 				currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim,
 				WSPR_FREQUENCIES[THIRTY_M], maxError, &pllSetting)) {
@@ -265,33 +265,7 @@ void doWSPR() {
 					currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim,
 					pllSetting.N, pllSetting.M, pllSetting.trim, (int)(maxError*10E6));
 
-			uint8_t nextWSPRMessageType;
-
-			if (lastNonzero3DPosition.alt < LOWALT_THRESHOLD) {
-				if (nextWSPRMessageTypeIndex >= WSPR_LOWALT_SCHEDULE_LENGTH) {
-					nextWSPRMessageTypeIndex = 0;
-				}
-				nextWSPRMessageType =
-						WSPR_LOWALT_SCHEDULE[nextWSPRMessageTypeIndex];
-			} else {
-				if (nextWSPRMessageTypeIndex >= WSPR_SCHEDULE_LENGTH) {
-					nextWSPRMessageTypeIndex = 0;
-				}
-				nextWSPRMessageType = WSPR_SCHEDULE[nextWSPRMessageTypeIndex];
-			}
-
-			prepareWSPRMessage(nextWSPRMessageType, batteryVoltage);
-			nextWSPRMessageTypeIndex++;
-
-			PWR_startDevice(E_DEVICE_HF_TX);
-			WSPR_Transmit(THIRTY_M, &pllSetting, WSPR_DEVIATION_DAC_30m);
-			PWR_stopDevice(E_DEVICE_HF_TX);
-
-			// Recurse, do it again if we sent the rather uninformative TYPE1.
-			// if (nextWSPRMessageType == TYPE1) {
-			// 	doWSPR();
-			// }
-
+			// foundSetting = true;
 			break;
 		} else {
 			trace_printf(
@@ -299,6 +273,41 @@ void doWSPR() {
 			maxError += 25E-6;
 		}
 	}
+
+	/* this is not needed. getCalibration should return a default calibration if none is found.
+	if (!foundSetting) {
+		PLL_bestPLLSetting(
+				PLL_XTAL_DEFAULT_FREQUENCY,
+				WSPR_FREQUENCIES[THIRTY_M], 100E-6, &pllSetting);
+	}
+	*/
+
+	uint8_t nextWSPRMessageType;
+
+	if (lastNonzero3DPosition.alt < LOWALT_THRESHOLD) {
+		if (nextWSPRMessageTypeIndex >= WSPR_LOWALT_SCHEDULE_LENGTH) {
+			nextWSPRMessageTypeIndex = 0;
+		}
+		nextWSPRMessageType =
+				WSPR_LOWALT_SCHEDULE[nextWSPRMessageTypeIndex];
+	} else {
+		if (nextWSPRMessageTypeIndex >= WSPR_SCHEDULE_LENGTH) {
+			nextWSPRMessageTypeIndex = 0;
+		}
+		nextWSPRMessageType = WSPR_SCHEDULE[nextWSPRMessageTypeIndex];
+	}
+
+	prepareWSPRMessage(nextWSPRMessageType, batteryVoltage);
+	nextWSPRMessageTypeIndex++;
+
+	PWR_startDevice(E_DEVICE_HF_TX);
+	WSPR_Transmit(THIRTY_M, &pllSetting, WSPR_DEVIATION_DAC_30m);
+	PWR_stopDevice(E_DEVICE_HF_TX);
+
+	// Recurse, do it again if we sent the rather uninformative TYPE1.
+	// if (nextWSPRMessageType == TYPE1) {
+	// 	doWSPR();
+	// }
 }
 
 void HF_APRSCycle() {
@@ -438,13 +447,15 @@ void wakeupCycle() {
 	// Are we alive at all?
 	if (batteryVoltage >= ABSOLUTE_MIN_VBATT) {
 		// Are we in a very good shape?
-		if (isDaytimePower()) {
+		if (lastNonzero3DPosition.valid == 'A' &&
+				lastNonzero3DPosition.alt > 0
+				&& lastNonzero3DPosition.alt  <= LOWALT_THRESHOLD) {
+			reschedule(LOWALT_SCHEDULE_TIME);
+		} else if (isDaytime() && batteryVoltage >= DAY_MODE_VOLTAGE) {
 			reschedule(DAY_SCHEDULE_TIME);
-		} else if (batteryVoltage >= DAY_MODE_VOLTAGE) {
+		} else if (!isDaytime()) {
 			// battery was okay, so it has to be the solar insufficient...
 			reschedule(NIGHT_SCHEDULE_TIME);
-		} else {
-			reschedule(LOWBATT_SCHEDULE_TIME);
 		}
 
 		// Time to do main cycle? (the variables should have been set somewhere above, all of them)

@@ -11,7 +11,7 @@
 #include "Setup.h"
 #include <stdint.h>
 
-boolean isDaytimePower();
+boolean isDaytime();
 
 typedef enum {
 	E_DEVICE_GPS,
