@@ -12,14 +12,16 @@
 #include "stm32l1xx.h"
 #include "Globals.h"
 
+/*
 boolean isDaytime() {
 	return solarVoltage >= DAY_MODE_SOLAR_VOLTAGE;
 }
+*/
 
 boolean PWR_isSafeToUseDevice(E_DEVICE device) {
 	switch (device) {
 	case E_DEVICE_GPS:
-		return batteryVoltage >= 3.3;
+		return batteryVoltage >= 3.2;
 		/*
 		if (isDaytime())
 			return batteryVoltage >= 3.85;
@@ -27,7 +29,7 @@ boolean PWR_isSafeToUseDevice(E_DEVICE device) {
 			return batteryVoltage >= 3.2;
 			*/
 	case E_DEVICE_HF_TX:
-		return batteryVoltage >= 3.3;
+		return batteryVoltage >= 3.2;
 		/*
 		if (isDaytime())
 			return batteryVoltage >= 3.85;

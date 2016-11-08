@@ -248,14 +248,8 @@ void APRS_marshallStatusMessage(
 	sprintf(temp, ",o%ld", freqError);
 	ax25_send_string(temp);
 
-	char safe = (PWR_isSafeToUseDevice(E_DEVICE_GPS) ? 1 : 0)
-			+ (PWR_isSafeToUseDevice(E_DEVICE_HF_TX) ? 2 : 0)
-			+ (PWR_isSafeToUseDevice(E_DEVICE_VHF_TX) ? 4 : 0);
-	sprintf(temp, ",G%c,", '0' + safe);
+	sprintf(temp, ",m%u", wakeupPeriod);
 	ax25_send_string(temp);
-
-	ax25_send_byte('m');
-	ax25_send_byte(scheduleName);
 
 	ax25_end();
 

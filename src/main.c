@@ -31,11 +31,8 @@ uint8_t numRestarts __attribute__((section (".noinit")));
 boolean radioOrGPS; // false for radio, true for GPS.
 float batteryVoltage;
 float solarVoltage;
+uint16_t wakeupPeriod;
 
-char scheduleName = '-';
-uint16_t mainPeriodWakeupCycles;
-uint16_t mainPeriodCounter;
-uint16_t hfPacketCounter;
 boolean clockWasSet;
 
 boolean latestAPRSRegions[12]; 	 // 12 is sufficently large for the world map...
@@ -46,7 +43,7 @@ uint16_t lastWSPRWindowWaitTime;
 
 CoreZoneStatus_t coreZoneStatus = UNKNOWN_CORE_ZONE;
 
-boolean firstCycleAfterBoot = true;
+boolean notFreshlyBooted = false;
 
 const CalibrationRecord_t* currentCalibration = &defaultCalibration;
 
@@ -95,7 +92,8 @@ void initGeneralIOPorts() {
 	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
 
 	// 0: LED, 1: 3V3 enable, 4,5,6: HF driver enables, 14: ballast
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_4
+			| GPIO_Pin_5 | GPIO_Pin_6;
 
 	// GPIOB stuff: Slow
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
@@ -263,7 +261,8 @@ void doWSPR() {
 
 			trace_printf("Using fOsc=%d, N=%d, M=%d, trim=%d error=%d\n",
 					currentCalibration->transmitterOscillatorFrequencyAtDefaultTrim,
-					pllSetting.N, pllSetting.M, pllSetting.trim, (int)(maxError*10E6));
+					pllSetting.N, pllSetting.M, pllSetting.trim,
+					(int) (maxError * 10E6));
 
 			// foundSetting = true;
 			break;
@@ -274,22 +273,13 @@ void doWSPR() {
 		}
 	}
 
-	/* this is not needed. getCalibration should return a default calibration if none is found.
-	if (!foundSetting) {
-		PLL_bestPLLSetting(
-				PLL_XTAL_DEFAULT_FREQUENCY,
-				WSPR_FREQUENCIES[THIRTY_M], 100E-6, &pllSetting);
-	}
-	*/
-
 	uint8_t nextWSPRMessageType;
 
 	if (lastNonzero3DPosition.alt < LOWALT_THRESHOLD) {
 		if (nextWSPRMessageTypeIndex >= WSPR_LOWALT_SCHEDULE_LENGTH) {
 			nextWSPRMessageTypeIndex = 0;
 		}
-		nextWSPRMessageType =
-				WSPR_LOWALT_SCHEDULE[nextWSPRMessageTypeIndex];
+		nextWSPRMessageType = WSPR_LOWALT_SCHEDULE[nextWSPRMessageTypeIndex];
 	} else {
 		if (nextWSPRMessageTypeIndex >= WSPR_SCHEDULE_LENGTH) {
 			nextWSPRMessageTypeIndex = 0;
@@ -410,30 +400,40 @@ void VHF_APRSCycle() {
 }
 
 void HFRadioCycle() {
-	hfPacketCounter++;
-	if (hfPacketCounter >= HF_PACKET_DIVIDER) {
-		hfPacketCounter = 0;
-		HF_APRSCycle();
-	}
-
+	HF_APRSCycle();
 	doWSPR();
 	performAfterHFPowerADC();
 }
 
-void reschedule(char _scheduleName, uint8_t _mainPeriodWakeupCycles) {
-	if (_scheduleName != scheduleName) {
-		trace_printf("Rescheduling : %c\n", _scheduleName);
-
-		// If changing to a faster schedule, cut short the delay.
-		if (mainPeriodCounter > _mainPeriodWakeupCycles && scheduleName != '-') {
-			mainPeriodCounter = _mainPeriodWakeupCycles;
-		}
-	}
-	scheduleName = _scheduleName;
-	mainPeriodWakeupCycles = _mainPeriodWakeupCycles;
-}
-
 extern int SetSysClock(void);
+
+void reschedule() {
+	double simulatedVoltage = batteryVoltage + solarVoltage; // just to give it a boost when there is sunlight.
+	// This polynomial has the values
+	// 3600 for simulatedVoltage = 3.3
+	// 300 for simulatedVoltage = 4.2
+	// 100 for simulatedVoltage = 4.8
+	int32_t time;
+	/*
+	 if (simulatedVoltage <= 4.2) {
+	 time = (int32_t) (2222.222 * simulatedVoltage * simulatedVoltage
+	 - 20333.333 * simulatedVoltage + 46500);
+	 } else {
+	 // 2..10 min.
+	 time = 600 - (600 - 120) / (4.8 - 4.2) * (simulatedVoltage - 4.2);
+	 }
+	 */
+	time = (int32_t) (2168.98 / (simulatedVoltage - 2.82632) - 978.947);
+	trace_printf("Batt:%u, Sol: %u, mV:%u->s:%d\n",
+			(int) (batteryVoltage * 1000), (int) (solarVoltage * 1000),
+			(int) (simulatedVoltage * 1000), time);
+	if (time < 120)
+		time = 120;
+	else if (time > 3600)
+		time = 3600;
+	RTC_setWakeup(time);
+	wakeupPeriod = time;
+}
 
 void wakeupCycle() {
 	systick_start(); // TODO - check if this can be moved to inside below if.
@@ -446,67 +446,40 @@ void wakeupCycle() {
 
 	// Are we alive at all?
 	if (batteryVoltage >= ABSOLUTE_MIN_VBATT) {
-		// Are we in a very good shape?
-		if (lastNonzero3DPosition.valid == 'A' &&
-				lastNonzero3DPosition.alt > 0
-				&& lastNonzero3DPosition.alt  <= LOWALT_THRESHOLD) {
-			reschedule(LOWALT_SCHEDULE_TIME);
-		} else if (isDaytime() && batteryVoltage >= DAY_MODE_VOLTAGE) {
-			reschedule(DAY_SCHEDULE_TIME);
-		} else if (!isDaytime()) {
-			// battery was okay, so it has to be the solar insufficient...
-			reschedule(NIGHT_SCHEDULE_TIME);
-		}
-
-		// Time to do main cycle? (the variables should have been set somewhere above, all of them)
-		trace_printf("To go until main %d\n", mainPeriodCounter);
-
-		if (mainPeriodCounter == 0) {
-			mainPeriodCounter = mainPeriodWakeupCycles;
-
-			if (PWR_isSafeToUseDevice(E_DEVICE_VHF_TX)) {
-				// start the real HSE clock.
-				if (!SetSysClock()) {
-					trace_printf("SetSysClock() failed\n");
-				}
-
-				// And fire up periphs
-				RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
-				RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
-
-				if (firstCycleAfterBoot) {
-					VHF_APRSCycle();
-					firstCycleAfterBoot = false;
-				}
-
-				if (PWR_isSafeToUseDevice(E_DEVICE_GPS)) {
-					performTemperatureADC();
-
-					// do some radio work :)
-					if (radioOrGPS && clockWasSet) {
-						trace_printf("HF\n");
-						VHF_APRSCycle();
-						HFRadioCycle();
-					} else {
-						trace_printf("GPS\n");
-						GPSCycle();
-						VHF_APRSCycle();
-					}
-					radioOrGPS = !radioOrGPS;
-				}
-
-				RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, DISABLE);
-				RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, DISABLE);
-			} else {
-				trace_printf("Not enough volt to do anything interesting\n");
+		if (PWR_isSafeToUseDevice(E_DEVICE_VHF_TX)) {
+			// start the real HSE clock.
+			if (!SetSysClock()) {
+				trace_printf("SetSysClock() failed\n");
 			}
+
+			// And fire up periphs
+			RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+			RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+
+			if (PWR_isSafeToUseDevice(E_DEVICE_GPS)) {
+				performTemperatureADC();
+
+				// do some radio work :)
+				if (radioOrGPS && clockWasSet) {
+					trace_printf("HF\n");
+					VHF_APRSCycle();
+					HFRadioCycle();
+				} else {
+					trace_printf("GPS\n");
+					GPSCycle();
+					VHF_APRSCycle();
+				}
+				radioOrGPS = !radioOrGPS;
+			}
+
+			RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, DISABLE);
+			RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, DISABLE);
 		} else {
-			mainPeriodCounter--;
+			trace_printf("Not enough volt to do anything interesting\n");
 		}
 	} else { // we are below lowest safe battery voltage
 		trace_printf("Battery too low for main-stuff\n");
 		GPIOB->ODR &= ~GPIO_Pin_1; // cut off even backup power to GPS :(
-		reschedule(CRISIS_SCHEDULE_TIME);
 	}
 
 	systick_end();
@@ -555,24 +528,26 @@ int main() {
 	// Get rid of CDCEL913's default startup active.
 	PLL_shutdown();
 
-#if defined(SIMPLE_BROWNOUT_MODE)
-	mainPeriodCounter = SIMPLE_BROWNOUT_PERIODS;
-#endif
-
 	if (++numRestarts > 99)
 		numRestarts = 0;
 
 	// for debug only.
 #if defined(TRACE)
-	if (!SetSysClock()) {
-		trace_printf("SetSysClock() failed\n");
-	}
-
-	// TODO something in PLL_shutdown() depends on systick running (or else gets stuck), what is it?
-	// Something with timer_sleep() or similar.
 	systick_start();
 
+	if (!SetSysClock()) {
+//		trace_printf("SetSysClock() failed\n");
+
+		//while (1) {
+			LED_PORT->ODR |= LED_PORTBIT;
+			timer_sleep(100);
+			LED_PORT->ODR &= ~LED_PORTBIT;
+			timer_sleep(100);
+		//}
+	}
+
 	timer_sleep(3000);
+
 	trace_printf("start.\n");
 #endif
 
@@ -585,18 +560,16 @@ int main() {
 
 	// Wake up every day at same time, just in case the interval timer failed.
 	RTC_scheduleDailyEvent();
-	RTC_setWakeup(RTC_WAKEUP_PERIOD_S);
+
+	// RTC_setWakeup(RTC_WAKEUP_PERIOD_S);
+	wakeupPeriod = SIMPLE_BROWNOUT_SECONDS;
+	RTC_setWakeup(SIMPLE_BROWNOUT_SECONDS);
 
 	if (DEFEAT_VOLTAGE_CHECKS) {
 		invalidateStartupLogs();
 	}
 
-	// timer_sleep(10);
-	// trace_printf("survived!\n");
-
 	while (true != false) {
-		wakeupCycle();
-
 		// Prepare sleep. Clear any used-up RTC event out's.
 		// Really, both of these 2 steps were found to be needed. No monkeying.
 		PWR_RTCAccessCmd(ENABLE);
@@ -610,5 +583,21 @@ int main() {
 		// RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR, ENABLE);
 		// PWR_VoltageScalingConfig(PWR_VoltageScaling_Range2);
 		PWR_EnterSTOPMode(PWR_Regulator_LowPower, PWR_STOPEntry_WFE);
+
+		RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, DISABLE);
+		LED_PORT->ODR |= LED_PORTBIT;
+
+		wakeupCycle();
+		/*
+		 if (!notFreshlyBooted) {
+		 notFreshlyBooted = true;
+		 trace_printf("booted\n");
+		 RTC_setWakeup(SIMPLE_BROWNOUT_SECONDS);
+		 wakeupPeriod = SIMPLE_BROWNOUT_SECONDS;
+		 } else {
+		 trace_printf("cycled\n");
+		 wakeupCycle();
+		 }
+		 */
 	}
 }
